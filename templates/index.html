@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dental Pricing Calculator</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        @media print {
+            .sidebar, .header, .btn {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span style="font-size:2rem;">🦷</span>
+                    <span>Dental Calculator</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">Main</div>
+                <a href="#" class="nav-link active" onclick="APP.loadPage('dashboard')">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Dashboard</span>
+                </a>
+
+                <div class="nav-section">Configuration</div>
+                <a href="#" class="nav-link" onclick="APP.loadPage('settings')">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text">Settings</span>
+                </a>
+                <a href="#" class="nav-link" onclick="APP.loadPage('consumables')">
+                    <span class="nav-icon">📦</span>
+                    <span class="nav-text">Consumables</span>
+                </a>
+
+                <div class="nav-section">Services</div>
+                <a href="#" class="nav-link" onclick="APP.loadPage('services')">
+                    <span class="nav-icon">🦷</span>
+                    <span class="nav-text">Services</span>
+                </a>
+                <a href="#" class="nav-link" onclick="APP.loadPage('price-list')">
+                    <span class="nav-icon">💰</span>
+                    <span class="nav-text">Price List</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-menu">
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Admin User</div>
+                        <div class="user-role">Administrator</div>
+                    </div>
+                    <a href="/logout" class="btn btn-sm btn-ghost" title="Logout">🚪</a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="content-wrapper">
+                <div id="mainContent">
+                    <!-- Content loaded dynamically -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modals"></div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
