@@ -33,11 +33,33 @@ Where:
 git clone https://github.com/YOUR-USERNAME/DentalPricingCalculator.git
 cd DentalPricingCalculator
 pip install -r requirements.txt
+
+# Copy environment file
+cp .env.example .env
+
+# Start the app
 python app.py
 ```
 
 Open browser: http://localhost:5002
-Login: admin / 12345
+Login: **admin** / **12345**
+
+### ✨ Sample Data Included!
+
+The app comes with realistic dental clinic examples:
+- **12 Consumables**: Gloves, Anesthetics, Composite Materials, etc.
+- **10 Services**: Cleanings, Fillings, Root Canals, Extractions, etc.
+- **Configured Relationships**: Services pre-loaded with consumables
+
+To load sample data, ensure `.env` has:
+```
+CREATE_SAMPLE_DATA=True
+```
+
+To start fresh without examples:
+```
+CREATE_SAMPLE_DATA=False
+```
 
 ## 📊 Technical Stack
 
