@@ -738,7 +738,12 @@ def calculate_service_price(service_id, clinic_id):
         'currency': settings['currency'],
         'chair_hourly_rate': round(chair_hourly_rate, 2),
         'effective_hours': round(effective_hours, 2),
-        'current_price': service.get('current_price')
+        'current_price': service.get('current_price'),
+        # Breakdown of monthly fixed costs for chair rate calculation
+        'monthly_fixed_costs': round(total_fixed, 2),
+        'monthly_salaries': round(total_salaries, 2),
+        'monthly_depreciation': round(fixed_depreciation, 2),
+        'total_monthly_fixed': round(total_monthly_fixed, 2)
     }
 
 

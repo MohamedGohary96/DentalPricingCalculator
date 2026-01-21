@@ -1009,7 +1009,8 @@ const Pages = {
             const formData = Object.fromEntries(new FormData(e.target));
             formData.chair_time_hours = parseFloat(formData.chair_time_hours);
             formData.doctor_hourly_fee = parseFloat(formData.doctor_hourly_fee);
-            formData.use_default_profit = formData.use_default_profit ? 1 : 0;
+            // Checkbox is only in FormData when checked, so if it's undefined, it was unchecked
+            formData.use_default_profit = formData.use_default_profit === 'on' ? 1 : 0;
             if (formData.custom_profit_percent) {
                 formData.custom_profit_percent = parseFloat(formData.custom_profit_percent);
             }
@@ -1093,7 +1094,20 @@ const Pages = {
                 <div style="border-top:2px solid #667eea;padding-top:1rem;">
                     <h3 style="color:#667eea;">COST BREAKDOWN</h3>
                     <table style="width:100%;margin-top:1rem;">
-                        <tr><td>Chair Time Cost (${formatCurrency(price.chair_hourly_rate)}/hr)</td><td style="text-align:right;">${formatCurrency(price.chair_time_cost)}</td></tr>
+                        <tr>
+                            <td>
+                                Chair Time Cost (${formatCurrency(price.chair_hourly_rate)}/hr)
+                                <div style="font-size:0.7rem;color:#64748b;font-family:sans-serif;margin-top:0.5rem;background:#f1f5f9;padding:0.5rem;border-radius:6px;">
+                                    <div style="font-weight:600;margin-bottom:0.25rem;">💡 Chair Hourly Rate Breakdown:</div>
+                                    <div style="display:flex;justify-content:space-between;"><span>🏢 Fixed Costs (rent, utilities)</span><span>${formatCurrency(price.monthly_fixed_costs)}</span></div>
+                                    <div style="display:flex;justify-content:space-between;"><span>👥 Salaries</span><span>${formatCurrency(price.monthly_salaries)}</span></div>
+                                    <div style="display:flex;justify-content:space-between;"><span>🔧 Equipment Depreciation</span><span>${formatCurrency(price.monthly_depreciation)}</span></div>
+                                    <div style="display:flex;justify-content:space-between;border-top:1px dashed #cbd5e1;margin-top:0.25rem;padding-top:0.25rem;font-weight:600;"><span>Total Monthly</span><span>${formatCurrency(price.total_monthly_fixed)}</span></div>
+                                    <div style="margin-top:0.25rem;color:#667eea;font-weight:500;">÷ ${price.effective_hours.toFixed(0)} effective hours = ${formatCurrency(price.chair_hourly_rate)}/hr</div>
+                                </div>
+                            </td>
+                            <td style="text-align:right;vertical-align:top;">${formatCurrency(price.chair_time_cost)}</td>
+                        </tr>
                         <tr><td>Doctor Fee</td><td style="text-align:right;">${formatCurrency(price.doctor_fee)}</td></tr>
                         <tr><td>Equipment Cost</td><td style="text-align:right;">${formatCurrency(price.equipment_cost)}</td></tr>
                         <tr><td>Direct Materials</td><td style="text-align:right;">${formatCurrency(price.materials_cost)}</td></tr>
@@ -1139,6 +1153,88 @@ const Pages = {
         const priceList = await API.get('/api/price-list');
         const settings = await API.get('/api/settings/global');
 
+        // Calculate summary statistics
+        const servicesWithPrice = priceList.filter(p => p.current_price);
+        const underpriced = servicesWithPrice.filter(p => p.rounded_price > p.current_price);
+        const overpriced = servicesWithPrice.filter(p => p.rounded_price < p.current_price);
+        const optimal = servicesWithPrice.filter(p => Math.abs(p.rounded_price - p.current_price) <= p.current_price * 0.05);
+
+        // Calculate total potential revenue impact
+        const totalVariance = servicesWithPrice.reduce((sum, p) => sum + (p.rounded_price - p.current_price), 0);
+
+        // Helper function for variance display
+        const getVarianceDisplay = (p) => {
+            if (!p.current_price) return { html: '<span style="color:#94a3b8;">-</span>', status: 'none' };
+
+            const variance = p.rounded_price - p.current_price;
+            const variancePercent = ((variance / p.current_price) * 100).toFixed(0);
+            const absVariance = Math.abs(variance);
+            const absPercent = Math.abs(variancePercent);
+
+            if (absPercent <= 5) {
+                return {
+                    html: `<span style="background:#dcfce7;color:#15803d;padding:0.25rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:600;">✓ Optimal</span>`,
+                    status: 'optimal'
+                };
+            } else if (variance > 0) {
+                return {
+                    html: `<span style="background:#fef3c7;color:#b45309;padding:0.25rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:600;">⚠️ +${absPercent}%</span>
+                           <div style="font-size:0.7rem;color:#b45309;margin-top:0.25rem;">Undercharging ${formatCurrency(absVariance)}</div>`,
+                    status: 'underpriced'
+                };
+            } else {
+                return {
+                    html: `<span style="background:#dbeafe;color:#1d4ed8;padding:0.25rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:600;">💪 -${absPercent}%</span>
+                           <div style="font-size:0.7rem;color:#1d4ed8;margin-top:0.25rem;">Extra margin ${formatCurrency(absVariance)}</div>`,
+                    status: 'overpriced'
+                };
+            }
+        };
+
+        // Summary cards HTML
+        const summaryHtml = servicesWithPrice.length > 0 ? `
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
+                <div style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:1.25rem;border-radius:12px;text-align:center;">
+                    <div style="font-size:2rem;font-weight:700;">${servicesWithPrice.length}</div>
+                    <div style="font-size:0.875rem;opacity:0.9;">Services Tracked</div>
+                </div>
+                <div style="background:${underpriced.length > 0 ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#22c55e,#16a34a)'};color:white;padding:1.25rem;border-radius:12px;text-align:center;">
+                    <div style="font-size:2rem;font-weight:700;">${underpriced.length}</div>
+                    <div style="font-size:0.875rem;opacity:0.9;">${underpriced.length > 0 ? '⚠️ Underpriced' : '✓ None Underpriced'}</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#22c55e,#16a34a);color:white;padding:1.25rem;border-radius:12px;text-align:center;">
+                    <div style="font-size:2rem;font-weight:700;">${optimal.length}</div>
+                    <div style="font-size:0.875rem;opacity:0.9;">✓ Optimal Pricing</div>
+                </div>
+                <div style="background:${totalVariance > 0 ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#3b82f6,#2563eb)'};color:white;padding:1.25rem;border-radius:12px;text-align:center;">
+                    <div style="font-size:1.5rem;font-weight:700;">${totalVariance > 0 ? '+' : ''}${formatCurrency(totalVariance)}</div>
+                    <div style="font-size:0.875rem;opacity:0.9;">${totalVariance > 0 ? '💸 Lost Revenue' : '💰 Extra Margin'}</div>
+                </div>
+            </div>
+            ${underpriced.length > 0 ? `
+                <div style="background:linear-gradient(90deg,#fef3c7,#fde68a);border-left:4px solid #f59e0b;padding:1rem 1.25rem;border-radius:8px;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;">
+                    <span style="font-size:2rem;">💡</span>
+                    <div>
+                        <strong style="color:#b45309;">Pricing Opportunity Found!</strong>
+                        <p style="margin:0.25rem 0 0;color:#92400e;font-size:0.875rem;">
+                            You have ${underpriced.length} service${underpriced.length > 1 ? 's' : ''} priced below calculated cost.
+                            Adjusting could recover <strong>${formatCurrency(underpriced.reduce((sum, p) => sum + (p.rounded_price - p.current_price), 0))}</strong> per service rendered!
+                        </p>
+                    </div>
+                </div>
+            ` : `
+                <div style="background:linear-gradient(90deg,#dcfce7,#bbf7d0);border-left:4px solid #22c55e;padding:1rem 1.25rem;border-radius:8px;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;">
+                    <span style="font-size:2rem;">🏆</span>
+                    <div>
+                        <strong style="color:#15803d;">Excellent Pricing Strategy!</strong>
+                        <p style="margin:0.25rem 0 0;color:#166534;font-size:0.875rem;">
+                            All your services are priced at or above their calculated cost. Keep up the great work!
+                        </p>
+                    </div>
+                </div>
+            `}
+        ` : '';
+
         return `
             <div class="card" style="background:#d1fae5;border-color:#34d399;">
                 <div class="card-header" style="background:#a7f3d0;">
@@ -1150,9 +1246,11 @@ const Pages = {
                         Each price includes: Fixed costs (rent, salaries) + Service costs (chair time, doctor fee, equipment) +
                         Materials (consumables) + Your profit margin (${settings.default_profit_percent}%) + VAT (${settings.vat_percent}%)
                     </p>
-                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>You can print this list to share with staff or display in your clinic!</em></p>
+                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>💡 Add "Current Market Price" to your services to see variance analysis!</em></p>
                 </div>
             </div>
+
+            ${summaryHtml}
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
@@ -1165,24 +1263,26 @@ const Pages = {
                             <thead>
                                 <tr>
                                     <th>Service</th>
-                                    <th>Materials Cost</th>
                                     <th>Total Cost</th>
-                                    <th>Profit %</th>
-                                    <th>Final Price</th>
-                                    <th>Rounded</th>
+                                    <th>Profit</th>
+                                    <th>Calculated Price</th>
+                                    <th>Current Price</th>
+                                    <th>Variance</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${priceList.map(p => `
-                                    <tr>
+                                ${priceList.map(p => {
+                                    const variance = getVarianceDisplay(p);
+                                    return `
+                                    <tr style="${variance.status === 'underpriced' ? 'background:#fffbeb;' : ''}">
                                         <td><strong>${p.service_name}</strong></td>
-                                        <td>${formatCurrency(p.materials_cost)}</td>
                                         <td>${formatCurrency(p.total_cost)}</td>
                                         <td><span class="badge badge-success">${p.profit_percent}%</span></td>
-                                        <td>${formatCurrency(p.final_price)}</td>
-                                        <td><strong style="color:#667eea;">${formatCurrency(p.rounded_price, settings.currency)}</strong></td>
+                                        <td><strong style="color:#667eea;">${formatCurrency(p.rounded_price)}</strong></td>
+                                        <td>${p.current_price ? formatCurrency(p.current_price) : '<span style="color:#94a3b8;font-size:0.8rem;">Not set</span>'}</td>
+                                        <td>${variance.html}</td>
                                     </tr>
-                                `).join('')}
+                                `}).join('')}
                             </tbody>
                         </table>
                     ` : `
@@ -1192,6 +1292,34 @@ const Pages = {
                             <p>Add services to generate price list</p>
                         </div>
                     `}
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:1.5rem;background:#f0f9ff;border-color:#7dd3fc;">
+                <div class="card-header" style="background:#e0f2fe;">
+                    <h3 class="card-title">📊 Understanding Variance</h3>
+                </div>
+                <div class="card-body">
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
+                        <div style="text-align:center;padding:1rem;">
+                            <span style="background:#fef3c7;color:#b45309;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">⚠️ Underpriced</span>
+                            <p style="margin-top:0.75rem;font-size:0.875rem;color:var(--gray-600);">
+                                Your current price is <strong>below</strong> the calculated cost-plus price. You may be losing money!
+                            </p>
+                        </div>
+                        <div style="text-align:center;padding:1rem;">
+                            <span style="background:#dcfce7;color:#15803d;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">✓ Optimal</span>
+                            <p style="margin-top:0.75rem;font-size:0.875rem;color:var(--gray-600);">
+                                Your current price is within <strong>5%</strong> of the calculated price. Perfect balance!
+                            </p>
+                        </div>
+                        <div style="text-align:center;padding:1rem;">
+                            <span style="background:#dbeafe;color:#1d4ed8;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">💪 Extra Margin</span>
+                            <p style="margin-top:0.75rem;font-size:0.875rem;color:var(--gray-600);">
+                                Your current price is <strong>above</strong> calculated cost. Great margin, but check competitiveness!
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
