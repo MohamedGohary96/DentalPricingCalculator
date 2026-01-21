@@ -290,41 +290,78 @@ def create_sample_data():
         VALUES (1, 1, 24, 8, 80)
     ''')
 
-    # Consumables
+    # Consumables (item_name, pack_cost, cases_per_pack, units_per_case)
+    # Example: A pack costs 250, contains 10 boxes, each box has 50 units
     consumables = [
-        ('Bonding Bottle', 250, 50, 1),
-        ('Etch Syringe', 100, 20, 1),
-        ('Composite Compule', 80, 1, 1),
-        ('Gloves (Box)', 120, 50, 1),
-        ('Napkin/Gauze', 60, 100, 1),
-        ('Anesthetic Cartridge', 200, 50, 1),
-        ('Bur (Diamond)', 150, 10, 1),
+        ('Latex Gloves (Box)', 300, 10, 100),  # Pack of 10 boxes, 100 gloves per box
+        ('Anesthetic Cartridge (Lidocaine)', 400, 1, 50),  # 1 pack = 50 cartridges
+        ('Dental Composite Material', 500, 1, 20),  # 1 pack = 20 syringes
+        ('Bonding Agent Bottle', 250, 1, 50),  # 1 pack = 50 applications
+        ('Etching Gel Syringe', 150, 1, 30),  # 1 pack = 30 syringes
+        ('Cotton Rolls (Pack)', 80, 1, 200),  # 1 pack = 200 rolls
+        ('Gauze Sponges (Pack)', 120, 1, 100),  # 1 pack = 100 sponges
+        ('Suture Kit', 600, 1, 12),  # 1 pack = 12 kits
+        ('Dental Bur (Diamond)', 200, 1, 10),  # 1 pack = 10 burs
+        ('Temporary Filling Material', 180, 1, 30),  # 1 pack = 30 applications
+        ('Dental Floss (Spools)', 90, 1, 50),  # 1 pack = 50 spools
+        ('Disposable Bibs', 150, 1, 500),  # 1 pack = 500 bibs
     ]
     cursor.executemany('''
         INSERT INTO consumables (item_name, pack_cost, cases_per_pack, units_per_case)
         VALUES (?, ?, ?, ?)
     ''', consumables)
 
-    # Services
+    # Services (name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent)
     services = [
-        ('Composite Filling - Small', 0.5, 600, 1, None),
-        ('Composite Filling - Large', 1.0, 600, 1, None),
-        ('Root Canal Treatment - Molar', 2.0, 800, 1, None),
-        ('Scaling & Polishing', 1.0, 400, 1, None),
-        ('Simple Extraction', 0.5, 500, 1, None),
+        ('Dental Checkup & Cleaning', 0.75, 400, 1, None),
+        ('Composite Filling - Small Cavity', 0.5, 600, 1, None),
+        ('Composite Filling - Large Cavity', 1.0, 600, 1, None),
+        ('Root Canal Treatment - Single Root', 1.5, 800, 1, None),
+        ('Root Canal Treatment - Multi Root', 2.5, 800, 1, None),
+        ('Tooth Extraction - Simple', 0.5, 500, 1, None),
+        ('Tooth Extraction - Surgical', 1.0, 700, 1, None),
+        ('Dental Crown Preparation', 1.5, 700, 1, None),
+        ('Teeth Whitening', 1.0, 500, 1, None),
+        ('Deep Cleaning (Scaling & Root Planing)', 1.5, 500, 1, None),
     ]
     cursor.executemany('''
         INSERT INTO services (name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent)
         VALUES (?, ?, ?, ?, ?)
     ''', services)
 
-    # Service Consumables (Composite Filling - Small)
+    # Service Consumables Examples (service_id, consumable_id, quantity)
+    # Service 1: Dental Checkup & Cleaning
+    # Service 2: Composite Filling - Small
+    # Service 3: Composite Filling - Large
     service_consumables = [
-        (1, 1, 1),  # Bonding Bottle
-        (1, 2, 1),  # Etch Syringe
-        (1, 3, 1),  # Composite Compule
-        (1, 4, 2),  # Gloves
-        (1, 5, 3),  # Napkin/Gauze
+        # Dental Checkup & Cleaning (Service 1)
+        (1, 1, 2),   # 2 pairs of Latex Gloves
+        (1, 6, 10),  # 10 Cotton Rolls
+        (1, 7, 5),   # 5 Gauze Sponges
+        (1, 11, 1),  # 1 Dental Floss
+        (1, 12, 1),  # 1 Disposable Bib
+
+        # Composite Filling - Small (Service 2)
+        (2, 1, 2),   # 2 pairs of Latex Gloves
+        (2, 2, 0.5), # 0.5 Anesthetic Cartridge
+        (2, 3, 1),   # 1 Composite Material syringe
+        (2, 4, 1),   # 1 Bonding Agent application
+        (2, 5, 1),   # 1 Etching Gel syringe
+        (2, 6, 8),   # 8 Cotton Rolls
+        (2, 7, 4),   # 4 Gauze Sponges
+        (2, 9, 2),   # 2 Dental Burs
+        (2, 12, 1),  # 1 Disposable Bib
+
+        # Composite Filling - Large (Service 3)
+        (3, 1, 2),   # 2 pairs of Latex Gloves
+        (3, 2, 1),   # 1 Anesthetic Cartridge
+        (3, 3, 2),   # 2 Composite Material syringes
+        (3, 4, 1.5), # 1.5 Bonding Agent applications
+        (3, 5, 1),   # 1 Etching Gel syringe
+        (3, 6, 12),  # 12 Cotton Rolls
+        (3, 7, 6),   # 6 Gauze Sponges
+        (3, 9, 3),   # 3 Dental Burs
+        (3, 12, 1),  # 1 Disposable Bib
     ]
     cursor.executemany('''
         INSERT INTO service_consumables (service_id, consumable_id, quantity)

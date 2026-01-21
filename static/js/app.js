@@ -118,24 +118,34 @@ const Pages = {
 
             <div class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Quick Start Guide</h3>
+                    <h3 class="card-title">📘 Quick Start Guide - Cost-Plus Pricing</h3>
                 </div>
                 <div class="card-body">
+                    <p style="color:var(--gray-700);margin-bottom:1.5rem;">
+                        This calculator uses <strong>Cost-Plus pricing</strong> to ensure all your costs are covered.
+                        Follow these steps to set up your clinic and calculate accurate prices:
+                    </p>
                     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
                         <div style="padding:1.5rem;background:var(--gray-50);border-radius:8px;text-align:center;cursor:pointer;" onclick="APP.loadPage('settings')">
                             <div style="font-size:2rem;margin-bottom:0.5rem;">⚙️</div>
                             <h4>1. Configure Settings</h4>
-                            <p style="color:var(--gray-600);font-size:0.875rem;">Set fixed costs, salaries & capacity</p>
+                            <p style="color:var(--gray-600);font-size:0.875rem;">
+                                Add rent, utilities, salaries, and equipment. Set your working hours and capacity.
+                            </p>
                         </div>
                         <div style="padding:1.5rem;background:var(--gray-50);border-radius:8px;text-align:center;cursor:pointer;" onclick="APP.loadPage('consumables')">
                             <div style="font-size:2rem;margin-bottom:0.5rem;">📦</div>
                             <h4>2. Add Consumables</h4>
-                            <p style="color:var(--gray-600);font-size:0.875rem;">Build your materials library</p>
+                            <p style="color:var(--gray-600);font-size:0.875rem;">
+                                Create a library of materials like gloves, anesthetics, gauze, and sutures.
+                            </p>
                         </div>
                         <div style="padding:1.5rem;background:var(--gray-50);border-radius:8px;text-align:center;cursor:pointer;" onclick="APP.loadPage('services')">
                             <div style="font-size:2rem;margin-bottom:0.5rem;">🦷</div>
                             <h4>3. Create Services</h4>
-                            <p style="color:var(--gray-600);font-size:0.875rem;">Configure dental procedures</p>
+                            <p style="color:var(--gray-600);font-size:0.875rem;">
+                                Define procedures with chair time, doctor fees, and materials. Prices calculated automatically!
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -182,7 +192,23 @@ const Pages = {
         const capacity = await API.get('/api/capacity');
 
         return `
-            <div class="card">
+            <div class="card" style="background:#e0f2fe;border-color:#38bdf8;">
+                <div class="card-header" style="background:#7dd3fc;">
+                    <h3 class="card-title">💡 How Cost-Plus Pricing Works</h3>
+                </div>
+                <div class="card-body">
+                    <p style="margin-bottom:0.75rem;"><strong>The system calculates your service prices in 4 steps:</strong></p>
+                    <ol style="margin-left:1.25rem;line-height:1.8;">
+                        <li><strong>Fixed Costs:</strong> Monthly expenses (rent, utilities, salaries) are spread across your available chair hours</li>
+                        <li><strong>Service Cost:</strong> Chair time cost + Doctor fees + Equipment depreciation + Direct materials (consumables)</li>
+                        <li><strong>Add Profit:</strong> Your desired profit margin is added to the total cost</li>
+                        <li><strong>Add VAT:</strong> Final tax is applied and the price is rounded for convenience</li>
+                    </ol>
+                    <p style="margin-top:0.75rem;color:var(--gray-700);"><em>This ensures every service covers its costs and generates the profit margin you set!</em></p>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
                     <h3 class="card-title">Global Settings</h3>
                 </div>
@@ -191,24 +217,28 @@ const Pages = {
                         <div class="form-group">
                             <label class="form-label">Currency</label>
                             <select class="form-select" name="currency">
-                                <option value="EGP" ${settings.currency==='EGP'?'selected':''}>EGP</option>
-                                <option value="USD" ${settings.currency==='USD'?'selected':''}>USD</option>
-                                <option value="EUR" ${settings.currency==='EUR'?'selected':''}>EUR</option>
+                                <option value="EGP" ${settings.currency==='EGP'?'selected':''}>EGP - Egyptian Pound</option>
+                                <option value="USD" ${settings.currency==='USD'?'selected':''}>USD - US Dollar</option>
+                                <option value="EUR" ${settings.currency==='EUR'?'selected':''}>EUR - Euro</option>
                             </select>
+                            <small style="color:var(--gray-600);">Currency displayed in price calculations</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">VAT %</label>
-                            <input type="number" class="form-input" name="vat_percent" value="${settings.vat_percent}" step="0.1" min="0" max="100">
+                            <label class="form-label">VAT % (Value Added Tax)</label>
+                            <input type="number" class="form-input" name="vat_percent" value="${settings.vat_percent}" step="0.1" min="0" max="100" placeholder="e.g., 14">
+                            <small style="color:var(--gray-600);">Tax added to final price (e.g., 14% in Egypt)</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Default Profit %</label>
-                            <input type="number" class="form-input" name="default_profit_percent" value="${settings.default_profit_percent}" step="1" min="0" max="200">
+                            <label class="form-label">Default Profit Margin %</label>
+                            <input type="number" class="form-input" name="default_profit_percent" value="${settings.default_profit_percent}" step="1" min="0" max="200" placeholder="e.g., 40">
+                            <small style="color:var(--gray-600);">Profit added to cost (typically 30-50%)</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Rounding</label>
+                            <label class="form-label">Round Final Price To</label>
                             <select class="form-select" name="rounding_nearest">
-                                ${[1,5,10,50,100].map(v => `<option value="${v}" ${settings.rounding_nearest===v?'selected':''}>${v}</option>`).join('')}
+                                ${[1,5,10,50,100].map(v => `<option value="${v}" ${settings.rounding_nearest===v?'selected':''}>Nearest ${v}</option>`).join('')}
                             </select>
+                            <small style="color:var(--gray-600);">Round prices for cleaner numbers (e.g., 345 → 350)</small>
                         </div>
                     </form>
                     <div style="margin-top:1rem;">
@@ -224,20 +254,24 @@ const Pages = {
                 <div class="card-body">
                     <form id="capacityForm" class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Number of Chairs</label>
-                            <input type="number" class="form-input" name="chairs" value="${capacity.chairs}" min="1">
+                            <label class="form-label">Number of Dental Chairs</label>
+                            <input type="number" class="form-input" name="chairs" value="${capacity.chairs}" min="1" placeholder="e.g., 3">
+                            <small style="color:var(--gray-600);">Treatment chairs in your clinic</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Days per Month</label>
-                            <input type="number" class="form-input" name="days_per_month" value="${capacity.days_per_month}" min="1">
+                            <label class="form-label">Working Days per Month</label>
+                            <input type="number" class="form-input" name="days_per_month" value="${capacity.days_per_month}" min="1" placeholder="e.g., 24">
+                            <small style="color:var(--gray-600);">Operational days (e.g., 24 for 6 days/week)</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Hours per Day</label>
-                            <input type="number" class="form-input" name="hours_per_day" value="${capacity.hours_per_day}" min="1" step="0.5">
+                            <label class="form-label">Working Hours per Day</label>
+                            <input type="number" class="form-input" name="hours_per_day" value="${capacity.hours_per_day}" min="1" step="0.5" placeholder="e.g., 8">
+                            <small style="color:var(--gray-600);">Daily operating hours per chair</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Utilization %</label>
-                            <input type="number" class="form-input" name="utilization_percent" value="${capacity.utilization_percent}" min="1" max="100">
+                            <label class="form-label">Utilization Rate %</label>
+                            <input type="number" class="form-input" name="utilization_percent" value="${capacity.utilization_percent}" min="1" max="100" placeholder="e.g., 80">
+                            <small style="color:var(--gray-600);">Expected chair occupancy (70-85% is typical)</small>
                         </div>
                     </form>
                     <div style="margin-top:1rem;">
@@ -394,22 +428,25 @@ const Pages = {
         const content = `
             <form id="fixedCostForm">
                 <div class="form-group">
-                    <label class="form-label">Category</label>
-                    <input type="text" class="form-input" name="category" value="${cost?.category||''}" required>
+                    <label class="form-label">Cost Category</label>
+                    <input type="text" class="form-input" name="category" value="${cost?.category||''}" placeholder="e.g., Rent, Electricity, Internet" required>
+                    <small style="color:var(--gray-600);">Examples: Rent, Utilities, Insurance, Cleaning, Security</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Monthly Amount</label>
-                    <input type="number" class="form-input" name="monthly_amount" value="${cost?.monthly_amount||''}" step="0.01" required>
+                    <input type="number" class="form-input" name="monthly_amount" value="${cost?.monthly_amount||''}" step="0.01" placeholder="e.g., 5000" required>
+                    <small style="color:var(--gray-600);">Total monthly cost for this category</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Include in calculations?</label>
                     <select class="form-select" name="included">
-                        <option value="1" ${cost?.included?'selected':''}>Yes</option>
-                        <option value="0" ${!cost?.included?'selected':''}>No</option>
+                        <option value="1" ${cost?.included?'selected':''}>Yes - Include in pricing</option>
+                        <option value="0" ${!cost?.included?'selected':''}>No - Track only</option>
                     </select>
+                    <small style="color:var(--gray-600);">Exclude costs you want to track but not include in pricing</small>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Notes</label>
+                    <label class="form-label">Notes (Optional)</label>
                     <input type="text" class="form-input" name="notes" value="${cost?.notes||''}">
                 </div>
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
@@ -464,19 +501,22 @@ const Pages = {
         const content = `
             <form id="salaryForm">
                 <div class="form-group">
-                    <label class="form-label">Role/Name</label>
-                    <input type="text" class="form-input" name="role_name" value="${salary?.role_name||''}" required>
+                    <label class="form-label">Role or Staff Name</label>
+                    <input type="text" class="form-input" name="role_name" value="${salary?.role_name||''}" placeholder="e.g., Receptionist, Dental Assistant" required>
+                    <small style="color:var(--gray-600);">Examples: Dentist, Nurse, Receptionist, Cleaner</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Monthly Salary</label>
-                    <input type="number" class="form-input" name="monthly_salary" value="${salary?.monthly_salary||''}" step="0.01" required>
+                    <input type="number" class="form-input" name="monthly_salary" value="${salary?.monthly_salary||''}" step="0.01" placeholder="e.g., 3000" required>
+                    <small style="color:var(--gray-600);">Total monthly salary including benefits</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Include in calculations?</label>
                     <select class="form-select" name="included">
-                        <option value="1" ${salary?.included?'selected':''}>Yes</option>
-                        <option value="0" ${!salary?.included?'selected':''}>No</option>
+                        <option value="1" ${salary?.included?'selected':''}>Yes - Include in pricing</option>
+                        <option value="0" ${!salary?.included?'selected':''}>No - Track only</option>
                     </select>
+                    <small style="color:var(--gray-600);">Exclude salaries you want to track but not include in pricing</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Notes</label>
@@ -534,30 +574,35 @@ const Pages = {
         const content = `
             <form id="equipmentForm">
                 <div class="form-group">
-                    <label class="form-label">Asset Name</label>
-                    <input type="text" class="form-input" name="asset_name" value="${equipment?.asset_name||''}" required>
+                    <label class="form-label">Equipment Name</label>
+                    <input type="text" class="form-input" name="asset_name" value="${equipment?.asset_name||''}" placeholder="e.g., X-Ray Machine, Dental Chair" required>
+                    <small style="color:var(--gray-600);">Examples: X-Ray, Sterilizer, Compressor, Laser</small>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">Purchase Cost</label>
-                        <input type="number" class="form-input" name="purchase_cost" value="${equipment?.purchase_cost||''}" step="0.01" required>
+                        <input type="number" class="form-input" name="purchase_cost" value="${equipment?.purchase_cost||''}" step="0.01" placeholder="e.g., 50000" required>
+                        <small style="color:var(--gray-600);">Total cost when purchased</small>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Life (years)</label>
-                        <input type="number" class="form-input" name="life_years" value="${equipment?.life_years||10}" min="1" required>
+                        <label class="form-label">Expected Life (years)</label>
+                        <input type="number" class="form-input" name="life_years" value="${equipment?.life_years||10}" min="1" placeholder="e.g., 10" required>
+                        <small style="color:var(--gray-600);">How many years until replacement</small>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Allocation Type</label>
+                        <label class="form-label">Cost Allocation Method</label>
                         <select class="form-select" name="allocation_type" id="allocationType" onchange="toggleUsageHours()" required>
-                            <option value="fixed" ${equipment?.allocation_type==='fixed'?'selected':''}>Fixed</option>
-                            <option value="per-hour" ${equipment?.allocation_type==='per-hour'?'selected':''}>Per-Hour</option>
+                            <option value="fixed" ${equipment?.allocation_type==='fixed'?'selected':''}>Fixed - Spread across all services</option>
+                            <option value="per-hour" ${equipment?.allocation_type==='per-hour'?'selected':''}>Per-Hour - Charge only when used</option>
                         </select>
+                        <small style="color:var(--gray-600);">Fixed: Dental chairs, general tools | Per-Hour: X-Ray, specialized machines</small>
                     </div>
                     <div class="form-group" id="usageHoursGroup" style="display:${equipment?.allocation_type==='per-hour'?'block':'none'}">
-                        <label class="form-label">Monthly Usage Hours</label>
-                        <input type="number" class="form-input" name="monthly_usage_hours" value="${equipment?.monthly_usage_hours||''}" step="0.1">
+                        <label class="form-label">Expected Monthly Usage Hours</label>
+                        <input type="number" class="form-input" name="monthly_usage_hours" value="${equipment?.monthly_usage_hours||''}" step="0.1" placeholder="e.g., 20">
+                        <small style="color:var(--gray-600);">How many hours per month you expect to use this equipment</small>
                     </div>
                 </div>
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
@@ -615,7 +660,21 @@ const Pages = {
         const consumables = await API.get('/api/consumables');
 
         return `
-            <div class="card">
+            <div class="card" style="background:#fef3c7;border-color:#fbbf24;">
+                <div class="card-header" style="background:#fde68a;">
+                    <h3 class="card-title">📦 About Consumables</h3>
+                </div>
+                <div class="card-body">
+                    <p><strong>Consumables are materials used during dental procedures.</strong></p>
+                    <p style="margin-top:0.5rem;margin-bottom:0.5rem;">Examples: Gloves, Gauze, Anesthetic cartridges, Sutures, Cotton rolls, Dental floss</p>
+                    <p style="margin-bottom:0;color:var(--gray-700);">
+                        <strong>How it works:</strong> You define how materials are packaged (pack → cases → units).
+                        The system calculates the per-case cost, then when you add a service, you specify how many cases/units are used.
+                    </p>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
                     <h3 class="card-title">Consumables Library</h3>
                     <button class="btn btn-primary" onclick="Pages.showConsumableForm()">+ Add Consumable</button>
@@ -674,21 +733,25 @@ const Pages = {
         const content = `
             <form id="consumableForm">
                 <div class="form-group">
-                    <label class="form-label">Item Name</label>
-                    <input type="text" class="form-input" name="item_name" value="${consumable?.item_name||''}" required>
+                    <label class="form-label">Consumable Item Name</label>
+                    <input type="text" class="form-input" name="item_name" value="${consumable?.item_name||''}" placeholder="e.g., Latex Gloves, Anesthetic Cartridge" required>
+                    <small style="color:var(--gray-600);">Examples: Gloves, Gauze, Anesthetic, Sutures, Dental Floss</small>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Pack Cost</label>
-                        <input type="number" class="form-input" name="pack_cost" value="${consumable?.pack_cost||''}" step="0.01" required>
+                        <label class="form-label">Cost per Pack</label>
+                        <input type="number" class="form-input" name="pack_cost" value="${consumable?.pack_cost||''}" step="0.01" placeholder="e.g., 150" required>
+                        <small style="color:var(--gray-600);">Price you pay for one pack from supplier</small>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Cases per Pack</label>
-                        <input type="number" class="form-input" name="cases_per_pack" value="${consumable?.cases_per_pack||1}" min="1" required>
+                        <input type="number" class="form-input" name="cases_per_pack" value="${consumable?.cases_per_pack||1}" min="1" placeholder="e.g., 10" required>
+                        <small style="color:var(--gray-600);">How many boxes/cases in one pack</small>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Units per Case</label>
-                        <input type="number" class="form-input" name="units_per_case" value="${consumable?.units_per_case||1}" min="1" required>
+                        <input type="number" class="form-input" name="units_per_case" value="${consumable?.units_per_case||1}" min="1" placeholder="e.g., 100" required>
+                        <small style="color:var(--gray-600);">Individual units in each case (e.g., 100 gloves per box)</small>
                     </div>
                 </div>
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
@@ -738,7 +801,24 @@ const Pages = {
         const services = await API.get('/api/services');
 
         return `
-            <div class="card">
+            <div class="card" style="background:#e0e7ff;border-color:#818cf8;">
+                <div class="card-header" style="background:#c7d2fe;">
+                    <h3 class="card-title">🦷 About Services</h3>
+                </div>
+                <div class="card-body">
+                    <p><strong>Services are the dental procedures you offer to patients.</strong></p>
+                    <p style="margin-top:0.75rem;margin-bottom:0.5rem;"><strong>What you need to configure:</strong></p>
+                    <ul style="margin-left:1.25rem;line-height:1.6;">
+                        <li><strong>Chair Time:</strong> How long the patient occupies the chair (affects fixed cost allocation)</li>
+                        <li><strong>Doctor Fee:</strong> The dentist's compensation for this procedure</li>
+                        <li><strong>Equipment:</strong> Any per-hour equipment used (like X-Ray machines)</li>
+                        <li><strong>Consumables:</strong> Materials consumed during the procedure (gloves, anesthetic, etc.)</li>
+                    </ul>
+                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>Click the 💰 button to see the complete cost breakdown and calculated price!</em></p>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
                     <h3 class="card-title">Services Configuration</h3>
                     <button class="btn btn-primary" onclick="Pages.showServiceForm()">+ Add Service</button>
@@ -794,46 +874,76 @@ const Pages = {
         const content = `
             <form id="serviceForm">
                 <div class="form-group">
-                    <label class="form-label">Service Name</label>
-                    <input type="text" class="form-input" name="name" value="${service?.name||''}" required>
+                    <label class="form-label">Dental Service Name</label>
+                    <input type="text" class="form-input" name="name" value="${service?.name||''}" placeholder="e.g., Tooth Extraction, Root Canal, Cleaning" required>
+                    <small style="color:var(--gray-600);">Examples: Filling, Crown, Implant, Cleaning, Whitening</small>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">Chair Time (hours)</label>
-                        <input type="number" class="form-input" name="chair_time_hours" value="${service?.chair_time_hours||''}" step="0.25" required>
+                        <input type="number" class="form-input" name="chair_time_hours" value="${service?.chair_time_hours||''}" step="0.25" placeholder="e.g., 1.5" required>
+                        <small style="color:var(--gray-600);">How long the patient occupies the chair (e.g., 0.5, 1, 2)</small>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Doctor Hourly Fee</label>
-                        <input type="number" class="form-input" name="doctor_hourly_fee" value="${service?.doctor_hourly_fee||''}" step="1" required>
+                        <label class="form-label">Doctor Fee per Hour</label>
+                        <input type="number" class="form-input" name="doctor_hourly_fee" value="${service?.doctor_hourly_fee||''}" step="1" placeholder="e.g., 500" required>
+                        <small style="color:var(--gray-600);">Dentist's hourly rate for this service</small>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">
                             <input type="checkbox" name="use_default_profit" ${service?.use_default_profit?'checked':''} onchange="toggleCustomProfit(this)">
-                            Use Default Profit?
+                            Use Default Profit Margin?
                         </label>
+                        <small style="color:var(--gray-600);display:block;margin-top:0.25rem;">Check to use global profit setting</small>
                     </div>
                     <div class="form-group" id="customProfitGroup" style="display:${service?.use_default_profit?'none':'block'}">
-                        <label class="form-label">Custom Profit %</label>
-                        <input type="number" class="form-input" name="custom_profit_percent" value="${service?.custom_profit_percent||''}" step="1">
+                        <label class="form-label">Custom Profit Margin %</label>
+                        <input type="number" class="form-input" name="custom_profit_percent" value="${service?.custom_profit_percent||''}" step="1" placeholder="e.g., 50">
+                        <small style="color:var(--gray-600);">Override default profit for this service only</small>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Equipment (Optional)</label>
+                        <label class="form-label">Special Equipment (Optional)</label>
                         <select class="form-select" name="equipment_id">
-                            <option value="">None</option>
+                            <option value="">None - No special equipment</option>
                             ${equipment.filter(e => e.allocation_type === 'per-hour').map(e =>
                                 `<option value="${e.id}" ${service?.equipment_id===e.id?'selected':''}>${e.asset_name}</option>`
                             ).join('')}
                         </select>
+                        <small style="color:var(--gray-600);">Select if this service uses per-hour equipment (e.g., X-Ray)</small>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Equipment Hours Used</label>
-                        <input type="number" class="form-input" name="equipment_hours_used" value="${service?.equipment_hours_used||''}" step="0.1">
+                        <label class="form-label">Equipment Usage Hours</label>
+                        <input type="number" class="form-input" name="equipment_hours_used" value="${service?.equipment_hours_used||''}" step="0.1" placeholder="e.g., 0.25">
+                        <small style="color:var(--gray-600);">How long equipment is used (e.g., 0.1 for X-Ray)</small>
                     </div>
                 </div>
+
+                <div class="form-group" style="margin-top:1rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                        <label class="form-label" style="margin:0;">Consumables & Materials</label>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="addConsumableRow()">+ Add Consumable</button>
+                    </div>
+                    <small style="color:var(--gray-600);display:block;margin-bottom:0.5rem;">Add materials used in this service (e.g., 2x Gloves, 1x Anesthetic cartridge)</small>
+                    <div id="consumablesContainer">
+                        ${service?.consumables?.length > 0 ? service.consumables.map(sc => `
+                            <div class="consumable-row" style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">
+                                <select class="form-select" style="flex:2;" data-consumable-select>
+                                    <option value="">Select consumable...</option>
+                                    ${consumables.map(c =>
+                                        `<option value="${c.id}" ${sc.consumable_id===c.id?'selected':''}>${c.item_name}</option>`
+                                    ).join('')}
+                                </select>
+                                <input type="number" class="form-input" style="flex:1;" placeholder="Quantity" value="${sc.quantity}" data-consumable-quantity min="0.1" step="0.1" required>
+                                <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>
+                            </div>
+                        `).join('') : '<div style="color:var(--gray-500);text-align:center;padding:1rem;">No consumables added</div>'}
+                    </div>
+                </div>
+
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
                     <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save</button>
@@ -842,6 +952,29 @@ const Pages = {
             <script>
                 function toggleCustomProfit(checkbox) {
                     document.getElementById('customProfitGroup').style.display = checkbox.checked ? 'none' : 'block';
+                }
+
+                function addConsumableRow() {
+                    const container = document.getElementById('consumablesContainer');
+                    // Remove "no consumables" message if it exists
+                    const noConsumablesMsg = container.querySelector('[style*="color:var(--gray-500)"]');
+                    if (noConsumablesMsg) {
+                        noConsumablesMsg.remove();
+                    }
+
+                    const consumables = ${JSON.stringify(consumables)};
+                    const row = document.createElement('div');
+                    row.className = 'consumable-row';
+                    row.style.cssText = 'display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;';
+                    row.innerHTML = \`
+                        <select class="form-select" style="flex:2;" data-consumable-select>
+                            <option value="">Select consumable...</option>
+                            \${consumables.map(c => \`<option value="\${c.id}">\${c.item_name}</option>\`).join('')}
+                        </select>
+                        <input type="number" class="form-input" style="flex:1;" placeholder="Quantity" value="1" data-consumable-quantity min="0.1" step="0.1" required>
+                        <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>
+                    \`;
+                    container.appendChild(row);
                 }
             </script>
         `;
@@ -867,7 +1000,18 @@ const Pages = {
                 delete formData.equipment_hours_used;
             }
 
+            // Collect consumables data
             formData.consumables = [];
+            document.querySelectorAll('.consumable-row').forEach(row => {
+                const select = row.querySelector('[data-consumable-select]');
+                const quantity = row.querySelector('[data-consumable-quantity]');
+                if (select.value && quantity.value) {
+                    formData.consumables.push({
+                        consumable_id: parseInt(select.value),
+                        quantity: parseFloat(quantity.value)
+                    });
+                }
+            });
 
             try {
                 if (id) {
@@ -941,7 +1085,21 @@ const Pages = {
         const settings = await API.get('/api/settings/global');
 
         return `
-            <div class="card">
+            <div class="card" style="background:#d1fae5;border-color:#34d399;">
+                <div class="card-header" style="background:#a7f3d0;">
+                    <h3 class="card-title">💰 Price List Overview</h3>
+                </div>
+                <div class="card-body">
+                    <p><strong>This is your complete calculated price list for all services.</strong></p>
+                    <p style="margin-top:0.5rem;color:var(--gray-700);">
+                        Each price includes: Fixed costs (rent, salaries) + Service costs (chair time, doctor fee, equipment) +
+                        Materials (consumables) + Your profit margin (${settings.default_profit_percent}%) + VAT (${settings.vat_percent}%)
+                    </p>
+                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>You can print this list to share with staff or display in your clinic!</em></p>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
                     <h3 class="card-title">Complete Price List</h3>
                     <button class="btn btn-primary" onclick="window.print()">🖨️ Print</button>

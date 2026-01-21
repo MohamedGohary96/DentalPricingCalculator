@@ -55,21 +55,42 @@ Database locations:
 
 ## 📖 Usage Guide
 
-1. Configure global settings (currency, VAT, profit %)
-2. Add fixed costs and staff salaries
-3. Set clinic capacity (chairs, hours, utilization)
-4. Build consumables library
-5. Create services with materials and pricing
-6. View and print price list
+### Getting Started (3 Easy Steps)
+
+**Step 1: Configure Settings** ⚙️
+- Set your currency, VAT rate, and default profit margin
+- Add fixed monthly costs (rent, utilities, insurance)
+- Enter staff salaries
+- Configure equipment with depreciation
+- Define clinic capacity (chairs, working days/hours, utilization rate)
+
+**Step 2: Build Consumables Library** 📦
+- Add materials used in procedures (gloves, anesthetics, gauze, etc.)
+- Define packaging structure (pack → cases → units)
+- System automatically calculates per-case costs
+- Examples provided: Latex Gloves, Anesthetic Cartridges, Composite Materials
+
+**Step 3: Create Services** 🦷
+- Define dental procedures with chair time and doctor fees
+- Attach consumables with quantities to each service
+- Select per-hour equipment if needed
+- View complete cost breakdown and calculated prices
+- Examples included: Fillings, Root Canals, Cleanings, Extractions
+
+The system automatically calculates prices ensuring all costs are covered plus your profit margin!
 
 ## 💡 Key Features
 
-- Real-time price calculations
-- Equipment depreciation (fixed & per-hour)
-- Consumables cost tracking
-- Profit margin customization per service
-- VAT and rounding options
-- Print-ready price lists
+- ✅ **Real-time price calculations** - Instant updates as you change costs or services
+- ✅ **Equipment depreciation** - Both fixed (spread across all services) and per-hour (charged to specific services)
+- ✅ **Consumables tracking** - Add materials to services with automatic cost calculations
+- ✅ **Service-level consumables** - Attach specific materials and quantities to each procedure
+- ✅ **Flexible profit margins** - Set global default or customize per service
+- ✅ **VAT support** - Automatic tax calculations with configurable rates
+- ✅ **Smart rounding** - Round final prices to nearest 1, 5, 10, 50, or 100
+- ✅ **Print-ready price lists** - Professional output for clinic display
+- ✅ **Helpful examples** - Pre-populated with realistic dental clinic data
+- ✅ **Guided interface** - Tooltips and explanations throughout the app
 
 ## 🛡️ Security
 
