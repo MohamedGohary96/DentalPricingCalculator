@@ -1,66 +1,235 @@
 """
 Models Module - Data access and business logic for Dental Pricing Calculator
+Multi-tenant SaaS version with clinic isolation
 """
 
 from .database import get_connection, dict_from_row, hash_password, verify_password
 import secrets
+import re
 from datetime import datetime, timedelta
 
 
-# ============== Authentication ==============
+# ============== Clinic Management ==============
 
-def authenticate_user(username, password):
-    """Authenticate user and return user dict or None"""
+def create_clinic(name, email, phone=None, address=None, city=None, country='Egypt'):
+    """Create a new clinic and return clinic dict"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
-    row = cursor.fetchone()
+
+    # Generate unique slug from name
+    slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+    base_slug = slug
+    counter = 1
+
+    while True:
+        cursor.execute('SELECT id FROM clinics WHERE slug = ?', (slug,))
+        if not cursor.fetchone():
+            break
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+
+    cursor.execute('''
+        INSERT INTO clinics (name, slug, email, phone, address, city, country)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (name, slug, email, phone, address, city, country))
+    clinic_id = cursor.lastrowid
+
+    # Create default settings for the clinic
+    cursor.execute('''
+        INSERT INTO global_settings (clinic_id, currency, vat_percent, default_profit_percent, rounding_nearest)
+        VALUES (?, 'EGP', 0, 40, 5)
+    ''', (clinic_id,))
+
+    # Create default clinic capacity
+    cursor.execute('''
+        INSERT INTO clinic_capacity (clinic_id, chairs, days_per_month, hours_per_day, utilization_percent)
+        VALUES (?, 1, 24, 8, 80)
+    ''', (clinic_id,))
+
+    conn.commit()
+
+    cursor.execute('SELECT * FROM clinics WHERE id = ?', (clinic_id,))
+    clinic = dict_from_row(cursor.fetchone())
     conn.close()
 
-    if row and verify_password(password, row['password_hash']):
-        return dict_from_row(row)
-    return None
+    return clinic
 
 
-# ============== Global Settings ==============
-
-def get_global_settings():
-    """Get global settings"""
+def get_clinic_by_id(clinic_id):
+    """Get clinic by ID"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM global_settings WHERE id = 1')
-    row = cursor.fetchone()
+    cursor.execute('SELECT * FROM clinics WHERE id = ?', (clinic_id,))
+    clinic = dict_from_row(cursor.fetchone())
     conn.close()
-
-    if not row:
-        # Create default settings
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO global_settings (id, currency, vat_percent, default_profit_percent, rounding_nearest)
-            VALUES (1, 'EGP', 0, 40, 5)
-        ''')
-        conn.commit()
-        conn.close()
-        return get_global_settings()
-
-    return dict_from_row(row)
+    return clinic
 
 
-def update_global_settings(**kwargs):
-    """Update global settings"""
+def get_clinic_by_slug(slug):
+    """Get clinic by slug"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM clinics WHERE slug = ?', (slug,))
+    clinic = dict_from_row(cursor.fetchone())
+    conn.close()
+    return clinic
+
+
+def update_clinic(clinic_id, **kwargs):
+    """Update clinic details"""
     conn = get_connection()
     cursor = conn.cursor()
 
     fields = []
     values = []
     for key, value in kwargs.items():
-        fields.append(f'{key} = ?')
-        values.append(value)
+        if key not in ['id', 'created_at', 'slug']:  # Don't allow slug change
+            fields.append(f'{key} = ?')
+            values.append(value)
 
     if fields:
-        values.append(1)  # id = 1
-        cursor.execute(f"UPDATE global_settings SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        values.append(clinic_id)
+        cursor.execute(f"UPDATE clinics SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        conn.commit()
+
+    conn.close()
+    return True
+
+
+# ============== Authentication ==============
+
+def authenticate_user(username, password):
+    """Authenticate user and return user dict with clinic info or None"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT u.*, c.name as clinic_name, c.slug as clinic_slug
+        FROM users u
+        LEFT JOIN clinics c ON u.clinic_id = c.id
+        WHERE u.username = ? AND u.is_active = 1
+    ''', (username,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row and verify_password(password, row['password_hash']):
+        user = dict_from_row(row)
+        # Check if clinic is active
+        if user.get('clinic_id'):
+            clinic = get_clinic_by_id(user['clinic_id'])
+            if not clinic or not clinic.get('is_active'):
+                return None
+        return user
+    return None
+
+
+def create_user(clinic_id, username, password, first_name, last_name, email, role='staff'):
+    """Create a new user for a clinic"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    password_hash = hash_password(password)
+    cursor.execute('''
+        INSERT INTO users (clinic_id, username, password_hash, first_name, last_name, email, role)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (clinic_id, username, password_hash, first_name, last_name, email, role))
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return user_id
+
+
+def get_clinic_users(clinic_id):
+    """Get all users for a clinic"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, clinic_id, username, first_name, last_name, email, role, is_active, created_at
+        FROM users WHERE clinic_id = ? ORDER BY first_name
+    ''', (clinic_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict_from_row(r) for r in rows]
+
+
+def update_user(user_id, clinic_id, **kwargs):
+    """Update user (must belong to clinic)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Verify user belongs to clinic
+    cursor.execute('SELECT id FROM users WHERE id = ? AND clinic_id = ?', (user_id, clinic_id))
+    if not cursor.fetchone():
+        conn.close()
+        return False
+
+    fields = []
+    values = []
+    for key, value in kwargs.items():
+        if key not in ['id', 'created_at', 'clinic_id', 'password_hash']:
+            if key == 'password':
+                fields.append('password_hash = ?')
+                values.append(hash_password(value))
+            else:
+                fields.append(f'{key} = ?')
+                values.append(value)
+
+    if fields:
+        values.append(user_id)
+        cursor.execute(f"UPDATE users SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        conn.commit()
+
+    conn.close()
+    return True
+
+
+def register_clinic_with_owner(clinic_name, clinic_email, clinic_phone, clinic_address, clinic_city,
+                                owner_username, owner_password, owner_first_name, owner_last_name, owner_email):
+    """Register a new clinic with its owner account"""
+    clinic = create_clinic(clinic_name, clinic_email, clinic_phone, clinic_address, clinic_city)
+    user_id = create_user(clinic['id'], owner_username, owner_password, owner_first_name, owner_last_name, owner_email, 'owner')
+    return {'clinic': clinic, 'user_id': user_id}
+
+
+# ============== Global Settings ==============
+
+def get_global_settings(clinic_id):
+    """Get global settings for a clinic"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM global_settings WHERE clinic_id = ?', (clinic_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        # Create default settings for the clinic
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO global_settings (clinic_id, currency, vat_percent, default_profit_percent, rounding_nearest)
+            VALUES (?, 'EGP', 0, 40, 5)
+        ''', (clinic_id,))
+        conn.commit()
+        conn.close()
+        return get_global_settings(clinic_id)
+
+    return dict_from_row(row)
+
+
+def update_global_settings(clinic_id, **kwargs):
+    """Update global settings for a clinic"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    fields = []
+    values = []
+    for key, value in kwargs.items():
+        if key != 'clinic_id':
+            fields.append(f'{key} = ?')
+            values.append(value)
+
+    if fields:
+        values.append(clinic_id)
+        cursor.execute(f"UPDATE global_settings SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE clinic_id = ?", values)
         conn.commit()
 
     conn.close()
@@ -69,56 +238,56 @@ def update_global_settings(**kwargs):
 
 # ============== Fixed Costs ==============
 
-def get_all_fixed_costs():
-    """Get all fixed costs"""
+def get_all_fixed_costs(clinic_id):
+    """Get all fixed costs for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM fixed_costs ORDER BY category')
+    cursor.execute('SELECT * FROM fixed_costs WHERE clinic_id = ? ORDER BY category', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
 
 
-def create_fixed_cost(category, monthly_amount, included=1, notes=''):
-    """Create new fixed cost"""
+def create_fixed_cost(clinic_id, category, monthly_amount, included=1, notes=''):
+    """Create new fixed cost for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO fixed_costs (category, monthly_amount, included, notes)
-        VALUES (?, ?, ?, ?)
-    ''', (category, monthly_amount, included, notes))
+        INSERT INTO fixed_costs (clinic_id, category, monthly_amount, included, notes)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (clinic_id, category, monthly_amount, included, notes))
     cost_id = cursor.lastrowid
     conn.commit()
     conn.close()
     return cost_id
 
 
-def update_fixed_cost(cost_id, **kwargs):
-    """Update fixed cost"""
+def update_fixed_cost(cost_id, clinic_id, **kwargs):
+    """Update fixed cost (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
 
     fields = []
     values = []
     for key, value in kwargs.items():
-        if key not in ['id', 'created_at']:
+        if key not in ['id', 'created_at', 'clinic_id']:
             fields.append(f'{key} = ?')
             values.append(value)
 
     if fields:
-        values.append(cost_id)
-        cursor.execute(f"UPDATE fixed_costs SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        values.extend([cost_id, clinic_id])
+        cursor.execute(f"UPDATE fixed_costs SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
         conn.commit()
 
     conn.close()
     return True
 
 
-def delete_fixed_cost(cost_id):
-    """Delete fixed cost"""
+def delete_fixed_cost(cost_id, clinic_id):
+    """Delete fixed cost (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM fixed_costs WHERE id = ?', (cost_id,))
+    cursor.execute('DELETE FROM fixed_costs WHERE id = ? AND clinic_id = ?', (cost_id, clinic_id))
     conn.commit()
     conn.close()
     return True
@@ -126,56 +295,56 @@ def delete_fixed_cost(cost_id):
 
 # ============== Salaries ==============
 
-def get_all_salaries():
-    """Get all salaries"""
+def get_all_salaries(clinic_id):
+    """Get all salaries for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM salaries ORDER BY role_name')
+    cursor.execute('SELECT * FROM salaries WHERE clinic_id = ? ORDER BY role_name', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
 
 
-def create_salary(role_name, monthly_salary, included=1, notes=''):
-    """Create new salary entry"""
+def create_salary(clinic_id, role_name, monthly_salary, included=1, notes=''):
+    """Create new salary entry for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO salaries (role_name, monthly_salary, included, notes)
-        VALUES (?, ?, ?, ?)
-    ''', (role_name, monthly_salary, included, notes))
+        INSERT INTO salaries (clinic_id, role_name, monthly_salary, included, notes)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (clinic_id, role_name, monthly_salary, included, notes))
     salary_id = cursor.lastrowid
     conn.commit()
     conn.close()
     return salary_id
 
 
-def update_salary(salary_id, **kwargs):
-    """Update salary"""
+def update_salary(salary_id, clinic_id, **kwargs):
+    """Update salary (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
 
     fields = []
     values = []
     for key, value in kwargs.items():
-        if key not in ['id', 'created_at']:
+        if key not in ['id', 'created_at', 'clinic_id']:
             fields.append(f'{key} = ?')
             values.append(value)
 
     if fields:
-        values.append(salary_id)
-        cursor.execute(f"UPDATE salaries SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        values.extend([salary_id, clinic_id])
+        cursor.execute(f"UPDATE salaries SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
         conn.commit()
 
     conn.close()
     return True
 
 
-def delete_salary(salary_id):
-    """Delete salary"""
+def delete_salary(salary_id, clinic_id):
+    """Delete salary (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM salaries WHERE id = ?', (salary_id,))
+    cursor.execute('DELETE FROM salaries WHERE id = ? AND clinic_id = ?', (salary_id, clinic_id))
     conn.commit()
     conn.close()
     return True
@@ -183,56 +352,56 @@ def delete_salary(salary_id):
 
 # ============== Equipment ==============
 
-def get_all_equipment():
-    """Get all equipment"""
+def get_all_equipment(clinic_id):
+    """Get all equipment for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM equipment ORDER BY asset_name')
+    cursor.execute('SELECT * FROM equipment WHERE clinic_id = ? ORDER BY asset_name', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
 
 
-def create_equipment(asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours=None):
-    """Create new equipment"""
+def create_equipment(clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours=None):
+    """Create new equipment for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO equipment (asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours))
+        INSERT INTO equipment (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours))
     equipment_id = cursor.lastrowid
     conn.commit()
     conn.close()
     return equipment_id
 
 
-def update_equipment(equipment_id, **kwargs):
-    """Update equipment"""
+def update_equipment(equipment_id, clinic_id, **kwargs):
+    """Update equipment (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
 
     fields = []
     values = []
     for key, value in kwargs.items():
-        if key not in ['id', 'created_at']:
+        if key not in ['id', 'created_at', 'clinic_id']:
             fields.append(f'{key} = ?')
             values.append(value)
 
     if fields:
-        values.append(equipment_id)
-        cursor.execute(f"UPDATE equipment SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        values.extend([equipment_id, clinic_id])
+        cursor.execute(f"UPDATE equipment SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
         conn.commit()
 
     conn.close()
     return True
 
 
-def delete_equipment(equipment_id):
-    """Delete equipment"""
+def delete_equipment(equipment_id, clinic_id):
+    """Delete equipment (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM equipment WHERE id = ?', (equipment_id,))
+    cursor.execute('DELETE FROM equipment WHERE id = ? AND clinic_id = ?', (equipment_id, clinic_id))
     conn.commit()
     conn.close()
     return True
@@ -240,43 +409,44 @@ def delete_equipment(equipment_id):
 
 # ============== Clinic Capacity ==============
 
-def get_clinic_capacity():
-    """Get clinic capacity settings"""
+def get_clinic_capacity(clinic_id):
+    """Get clinic capacity settings for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM clinic_capacity WHERE id = 1')
+    cursor.execute('SELECT * FROM clinic_capacity WHERE clinic_id = ?', (clinic_id,))
     row = cursor.fetchone()
     conn.close()
 
     if not row:
-        # Create default capacity
+        # Create default capacity for the clinic
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO clinic_capacity (id, chairs, days_per_month, hours_per_day, utilization_percent)
-            VALUES (1, 1, 24, 8, 80)
-        ''')
+            INSERT INTO clinic_capacity (clinic_id, chairs, days_per_month, hours_per_day, utilization_percent)
+            VALUES (?, 1, 24, 8, 80)
+        ''', (clinic_id,))
         conn.commit()
         conn.close()
-        return get_clinic_capacity()
+        return get_clinic_capacity(clinic_id)
 
     return dict_from_row(row)
 
 
-def update_clinic_capacity(**kwargs):
-    """Update clinic capacity"""
+def update_clinic_capacity(clinic_id, **kwargs):
+    """Update clinic capacity for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
 
     fields = []
     values = []
     for key, value in kwargs.items():
-        fields.append(f'{key} = ?')
-        values.append(value)
+        if key != 'clinic_id':
+            fields.append(f'{key} = ?')
+            values.append(value)
 
     if fields:
-        values.append(1)  # id = 1
-        cursor.execute(f"UPDATE clinic_capacity SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        values.append(clinic_id)
+        cursor.execute(f"UPDATE clinic_capacity SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE clinic_id = ?", values)
         conn.commit()
 
     conn.close()
@@ -285,56 +455,56 @@ def update_clinic_capacity(**kwargs):
 
 # ============== Consumables ==============
 
-def get_all_consumables():
-    """Get all consumables"""
+def get_all_consumables(clinic_id):
+    """Get all consumables for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM consumables ORDER BY item_name')
+    cursor.execute('SELECT * FROM consumables WHERE clinic_id = ? ORDER BY item_name', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
 
 
-def create_consumable(item_name, pack_cost, cases_per_pack, units_per_case=1):
-    """Create new consumable"""
+def create_consumable(clinic_id, item_name, pack_cost, cases_per_pack, units_per_case=1):
+    """Create new consumable for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO consumables (item_name, pack_cost, cases_per_pack, units_per_case)
-        VALUES (?, ?, ?, ?)
-    ''', (item_name, pack_cost, cases_per_pack, units_per_case))
+        INSERT INTO consumables (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case))
     consumable_id = cursor.lastrowid
     conn.commit()
     conn.close()
     return consumable_id
 
 
-def update_consumable(consumable_id, **kwargs):
-    """Update consumable"""
+def update_consumable(consumable_id, clinic_id, **kwargs):
+    """Update consumable (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
 
     fields = []
     values = []
     for key, value in kwargs.items():
-        if key not in ['id', 'created_at']:
+        if key not in ['id', 'created_at', 'clinic_id']:
             fields.append(f'{key} = ?')
             values.append(value)
 
     if fields:
-        values.append(consumable_id)
-        cursor.execute(f"UPDATE consumables SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        values.extend([consumable_id, clinic_id])
+        cursor.execute(f"UPDATE consumables SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
         conn.commit()
 
     conn.close()
     return True
 
 
-def delete_consumable(consumable_id):
-    """Delete consumable"""
+def delete_consumable(consumable_id, clinic_id):
+    """Delete consumable (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM consumables WHERE id = ?', (consumable_id,))
+    cursor.execute('DELETE FROM consumables WHERE id = ? AND clinic_id = ?', (consumable_id, clinic_id))
     conn.commit()
     conn.close()
     return True
@@ -342,26 +512,27 @@ def delete_consumable(consumable_id):
 
 # ============== Services ==============
 
-def get_all_services():
-    """Get all services"""
+def get_all_services(clinic_id):
+    """Get all services for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
         SELECT s.*, e.asset_name as equipment_name
         FROM services s
         LEFT JOIN equipment e ON s.equipment_id = e.id
+        WHERE s.clinic_id = ?
         ORDER BY s.name
-    ''')
+    ''', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
 
 
-def get_service_by_id(service_id):
-    """Get service by ID with consumables"""
+def get_service_by_id(service_id, clinic_id):
+    """Get service by ID with consumables (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM services WHERE id = ?', (service_id,))
+    cursor.execute('SELECT * FROM services WHERE id = ? AND clinic_id = ?', (service_id, clinic_id))
     service = dict_from_row(cursor.fetchone())
 
     if service:
@@ -378,16 +549,16 @@ def get_service_by_id(service_id):
     return service
 
 
-def create_service(name, chair_time_hours, doctor_hourly_fee, use_default_profit=1,
+def create_service(clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit=1,
                    custom_profit_percent=None, equipment_id=None, equipment_hours_used=None, current_price=None):
-    """Create new service"""
+    """Create new service for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO services (name, chair_time_hours, doctor_hourly_fee, use_default_profit,
+        INSERT INTO services (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit,
                              custom_profit_percent, equipment_id, equipment_hours_used, current_price)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (name, chair_time_hours, doctor_hourly_fee, use_default_profit,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit,
           custom_profit_percent, equipment_id, equipment_hours_used, current_price))
     service_id = cursor.lastrowid
     conn.commit()
@@ -395,32 +566,32 @@ def create_service(name, chair_time_hours, doctor_hourly_fee, use_default_profit
     return service_id
 
 
-def update_service(service_id, **kwargs):
-    """Update service"""
+def update_service(service_id, clinic_id, **kwargs):
+    """Update service (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
 
     fields = []
     values = []
     for key, value in kwargs.items():
-        if key not in ['id', 'created_at', 'consumables']:
+        if key not in ['id', 'created_at', 'consumables', 'clinic_id']:
             fields.append(f'{key} = ?')
             values.append(value)
 
     if fields:
-        values.append(service_id)
-        cursor.execute(f"UPDATE services SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        values.extend([service_id, clinic_id])
+        cursor.execute(f"UPDATE services SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
         conn.commit()
 
     conn.close()
     return True
 
 
-def delete_service(service_id):
-    """Delete service"""
+def delete_service(service_id, clinic_id):
+    """Delete service (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM services WHERE id = ?', (service_id,))
+    cursor.execute('DELETE FROM services WHERE id = ? AND clinic_id = ?', (service_id, clinic_id))
     conn.commit()
     conn.close()
     return True
@@ -474,19 +645,19 @@ def update_service_consumables(service_id, consumables):
 
 # ============== Price Calculations ==============
 
-def calculate_service_price(service_id):
+def calculate_service_price(service_id, clinic_id):
     """Calculate complete price breakdown for a service"""
-    service = get_service_by_id(service_id)
+    service = get_service_by_id(service_id, clinic_id)
     if not service:
         return None
 
-    settings = get_global_settings()
-    capacity = get_clinic_capacity()
+    settings = get_global_settings(clinic_id)
+    capacity = get_clinic_capacity(clinic_id)
 
     # Calculate fixed costs pool
-    fixed_costs = get_all_fixed_costs()
-    salaries = get_all_salaries()
-    equipment_list = get_all_equipment()
+    fixed_costs = get_all_fixed_costs(clinic_id)
+    salaries = get_all_salaries(clinic_id)
+    equipment_list = get_all_equipment(clinic_id)
 
     total_fixed = sum(c['monthly_amount'] for c in fixed_costs if c['included'])
     total_salaries = sum(s['monthly_salary'] for s in salaries if s['included'])
@@ -566,17 +737,18 @@ def calculate_service_price(service_id):
         'rounded_price': round(rounded_price, 2),
         'currency': settings['currency'],
         'chair_hourly_rate': round(chair_hourly_rate, 2),
-        'effective_hours': round(effective_hours, 2)
+        'effective_hours': round(effective_hours, 2),
+        'current_price': service.get('current_price')
     }
 
 
-def calculate_all_services():
-    """Calculate prices for all services"""
-    services = get_all_services()
+def calculate_all_services(clinic_id):
+    """Calculate prices for all services in a clinic"""
+    services = get_all_services(clinic_id)
     results = []
 
     for service in services:
-        price_data = calculate_service_price(service['id'])
+        price_data = calculate_service_price(service['id'], clinic_id)
         if price_data:
             results.append({
                 'id': service['id'],

@@ -1,6 +1,14 @@
 # 🦷 Dental Pricing Calculator
 
-A modern web application for dental clinics to calculate service prices using a **Cost-Plus pricing model**. This tool helps clinic owners determine fair prices by accounting for fixed costs, chair time, doctor fees, consumables, equipment depreciation, and desired profit margins.
+A **multi-tenant SaaS platform** for dental clinics to calculate service prices using a **Cost-Plus pricing model**. Multiple clinics can register, manage their own data independently, and calculate service prices with complete data isolation.
+
+## 🏥 Multi-Clinic SaaS Features
+
+- **Clinic Registration** - Each clinic registers with their own account
+- **Complete Data Isolation** - Every clinic's data is completely separate
+- **User Roles** - Owner, Admin, and Staff roles with different permissions
+- **User Management** - Clinic owners can add staff members
+- **Subscription Ready** - Built-in support for subscription plans and limits
 
 ## 📋 Features
 
@@ -103,6 +111,13 @@ The system automatically calculates prices ensuring all costs are covered plus y
 
 ## 💡 Key Features
 
+### Multi-Tenant Platform
+- ✅ **Clinic Registration** - Self-service clinic registration
+- ✅ **Data Isolation** - Each clinic's data is completely separate
+- ✅ **User Management** - Owners can add and manage staff accounts
+- ✅ **Role-Based Access** - Owner, Admin, and Staff permission levels
+
+### Pricing Features
 - ✅ **Real-time price calculations** - Instant updates as you change costs or services
 - ✅ **Equipment depreciation** - Both fixed (spread across all services) and per-hour (charged to specific services)
 - ✅ **Consumables tracking** - Add materials to services with automatic cost calculations
@@ -117,9 +132,11 @@ The system automatically calculates prices ensuring all costs are covered plus y
 ## 🛡️ Security
 
 - Password hashing with PBKDF2-SHA256
-- Session management
+- Session management with clinic isolation
 - SQL injection prevention
 - Input validation
+- Multi-tenant data isolation (clinic_id on all tables)
+- Role-based access control
 
 ## 📱 Network Access
 
@@ -136,6 +153,29 @@ MIT License
 
 Created with ❤️ for dental professionals
 
+## 🔌 API Endpoints
+
+### Authentication
+- `POST /login` - User login
+- `GET /logout` - User logout
+- `POST /api/register` - Register new clinic with owner
+
+### Clinic Management (Owner only)
+- `GET /api/clinic` - Get clinic info
+- `PUT /api/clinic` - Update clinic info
+- `GET /api/clinic/users` - List clinic users
+- `POST /api/clinic/users` - Add new user
+- `PUT /api/clinic/users/<id>` - Update user
+
+### Data APIs (All require login)
+- `GET/POST /api/fixed-costs` - Fixed costs
+- `GET/POST /api/salaries` - Salaries
+- `GET/POST /api/equipment` - Equipment
+- `GET/PUT /api/capacity` - Clinic capacity
+- `GET/POST /api/consumables` - Consumables
+- `GET/POST /api/services` - Services
+- `GET /api/price-list` - Full price calculations
+
 ---
 
-**Version 1.0.0** - Initial Release
+**Version 2.0.0** - Multi-Tenant SaaS Release
