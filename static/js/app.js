@@ -73,7 +73,9 @@ const APP = {
         const content = document.getElementById('mainContent');
         content.innerHTML = '<div style="padding:2rem;text-align:center;">Loading...</div>';
 
-        const html = await Pages[page]();
+        // Convert kebab-case to camelCase for Pages object
+        const pageKey = page.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+        const html = await Pages[pageKey]();
         content.innerHTML = html;
     }
 };
@@ -954,7 +956,7 @@ const Pages = {
                     document.getElementById('customProfitGroup').style.display = checkbox.checked ? 'none' : 'block';
                 }
 
-                function addConsumableRow() {
+                window.addConsumableRow = function() {
                     const container = document.getElementById('consumablesContainer');
                     // Remove "no consumables" message if it exists
                     const noConsumablesMsg = container.querySelector('[style*="color:var(--gray-500)"]');
@@ -966,14 +968,12 @@ const Pages = {
                     const row = document.createElement('div');
                     row.className = 'consumable-row';
                     row.style.cssText = 'display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;';
-                    row.innerHTML = \`
-                        <select class="form-select" style="flex:2;" data-consumable-select>
-                            <option value="">Select consumable...</option>
-                            \${consumables.map(c => \`<option value="\${c.id}">\${c.item_name}</option>\`).join('')}
-                        </select>
-                        <input type="number" class="form-input" style="flex:1;" placeholder="Quantity" value="1" data-consumable-quantity min="0.1" step="0.1" required>
-                        <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>
-                    \`;
+                    row.innerHTML = '<select class="form-select" style="flex:2;" data-consumable-select>' +
+                        '<option value="">Select consumable...</option>' +
+                        consumables.map(c => '<option value="' + c.id + '">' + c.item_name + '</option>').join('') +
+                        '</select>' +
+                        '<input type="number" class="form-input" style="flex:1;" placeholder="Quantity" value="1" data-consumable-quantity min="0.1" step="0.1" required>' +
+                        '<button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>';
                     container.appendChild(row);
                 }
             </script>
