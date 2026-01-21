@@ -379,16 +379,16 @@ def get_service_by_id(service_id):
 
 
 def create_service(name, chair_time_hours, doctor_hourly_fee, use_default_profit=1,
-                   custom_profit_percent=None, equipment_id=None, equipment_hours_used=None):
+                   custom_profit_percent=None, equipment_id=None, equipment_hours_used=None, current_price=None):
     """Create new service"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO services (name, chair_time_hours, doctor_hourly_fee, use_default_profit,
-                             custom_profit_percent, equipment_id, equipment_hours_used)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+                             custom_profit_percent, equipment_id, equipment_hours_used, current_price)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', (name, chair_time_hours, doctor_hourly_fee, use_default_profit,
-          custom_profit_percent, equipment_id, equipment_hours_used))
+          custom_profit_percent, equipment_id, equipment_hours_used, current_price))
     service_id = cursor.lastrowid
     conn.commit()
     conn.close()

@@ -892,15 +892,20 @@ const Pages = {
                         <small style="color:var(--gray-600);">Dentist's hourly rate for this service</small>
                     </div>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Current Market Price (Optional)</label>
+                    <input type="number" class="form-input" name="current_price" value="${service?.current_price||''}" step="1" placeholder="e.g., 800">
+                    <small style="color:var(--gray-600);">What you currently charge for this service (to compare with calculated price)</small>
+                </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">
-                            <input type="checkbox" name="use_default_profit" ${service?.use_default_profit?'checked':''} onchange="toggleCustomProfit(this)">
+                            <input type="checkbox" name="use_default_profit" ${(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit === 1) ? 'checked' : ''} onchange="toggleCustomProfit(this)">
                             Use Default Profit Margin?
                         </label>
                         <small style="color:var(--gray-600);display:block;margin-top:0.25rem;">Check to use global profit setting</small>
                     </div>
-                    <div class="form-group" id="customProfitGroup" style="display:${service?.use_default_profit?'none':'block'}">
+                    <div class="form-group" id="customProfitGroup" style="display:${(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit === 1) ? 'none' : 'block'}">
                         <label class="form-label">Custom Profit Margin %</label>
                         <input type="number" class="form-input" name="custom_profit_percent" value="${service?.custom_profit_percent||''}" step="1" placeholder="e.g., 50">
                         <small style="color:var(--gray-600);">Override default profit for this service only</small>
@@ -958,6 +963,11 @@ const Pages = {
 
                 window.addConsumableRow = function() {
                     const container = document.getElementById('consumablesContainer');
+                    if (!container) {
+                        console.error('consumablesContainer not found');
+                        return;
+                    }
+
                     // Remove "no consumables" message if it exists
                     const noConsumablesMsg = container.querySelector('[style*="color:var(--gray-500)"]');
                     if (noConsumablesMsg) {
@@ -965,6 +975,11 @@ const Pages = {
                     }
 
                     const consumables = ${JSON.stringify(consumables)};
+                    if (!consumables || consumables.length === 0) {
+                        alert('Please add consumables to your library first before adding them to services.');
+                        return;
+                    }
+
                     const row = document.createElement('div');
                     row.className = 'consumable-row';
                     row.style.cssText = 'display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;';
@@ -989,6 +1004,11 @@ const Pages = {
             formData.use_default_profit = formData.use_default_profit ? 1 : 0;
             if (formData.custom_profit_percent) {
                 formData.custom_profit_percent = parseFloat(formData.custom_profit_percent);
+            }
+            if (formData.current_price) {
+                formData.current_price = parseFloat(formData.current_price);
+            } else {
+                delete formData.current_price;
             }
             if (formData.equipment_id) {
                 formData.equipment_id = parseInt(formData.equipment_id);
@@ -1030,6 +1050,32 @@ const Pages = {
 
     async viewServicePrice(serviceId) {
         const price = await API.get(`/api/services/${serviceId}/price`);
+        const service = await API.get(`/api/services/${serviceId}`);
+
+        let varianceSection = '';
+        if (service.current_price) {
+            const variance = price.rounded_price - service.current_price;
+            const variancePercent = ((variance / service.current_price) * 100).toFixed(1);
+            const varianceColor = variance > 0 ? '#ef4444' : '#10b981';
+            const varianceIcon = variance > 0 ? '▲' : '▼';
+
+            varianceSection = `
+                <div style="border-top:2px solid #667eea;padding-top:1rem;margin-top:1rem;">
+                    <h3 style="color:#667eea;">PRICE COMPARISON</h3>
+                    <table style="width:100%;margin-top:1rem;">
+                        <tr><td>Current Price</td><td style="text-align:right;">${formatCurrency(service.current_price)}</td></tr>
+                        <tr><td>Calculated Price</td><td style="text-align:right;">${formatCurrency(price.rounded_price)}</td></tr>
+                        <tr style="border-top:1px solid #ccc;font-weight:bold;color:${varianceColor};">
+                            <td>Variance</td>
+                            <td style="text-align:right;">${varianceIcon} ${formatCurrency(Math.abs(variance))} (${Math.abs(variancePercent)}%)</td>
+                        </tr>
+                    </table>
+                    <p style="margin-top:0.5rem;font-size:0.875rem;color:#64748b;">
+                        ${variance > 0 ? '⚠️ Calculated price is higher - you may be undercharging' : '✅ Calculated price is lower - you have good margin'}
+                    </p>
+                </div>
+            `;
+        }
 
         const content = `
             <div style="font-family:monospace;background:#f9fafb;padding:1.5rem;border-radius:8px;">
@@ -1039,7 +1085,7 @@ const Pages = {
                 <div style="border-top:2px solid #667eea;padding-top:1rem;">
                     <h3 style="color:#667eea;">COST BREAKDOWN</h3>
                     <table style="width:100%;margin-top:1rem;">
-                        <tr><td>Chair Time Cost (${price.chair_hourly_rate}/hr)</td><td style="text-align:right;">${formatCurrency(price.chair_time_cost)}</td></tr>
+                        <tr><td>Chair Time Cost (${formatCurrency(price.chair_hourly_rate)}/hr)</td><td style="text-align:right;">${formatCurrency(price.chair_time_cost)}</td></tr>
                         <tr><td>Doctor Fee</td><td style="text-align:right;">${formatCurrency(price.doctor_fee)}</td></tr>
                         <tr><td>Equipment Cost</td><td style="text-align:right;">${formatCurrency(price.equipment_cost)}</td></tr>
                         <tr><td>Direct Materials</td><td style="text-align:right;">${formatCurrency(price.materials_cost)}</td></tr>
@@ -1054,11 +1100,12 @@ const Pages = {
                         <tr><td>VAT (${price.vat_percent}%)</td><td style="text-align:right;">${formatCurrency(price.vat_amount)}</td></tr>
                         <tr><td>Final Price</td><td style="text-align:right;">${formatCurrency(price.final_price)}</td></tr>
                         <tr style="border-top:2px solid #667eea;font-size:1.2em;font-weight:bold;color:#667eea;">
-                            <td>ROUNDED PRICE</td>
+                            <td>RECOMMENDED PRICE</td>
                             <td style="text-align:right;">${formatCurrency(price.rounded_price)}</td>
                         </tr>
                     </table>
                 </div>
+                ${varianceSection}
             </div>
             <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
                 <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Close</button>

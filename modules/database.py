@@ -174,11 +174,18 @@ def init_database():
             custom_profit_percent REAL,
             equipment_id INTEGER,
             equipment_hours_used REAL,
+            current_price REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (equipment_id) REFERENCES equipment(id)
         )
     ''')
+
+    # Add current_price column if it doesn't exist (migration)
+    cursor.execute("PRAGMA table_info(services)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if 'current_price' not in columns:
+        cursor.execute('ALTER TABLE services ADD COLUMN current_price REAL')
 
     # Service Consumables (junction table)
     cursor.execute('''
@@ -311,22 +318,22 @@ def create_sample_data():
         VALUES (?, ?, ?, ?)
     ''', consumables)
 
-    # Services (name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent)
+    # Services (name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent, current_price)
     services = [
-        ('Dental Checkup & Cleaning', 0.75, 400, 1, None),
-        ('Composite Filling - Small Cavity', 0.5, 600, 1, None),
-        ('Composite Filling - Large Cavity', 1.0, 600, 1, None),
-        ('Root Canal Treatment - Single Root', 1.5, 800, 1, None),
-        ('Root Canal Treatment - Multi Root', 2.5, 800, 1, None),
-        ('Tooth Extraction - Simple', 0.5, 500, 1, None),
-        ('Tooth Extraction - Surgical', 1.0, 700, 1, None),
-        ('Dental Crown Preparation', 1.5, 700, 1, None),
-        ('Teeth Whitening', 1.0, 500, 1, None),
-        ('Deep Cleaning (Scaling & Root Planing)', 1.5, 500, 1, None),
+        ('Dental Checkup & Cleaning', 0.75, 400, 1, None, 450),
+        ('Composite Filling - Small Cavity', 0.5, 600, 1, None, 650),
+        ('Composite Filling - Large Cavity', 1.0, 600, 1, None, 850),
+        ('Root Canal Treatment - Single Root', 1.5, 800, 1, None, 1800),
+        ('Root Canal Treatment - Multi Root', 2.5, 800, 1, None, 2800),
+        ('Tooth Extraction - Simple', 0.5, 500, 1, None, 500),
+        ('Tooth Extraction - Surgical', 1.0, 700, 1, None, 900),
+        ('Dental Crown Preparation', 1.5, 700, 1, None, 1200),
+        ('Teeth Whitening', 1.0, 500, 1, None, 800),
+        ('Deep Cleaning (Scaling & Root Planing)', 1.5, 500, 1, None, 950),
     ]
     cursor.executemany('''
-        INSERT INTO services (name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO services (name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent, current_price)
+        VALUES (?, ?, ?, ?, ?, ?)
     ''', services)
 
     # Service Consumables Examples (service_id, consumable_id, quantity)
