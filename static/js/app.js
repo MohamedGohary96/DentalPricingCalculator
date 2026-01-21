@@ -23,6 +23,41 @@ function formatCurrency(amount, currency = 'EGP') {
     return `${currency} ${parseFloat(amount || 0).toFixed(2)}`;
 }
 
+// Global storage for consumables (populated when service form opens)
+window.serviceFormConsumables = [];
+
+// Global function to add consumable row (defined here so it's always available)
+window.addConsumableRow = function() {
+    const container = document.getElementById('consumablesContainer');
+    if (!container) {
+        console.error('consumablesContainer not found');
+        return;
+    }
+
+    // Remove "no consumables" message if it exists
+    const noConsumablesMsg = container.querySelector('[style*="color:var(--gray-500)"]');
+    if (noConsumablesMsg) {
+        noConsumablesMsg.remove();
+    }
+
+    const consumables = window.serviceFormConsumables;
+    if (!consumables || consumables.length === 0) {
+        alert('Please add consumables to your library first before adding them to services.');
+        return;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'consumable-row';
+    row.style.cssText = 'display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;';
+    row.innerHTML = '<select class="form-select" style="flex:2;" data-consumable-select>' +
+        '<option value="">Select consumable...</option>' +
+        consumables.map(c => '<option value="' + c.id + '">' + c.item_name + '</option>').join('') +
+        '</select>' +
+        '<input type="number" class="form-input" style="flex:1;" placeholder="Quantity" value="1" data-consumable-quantity min="0.1" step="0.1" required>' +
+        '<button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>';
+    container.appendChild(row);
+};
+
 function openModal(title, content, size='') {
     const id = 'modal-' + Date.now();
     document.getElementById('modals').insertAdjacentHTML('beforeend',
@@ -868,6 +903,9 @@ const Pages = {
     async showServiceForm(id=null) {
         const equipment = await API.get('/api/equipment');
         const consumables = await API.get('/api/consumables');
+        // Store consumables globally so addConsumableRow can access them
+        window.serviceFormConsumables = consumables;
+
         let service = null;
         if (id) {
             service = await API.get(`/api/services/${id}`);
@@ -960,37 +998,7 @@ const Pages = {
                 function toggleCustomProfit(checkbox) {
                     document.getElementById('customProfitGroup').style.display = checkbox.checked ? 'none' : 'block';
                 }
-
-                window.addConsumableRow = function() {
-                    const container = document.getElementById('consumablesContainer');
-                    if (!container) {
-                        console.error('consumablesContainer not found');
-                        return;
-                    }
-
-                    // Remove "no consumables" message if it exists
-                    const noConsumablesMsg = container.querySelector('[style*="color:var(--gray-500)"]');
-                    if (noConsumablesMsg) {
-                        noConsumablesMsg.remove();
-                    }
-
-                    const consumables = ${JSON.stringify(consumables)};
-                    if (!consumables || consumables.length === 0) {
-                        alert('Please add consumables to your library first before adding them to services.');
-                        return;
-                    }
-
-                    const row = document.createElement('div');
-                    row.className = 'consumable-row';
-                    row.style.cssText = 'display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;';
-                    row.innerHTML = '<select class="form-select" style="flex:2;" data-consumable-select>' +
-                        '<option value="">Select consumable...</option>' +
-                        consumables.map(c => '<option value="' + c.id + '">' + c.item_name + '</option>').join('') +
-                        '</select>' +
-                        '<input type="number" class="form-input" style="flex:1;" placeholder="Quantity" value="1" data-consumable-quantity min="0.1" step="0.1" required>' +
-                        '<button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>';
-                    container.appendChild(row);
-                }
+                // Note: addConsumableRow is now defined globally at the top of app.js
             </script>
         `;
 
