@@ -62,6 +62,45 @@ window.toggleCustomProfit = function(checkbox) {
     }
 };
 
+// Toggle collapsible form sections
+window.toggleFormSection = function(button) {
+    const section = button.closest('.form-section-collapsible');
+    const content = section.querySelector('.section-content');
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+
+    button.setAttribute('aria-expanded', !isExpanded);
+    section.classList.toggle('is-open', !isExpanded);
+
+    if (isExpanded) {
+        content.setAttribute('hidden', '');
+    } else {
+        content.removeAttribute('hidden');
+    }
+};
+
+// Update packaging preview in consumable form
+window.updatePackagingPreview = function() {
+    const packCost = parseFloat(document.getElementById('packCostInput')?.value) || 0;
+    const cases = parseInt(document.getElementById('casesInput')?.value) || 1;
+    const units = parseInt(document.getElementById('unitsInput')?.value) || 1;
+
+    const totalUnits = cases * units;
+    const unitCost = packCost > 0 ? (packCost / totalUnits) : 0;
+
+    // Update preview displays
+    const casesPreview = document.getElementById('casesPreview');
+    const unitsPreview = document.getElementById('unitsPreview');
+    const packCostResult = document.getElementById('packCostResult');
+    const totalUnitsResult = document.getElementById('totalUnitsResult');
+    const unitCostResult = document.getElementById('unitCostResult');
+
+    if (casesPreview) casesPreview.textContent = cases;
+    if (unitsPreview) unitsPreview.textContent = units;
+    if (packCostResult) packCostResult.textContent = packCost.toFixed(2);
+    if (totalUnitsResult) totalUnitsResult.textContent = totalUnits;
+    if (unitCostResult) unitCostResult.textContent = unitCost.toFixed(3);
+};
+
 // Global function to add consumable row (defined here so it's always available)
 window.addConsumableRow = function() {
     const container = document.getElementById('consumablesContainer');
@@ -71,9 +110,9 @@ window.addConsumableRow = function() {
     }
 
     // Remove "no consumables" message if it exists
-    const noConsumablesMsg = container.querySelector('[style*="color:var(--gray-500)"]');
-    if (noConsumablesMsg) {
-        noConsumablesMsg.remove();
+    const emptyMsg = container.querySelector('.empty-consumables');
+    if (emptyMsg) {
+        emptyMsg.remove();
     }
 
     const consumables = window.serviceFormConsumables;
@@ -150,7 +189,7 @@ const APP = {
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         document.querySelector(`[onclick="APP.loadPage('${page}')"]`)?.classList.add('active');
 
-        const content = document.getElementById('mainContent');
+        const content = document.getElementById('pageContent');
         content.innerHTML = '<div style="padding:2rem;text-align:center;">Loading...</div>';
 
         // Convert kebab-case to camelCase for Pages object
@@ -166,68 +205,150 @@ const Pages = {
         const priceList = await API.get('/api/price-list');
         const topServices = priceList.slice(0, 5);
 
+        // Calculate pricing health metrics
+        const underpriced = priceList.filter(s => s.current_price && s.current_price < s.rounded_price * 0.95).length;
+        const optimal = priceList.filter(s => !s.current_price || (s.current_price >= s.rounded_price * 0.95 && s.current_price <= s.rounded_price * 1.05)).length;
+        const potentialRevenue = priceList.reduce((sum, s) => {
+            if (s.current_price && s.current_price < s.rounded_price) {
+                return sum + (s.rounded_price - s.current_price);
+            }
+            return sum;
+        }, 0);
+
         return `
-            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
-                <div class="stat-card" style="--stat-color:#667eea;--stat-bg:#e0e7ff;">
-                    <div class="stat-icon">🦷</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Total Services</div>
-                        <div class="stat-value">${stats.total_services}</div>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: var(--primary-100); color: var(--primary-600);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                                <rect x="9" y="3" width="6" height="4" rx="1"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">Total Services</span>
+                    </div>
+                    <div class="metric-value">${stats.total_services}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">Active dental procedures</span>
                     </div>
                 </div>
-                <div class="stat-card" style="--stat-color:#f59e0b;--stat-bg:#fef3c7;">
-                    <div class="stat-icon">💰</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Fixed Monthly Cost</div>
-                        <div class="stat-value">${formatCurrency(stats.total_fixed_monthly)}</div>
+
+                ${underpriced > 0 ? `
+                <div class="metric-card metric-highlight">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: #fef3c7; color: var(--warning);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2L2 22h20L12 2zm0 15a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-1-2V9h2v6h-2z"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">Needs Attention</span>
+                    </div>
+                    <div class="metric-value">${underpriced}</div>
+                    <div class="metric-footer">
+                        <span class="metric-action" onclick="APP.loadPage('price-list')">Services underpriced →</span>
                     </div>
                 </div>
-                <div class="stat-card" style="--stat-color:#22c55e;--stat-bg:#dcfce7;">
-                    <div class="stat-icon">⏱️</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Chair Hourly Rate</div>
-                        <div class="stat-value">${formatCurrency(stats.chair_hourly_rate)}</div>
+                ` : `
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: #d1fae5; color: var(--success);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">Pricing Health</span>
+                    </div>
+                    <div class="metric-value" style="color: var(--success);">Good</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">All services properly priced</span>
                     </div>
                 </div>
-                <div class="stat-card" style="--stat-color:#14b8a6;--stat-bg:#ccfbf1;">
-                    <div class="stat-icon">📊</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Effective Hours/Month</div>
-                        <div class="stat-value">${stats.effective_hours.toFixed(1)}</div>
+                `}
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: #dbeafe; color: var(--primary-600);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">Chair Hourly Rate</span>
+                    </div>
+                    <div class="metric-value currency">${formatCurrency(stats.chair_hourly_rate)}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${stats.effective_hours.toFixed(0)} effective hours/month</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: #fce7f3; color: #db2777;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="1" x2="12" y2="23"/>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">Monthly Fixed Costs</span>
+                    </div>
+                    <div class="metric-value currency">${formatCurrency(stats.total_fixed_monthly)}</div>
+                    <div class="metric-footer">
+                        <span class="metric-action" onclick="APP.loadPage('settings')">View breakdown →</span>
                     </div>
                 </div>
             </div>
 
             <div class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">📘 Quick Start Guide - Cost-Plus Pricing</h3>
+                    <h3 class="card-title">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem; vertical-align: -4px;">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16v-4"/>
+                            <path d="M12 8h.01"/>
+                        </svg>
+                        Quick Start Guide
+                    </h3>
                 </div>
                 <div class="card-body">
                     <p style="color:var(--gray-700);margin-bottom:1.5rem;">
                         This calculator uses <strong>Cost-Plus pricing</strong> to ensure all your costs are covered.
                         Follow these steps to set up your clinic and calculate accurate prices:
                     </p>
-                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
-                        <div style="padding:1.5rem;background:var(--gray-50);border-radius:8px;text-align:center;cursor:pointer;" onclick="APP.loadPage('settings')">
-                            <div style="font-size:2rem;margin-bottom:0.5rem;">⚙️</div>
-                            <h4>1. Configure Settings</h4>
-                            <p style="color:var(--gray-600);font-size:0.875rem;">
-                                Add rent, utilities, salaries, and equipment. Set your working hours and capacity.
-                            </p>
+                    <div class="setup-steps">
+                        <div class="setup-step" onclick="APP.loadPage('settings')">
+                            <div class="step-number">1</div>
+                            <div class="step-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+                                    <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+                                    <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+                                    <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+                                </svg>
+                            </div>
+                            <h4>Configure Settings</h4>
+                            <p>Add rent, utilities, salaries, and equipment. Set your working hours and capacity.</p>
                         </div>
-                        <div style="padding:1.5rem;background:var(--gray-50);border-radius:8px;text-align:center;cursor:pointer;" onclick="APP.loadPage('consumables')">
-                            <div style="font-size:2rem;margin-bottom:0.5rem;">📦</div>
-                            <h4>2. Add Consumables</h4>
-                            <p style="color:var(--gray-600);font-size:0.875rem;">
-                                Create a library of materials like gloves, anesthetics, gauze, and sutures.
-                            </p>
+                        <div class="setup-step" onclick="APP.loadPage('consumables')">
+                            <div class="step-number">2</div>
+                            <div class="step-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+                                </svg>
+                            </div>
+                            <h4>Add Consumables</h4>
+                            <p>Create a library of materials like gloves, anesthetics, gauze, and sutures.</p>
                         </div>
-                        <div style="padding:1.5rem;background:var(--gray-50);border-radius:8px;text-align:center;cursor:pointer;" onclick="APP.loadPage('services')">
-                            <div style="font-size:2rem;margin-bottom:0.5rem;">🦷</div>
-                            <h4>3. Create Services</h4>
-                            <p style="color:var(--gray-600);font-size:0.875rem;">
-                                Define procedures with chair time, doctor fees, and materials. Prices calculated automatically!
-                            </p>
+                        <div class="setup-step" onclick="APP.loadPage('services')">
+                            <div class="step-number">3</div>
+                            <div class="step-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M12 2C8 2 6 5 6 8c0 2.5 1 4 2 5.5S10 16 10 18c0 1.5-.5 3-1.5 4h7c-1-1-1.5-2.5-1.5-4 0-2 1-3.5 2-5.5s2-3 2-5.5c0-3-2-6-6-6z"/>
+                                    <path d="M9 22h6"/>
+                                </svg>
+                            </div>
+                            <h4>Create Services</h4>
+                            <p>Define procedures with chair time, doctor fees, and materials. Prices calculated automatically!</p>
                         </div>
                     </div>
                 </div>
@@ -815,30 +936,103 @@ const Pages = {
         const content = `
             <form id="consumableForm">
                 <div class="form-group">
-                    <label class="form-label">Consumable Item Name</label>
+                    <label class="form-label required">Consumable Item Name</label>
                     <input type="text" class="form-input" name="item_name" value="${consumable?.item_name||''}" placeholder="e.g., Latex Gloves, Anesthetic Cartridge" required>
-                    <small style="color:var(--gray-600);">Examples: Gloves, Gauze, Anesthetic, Sutures, Dental Floss</small>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Cost per Pack</label>
-                        <input type="number" class="form-input" name="pack_cost" value="${consumable?.pack_cost||''}" step="0.01" placeholder="e.g., 150" required>
-                        <small style="color:var(--gray-600);">Price you pay for one pack from supplier</small>
+
+                <!-- Packaging Calculator with Visual Flow -->
+                <div class="packaging-calculator">
+                    <div class="packaging-header">
+                        <span class="packaging-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -3px; margin-right: 0.5rem;">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                            </svg>
+                            Packaging Breakdown
+                        </span>
+                        <span class="packaging-help">How is this item packaged?</span>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Cases per Pack</label>
-                        <input type="number" class="form-input" name="cases_per_pack" value="${consumable?.cases_per_pack||1}" min="1" placeholder="e.g., 10" required>
-                        <small style="color:var(--gray-600);">How many boxes/cases in one pack</small>
+
+                    <div class="packaging-flow">
+                        <!-- Step 1: Pack Cost -->
+                        <div class="packaging-step">
+                            <div class="step-badge">1</div>
+                            <div class="step-content">
+                                <label class="form-label required">Pack Cost</label>
+                                <div class="input-with-unit">
+                                    <input type="number" class="form-input" name="pack_cost" id="packCostInput" value="${consumable?.pack_cost||''}" step="0.01" placeholder="e.g., 180" required oninput="window.updatePackagingPreview()">
+                                    <span class="input-unit">EGP</span>
+                                </div>
+                                <small>Total price for one pack from supplier</small>
+                            </div>
+                            <div class="step-visual">
+                                <div class="visual-box">📦 1 Pack</div>
+                            </div>
+                        </div>
+
+                        <div class="packaging-arrow">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M19 12l-7 7-7-7"/>
+                            </svg>
+                            <span>contains</span>
+                        </div>
+
+                        <!-- Step 2: Cases per Pack -->
+                        <div class="packaging-step">
+                            <div class="step-badge">2</div>
+                            <div class="step-content">
+                                <label class="form-label required">Cases per Pack</label>
+                                <input type="number" class="form-input" name="cases_per_pack" id="casesInput" value="${consumable?.cases_per_pack||1}" min="1" placeholder="e.g., 10" required oninput="window.updatePackagingPreview()">
+                                <small>How many boxes/cases inside the pack?</small>
+                            </div>
+                            <div class="step-visual">
+                                <div class="visual-box">📦 × <span id="casesPreview">${consumable?.cases_per_pack||1}</span></div>
+                            </div>
+                        </div>
+
+                        <div class="packaging-arrow">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M19 12l-7 7-7-7"/>
+                            </svg>
+                            <span>each contains</span>
+                        </div>
+
+                        <!-- Step 3: Units per Case -->
+                        <div class="packaging-step">
+                            <div class="step-badge">3</div>
+                            <div class="step-content">
+                                <label class="form-label required">Units per Case</label>
+                                <input type="number" class="form-input" name="units_per_case" id="unitsInput" value="${consumable?.units_per_case||1}" min="1" placeholder="e.g., 100" required oninput="window.updatePackagingPreview()">
+                                <small>Individual items you use (e.g., 100 gloves)</small>
+                            </div>
+                            <div class="step-visual">
+                                <div class="visual-box">🧤 × <span id="unitsPreview">${consumable?.units_per_case||1}</span></div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Units per Case</label>
-                        <input type="number" class="form-input" name="units_per_case" value="${consumable?.units_per_case||1}" min="1" placeholder="e.g., 100" required>
-                        <small style="color:var(--gray-600);">Individual units in each case (e.g., 100 gloves per box)</small>
+
+                    <!-- Live Calculation Result -->
+                    <div class="packaging-result">
+                        <div class="result-equation">
+                            <span class="eq-part">EGP <span id="packCostResult">${consumable?.pack_cost||0}</span></span>
+                            <span class="eq-operator">÷</span>
+                            <span class="eq-part"><span id="totalUnitsResult">${(consumable?.cases_per_pack||1) * (consumable?.units_per_case||1)}</span> units</span>
+                            <span class="eq-operator">=</span>
+                            <span class="eq-final">
+                                <strong>EGP <span id="unitCostResult">${consumable ? (consumable.pack_cost / consumable.cases_per_pack / consumable.units_per_case).toFixed(3) : '0.000'}</span></strong>
+                                <small>per unit</small>
+                            </span>
+                        </div>
                     </div>
                 </div>
+
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
                     <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.25rem;">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Save Consumable
+                    </button>
                 </div>
             </form>
         `;
@@ -956,98 +1150,167 @@ const Pages = {
             service = await API.get(`/api/services/${id}`);
         }
 
+        // Count consumables for badge
+        const consumablesCount = service?.consumables?.length || 0;
+        const hasEquipment = service?.equipment_id ? true : false;
+        const hasCustomProfit = !(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit == 1 || service?.use_default_profit === true);
+
         const content = `
             <form id="serviceForm">
-                <div class="form-group">
-                    <label class="form-label">Dental Service Name</label>
-                    <input type="text" class="form-input" name="name" value="${service?.name||''}" placeholder="e.g., Tooth Extraction, Root Canal, Cleaning" required>
-                    <small style="color:var(--gray-600);">Examples: Filling, Crown, Implant, Cleaning, Whitening</small>
-                </div>
-                <div class="form-row">
+                <!-- Essential Fields Section -->
+                <section class="form-section-essential">
                     <div class="form-group">
-                        <label class="form-label">Chair Time (hours)</label>
-                        <input type="number" class="form-input" name="chair_time_hours" value="${service?.chair_time_hours||''}" step="0.25" placeholder="e.g., 1.5" required>
-                        <small style="color:var(--gray-600);">How long the patient occupies the chair (e.g., 0.5, 1, 2)</small>
+                        <label class="form-label required">Service Name</label>
+                        <input type="text" class="form-input" name="name" value="${service?.name||''}" placeholder="e.g., Tooth Extraction, Root Canal, Cleaning" required>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Doctor Fee per Hour</label>
-                        <input type="number" class="form-input" name="doctor_hourly_fee" value="${service?.doctor_hourly_fee||''}" step="1" placeholder="e.g., 500" required>
-                        <small style="color:var(--gray-600);">Dentist's hourly rate for this service</small>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Current Market Price (Optional)</label>
-                    <input type="number" class="form-input" name="current_price" value="${service?.current_price||''}" step="1" placeholder="e.g., 800">
-                    <small style="color:var(--gray-600);">What you currently charge for this service (to compare with calculated price)</small>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">
-                            <input type="checkbox" name="use_default_profit" ${(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit == 1 || service?.use_default_profit === true) ? 'checked' : ''} onchange="window.toggleCustomProfit(this)">
-                            Use Default Profit Margin?
-                        </label>
-                        <small style="color:var(--gray-600);display:block;margin-top:0.25rem;">Check to use global profit setting</small>
-                    </div>
-                    <div class="form-group" id="customProfitGroup" style="display:${(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit == 1 || service?.use_default_profit === true) ? 'none' : 'block'}">
-                        <label class="form-label">Custom Profit Margin %</label>
-                        <input type="number" class="form-input" name="custom_profit_percent" value="${service?.custom_profit_percent||''}" step="1" placeholder="e.g., 50">
-                        <small style="color:var(--gray-600);">Override default profit for this service only</small>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Special Equipment (Optional)</label>
-                        <select class="form-select" name="equipment_id">
-                            <option value="">None - No special equipment</option>
-                            ${equipment.filter(e => e.allocation_type === 'per-hour').map(e =>
-                                `<option value="${e.id}" ${service?.equipment_id===e.id?'selected':''}>${e.asset_name}</option>`
-                            ).join('')}
-                        </select>
-                        <small style="color:var(--gray-600);">Select if this service uses per-hour equipment (e.g., X-Ray)</small>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label required">Chair Time</label>
+                            <div class="input-with-unit">
+                                <input type="number" class="form-input" name="chair_time_hours" value="${service?.chair_time_hours||''}" step="0.25" min="0.25" placeholder="e.g., 1.5" required>
+                                <span class="input-unit">hours</span>
+                            </div>
+                            <div class="quick-options">
+                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='0.25'">15min</button>
+                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='0.5'">30min</button>
+                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='1'">1hr</button>
+                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='1.5'">1.5hr</button>
+                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='2'">2hr</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label required">Doctor Fee per Hour</label>
+                            <div class="input-with-unit">
+                                <input type="number" class="form-input" name="doctor_hourly_fee" value="${service?.doctor_hourly_fee||''}" step="1" placeholder="e.g., 500" required>
+                                <span class="input-unit">EGP/hr</span>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Equipment Usage Hours</label>
-                        <input type="number" class="form-input" name="equipment_hours_used" value="${service?.equipment_hours_used||''}" step="0.1" placeholder="e.g., 0.25">
-                        <small style="color:var(--gray-600);">How long equipment is used (e.g., 0.1 for X-Ray)</small>
+                        <label class="form-label">Current Market Price</label>
+                        <div class="input-with-unit">
+                            <input type="number" class="form-input" name="current_price" value="${service?.current_price||''}" step="1" placeholder="What you currently charge">
+                            <span class="input-unit">EGP</span>
+                        </div>
+                        <small style="color:var(--gray-500);font-size:0.8125rem;">Optional - Used to compare with calculated price</small>
                     </div>
-                </div>
+                </section>
 
-                <div class="form-group" style="margin-top:1rem;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-                        <label class="form-label" style="margin:0;">Consumables & Materials</label>
-                        <button type="button" class="btn btn-sm btn-primary" onclick="addConsumableRow()">+ Add Consumable</button>
+                <!-- Collapsible: Materials & Consumables -->
+                <section class="form-section-collapsible ${consumablesCount > 0 ? 'is-open' : ''}">
+                    <button type="button" class="section-toggle" aria-expanded="${consumablesCount > 0 ? 'true' : 'false'}" onclick="window.toggleFormSection(this)">
+                        <span class="toggle-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                        </span>
+                        <span class="toggle-title">Materials & Consumables</span>
+                        <span class="toggle-badge">${consumablesCount > 0 ? consumablesCount + ' items' : 'Optional'}</span>
+                    </button>
+                    <div class="section-content" ${consumablesCount > 0 ? '' : 'hidden'}>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                            <small style="color:var(--gray-600);">Add materials used in this service (e.g., 2 gloves, 1 cartridge)</small>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="addConsumableRow()">+ Add</button>
+                        </div>
+                        <div style="display:flex;gap:0.5rem;margin-bottom:0.25rem;padding:0 0.25rem;font-size:0.75rem;color:var(--gray-500);font-weight:600;">
+                            <span style="flex:2;">Consumable</span>
+                            <span style="flex:1;">Units</span>
+                            <span style="flex:1;text-align:right;min-width:80px;">Cost</span>
+                            <span style="width:32px;"></span>
+                        </div>
+                        <div id="consumablesContainer">
+                            ${service?.consumables?.length > 0 ? service.consumables.map(sc => {
+                                const cons = consumables.find(c => c.id === sc.consumable_id);
+                                const unitCost = cons ? (cons.pack_cost || 0) / (cons.cases_per_pack || 1) / (cons.units_per_case || 1) : 0;
+                                const totalCost = unitCost * sc.quantity;
+                                return `
+                                <div class="consumable-row" style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">
+                                    <select class="form-select" style="flex:2;" data-consumable-select onchange="window.updateConsumableCost(this.parentElement)">
+                                        <option value="">Select consumable...</option>
+                                        ${consumables.map(c =>
+                                            `<option value="${c.id}" ${sc.consumable_id===c.id?'selected':''}>${c.item_name}</option>`
+                                        ).join('')}
+                                    </select>
+                                    <input type="number" class="form-input" style="flex:1;" placeholder="Units" value="${sc.quantity}" data-consumable-quantity min="0.1" step="0.1" required oninput="window.updateConsumableCost(this.parentElement)">
+                                    <span data-consumable-cost style="flex:1;text-align:right;font-weight:500;color:var(--gray-600);min-width:80px;">${formatCurrency(totalCost)}</span>
+                                    <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>
+                                </div>`;
+                            }).join('') : '<div class="empty-consumables" style="color:var(--gray-500);text-align:center;padding:1rem;background:var(--gray-50);border-radius:var(--radius);border:1px dashed var(--gray-300);">No consumables added yet</div>'}
+                        </div>
                     </div>
-                    <small style="color:var(--gray-600);display:block;margin-bottom:0.5rem;">Add materials used in this service. Enter quantity in units (e.g., 2 gloves, 1 cartridge)</small>
-                    <div style="display:flex;gap:0.5rem;margin-bottom:0.25rem;padding:0 0.25rem;font-size:0.75rem;color:var(--gray-500);font-weight:600;">
-                        <span style="flex:2;">Consumable</span>
-                        <span style="flex:1;">Units</span>
-                        <span style="flex:1;text-align:right;min-width:100px;">Total Cost</span>
-                        <span style="width:32px;"></span>
-                    </div>
-                    <div id="consumablesContainer">
-                        ${service?.consumables?.length > 0 ? service.consumables.map(sc => {
-                            const cons = consumables.find(c => c.id === sc.consumable_id);
-                            const unitCost = cons ? (cons.pack_cost || 0) / (cons.cases_per_pack || 1) / (cons.units_per_case || 1) : 0;
-                            const totalCost = unitCost * sc.quantity;
-                            return `
-                            <div class="consumable-row" style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">
-                                <select class="form-select" style="flex:2;" data-consumable-select onchange="window.updateConsumableCost(this.parentElement)">
-                                    <option value="">Select consumable...</option>
-                                    ${consumables.map(c =>
-                                        `<option value="${c.id}" ${sc.consumable_id===c.id?'selected':''}>${c.item_name}</option>`
+                </section>
+
+                <!-- Collapsible: Special Equipment -->
+                <section class="form-section-collapsible ${hasEquipment ? 'is-open' : ''}">
+                    <button type="button" class="section-toggle" aria-expanded="${hasEquipment ? 'true' : 'false'}" onclick="window.toggleFormSection(this)">
+                        <span class="toggle-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                        </span>
+                        <span class="toggle-title">Special Equipment</span>
+                        <span class="toggle-badge">${hasEquipment ? 'Configured' : 'Optional'}</span>
+                    </button>
+                    <div class="section-content" ${hasEquipment ? '' : 'hidden'}>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Equipment</label>
+                                <select class="form-select" name="equipment_id">
+                                    <option value="">None - No special equipment</option>
+                                    ${equipment.filter(e => e.allocation_type === 'per-hour').map(e =>
+                                        `<option value="${e.id}" ${service?.equipment_id===e.id?'selected':''}>${e.asset_name}</option>`
                                     ).join('')}
                                 </select>
-                                <input type="number" class="form-input" style="flex:1;" placeholder="Units" value="${sc.quantity}" data-consumable-quantity min="0.1" step="0.1" required oninput="window.updateConsumableCost(this.parentElement)">
-                                <span data-consumable-cost style="flex:1;text-align:right;font-weight:500;color:var(--gray-600);min-width:100px;">${formatCurrency(totalCost)}</span>
-                                <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>
-                            </div>`;
-                        }).join('') : '<div style="color:var(--gray-500);text-align:center;padding:1rem;">No consumables added</div>'}
+                                <small style="color:var(--gray-500);font-size:0.8125rem;">Per-hour equipment like X-Ray machines</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Usage Time</label>
+                                <div class="input-with-unit">
+                                    <input type="number" class="form-input" name="equipment_hours_used" value="${service?.equipment_hours_used||''}" step="0.1" placeholder="e.g., 0.25">
+                                    <span class="input-unit">hours</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </section>
+
+                <!-- Collapsible: Pricing Options -->
+                <section class="form-section-collapsible ${hasCustomProfit ? 'is-open' : ''}">
+                    <button type="button" class="section-toggle" aria-expanded="${hasCustomProfit ? 'true' : 'false'}" onclick="window.toggleFormSection(this)">
+                        <span class="toggle-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                        </span>
+                        <span class="toggle-title">Custom Pricing</span>
+                        <span class="toggle-badge">${hasCustomProfit ? service.custom_profit_percent + '%' : 'Using default'}</span>
+                    </button>
+                    <div class="section-content" ${hasCustomProfit ? '' : 'hidden'}>
+                        <div class="form-group">
+                            <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;">
+                                <input type="checkbox" name="use_default_profit" ${!hasCustomProfit ? 'checked' : ''} onchange="window.toggleCustomProfit(this)" style="width:18px;height:18px;">
+                                <span>Use Default Profit Margin</span>
+                            </label>
+                        </div>
+                        <div class="form-group" id="customProfitGroup" style="display:${hasCustomProfit ? 'block' : 'none'}">
+                            <label class="form-label">Custom Profit Margin</label>
+                            <div class="input-with-unit">
+                                <input type="number" class="form-input" name="custom_profit_percent" value="${service?.custom_profit_percent||''}" step="1" placeholder="e.g., 50">
+                                <span class="input-unit">%</span>
+                            </div>
+                            <small style="color:var(--gray-500);font-size:0.8125rem;">Override the global profit setting for this service only</small>
+                        </div>
+                    </div>
+                </section>
 
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
                     <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.25rem;">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Save Service
+                    </button>
                 </div>
             </form>
         `;
@@ -1212,30 +1475,66 @@ const Pages = {
         // Calculate total potential revenue impact
         const totalVariance = servicesWithPrice.reduce((sum, p) => sum + (p.rounded_price - p.current_price), 0);
 
-        // Helper function for variance display
+        // Helper function for variance display with health bar
         const getVarianceDisplay = (p) => {
-            if (!p.current_price) return { html: '<span style="color:#94a3b8;">-</span>', status: 'none' };
+            if (!p.current_price) return { html: '<span class="price-health-none">-</span>', status: 'none' };
 
             const variance = p.rounded_price - p.current_price;
-            const variancePercent = ((variance / p.current_price) * 100).toFixed(0);
+            const variancePercent = ((variance / p.current_price) * 100);
             const absVariance = Math.abs(variance);
-            const absPercent = Math.abs(variancePercent);
+            const absPercent = Math.abs(variancePercent).toFixed(0);
 
-            if (absPercent <= 5) {
+            // Calculate position on the health bar (0-100)
+            // -50% = 0, 0% = 50%, +50% = 100
+            let position = 50 + (variancePercent / 2);
+            position = Math.max(5, Math.min(95, position));
+
+            if (Math.abs(variancePercent) <= 5) {
                 return {
-                    html: `<span style="background:#dcfce7;color:#15803d;padding:0.25rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:600;">✓ Optimal</span>`,
+                    html: `<div class="price-health optimal">
+                        <div class="health-bar">
+                            <div class="health-zone zone-under"></div>
+                            <div class="health-zone zone-optimal"></div>
+                            <div class="health-zone zone-over"></div>
+                            <div class="health-indicator" style="left:${position}%"></div>
+                        </div>
+                        <span class="health-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            Optimal ${variancePercent > 0 ? '+' : ''}${variancePercent.toFixed(0)}%
+                        </span>
+                    </div>`,
                     status: 'optimal'
                 };
             } else if (variance > 0) {
                 return {
-                    html: `<span style="background:#fef3c7;color:#b45309;padding:0.25rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:600;">⚠️ +${absPercent}%</span>
-                           <div style="font-size:0.7rem;color:#b45309;margin-top:0.25rem;">Undercharging ${formatCurrency(absVariance)}</div>`,
+                    html: `<div class="price-health underpriced">
+                        <div class="health-bar">
+                            <div class="health-zone zone-under"></div>
+                            <div class="health-zone zone-optimal"></div>
+                            <div class="health-zone zone-over"></div>
+                            <div class="health-indicator" style="left:${position}%"></div>
+                        </div>
+                        <span class="health-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 22h20L12 2zm0 15a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-1-2V9h2v6h-2z"/></svg>
+                            Underpriced ${formatCurrency(absVariance)}
+                        </span>
+                    </div>`,
                     status: 'underpriced'
                 };
             } else {
                 return {
-                    html: `<span style="background:#dbeafe;color:#1d4ed8;padding:0.25rem 0.5rem;border-radius:12px;font-size:0.75rem;font-weight:600;">💪 -${absPercent}%</span>
-                           <div style="font-size:0.7rem;color:#1d4ed8;margin-top:0.25rem;">Extra margin ${formatCurrency(absVariance)}</div>`,
+                    html: `<div class="price-health overpriced">
+                        <div class="health-bar">
+                            <div class="health-zone zone-under"></div>
+                            <div class="health-zone zone-optimal"></div>
+                            <div class="health-zone zone-over"></div>
+                            <div class="health-indicator" style="left:${position}%"></div>
+                        </div>
+                        <span class="health-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                            Extra +${formatCurrency(absVariance)}
+                        </span>
+                    </div>`,
                     status: 'overpriced'
                 };
             }
