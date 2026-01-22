@@ -26,6 +26,42 @@ function formatCurrency(amount, currency = 'EGP') {
 // Global storage for consumables (populated when service form opens)
 window.serviceFormConsumables = [];
 
+// Calculate unit cost for a consumable
+window.getConsumableUnitCost = function(consumableId) {
+    const consumables = window.serviceFormConsumables;
+    const c = consumables.find(item => item.id == consumableId);
+    if (!c) return 0;
+    const unitsPerPack = (c.cases_per_pack || 1) * (c.units_per_case || 1);
+    return (c.pack_cost || 0) / unitsPerPack;
+};
+
+// Update cost display for a consumable row
+window.updateConsumableCost = function(row) {
+    const select = row.querySelector('[data-consumable-select]');
+    const qtyInput = row.querySelector('[data-consumable-quantity]');
+    const costDisplay = row.querySelector('[data-consumable-cost]');
+    if (!select || !qtyInput || !costDisplay) return;
+
+    const consumableId = select.value;
+    const quantity = parseFloat(qtyInput.value) || 0;
+
+    if (consumableId && quantity > 0) {
+        const unitCost = window.getConsumableUnitCost(consumableId);
+        const totalCost = unitCost * quantity;
+        costDisplay.textContent = formatCurrency(totalCost);
+    } else {
+        costDisplay.textContent = '-';
+    }
+};
+
+// Toggle custom profit margin visibility
+window.toggleCustomProfit = function(checkbox) {
+    const customProfitGroup = document.getElementById('customProfitGroup');
+    if (customProfitGroup) {
+        customProfitGroup.style.display = checkbox.checked ? 'none' : 'block';
+    }
+};
+
 // Global function to add consumable row (defined here so it's always available)
 window.addConsumableRow = function() {
     const container = document.getElementById('consumablesContainer');
@@ -53,9 +89,18 @@ window.addConsumableRow = function() {
         '<option value="">Select consumable...</option>' +
         consumables.map(c => '<option value="' + c.id + '">' + c.item_name + '</option>').join('') +
         '</select>' +
-        '<input type="number" class="form-input" style="flex:1;" placeholder="Quantity" value="1" data-consumable-quantity min="0.1" step="0.1" required>' +
+        '<input type="number" class="form-input" style="flex:1;" placeholder="Units" value="1" data-consumable-quantity min="0.1" step="0.1" required>' +
+        '<span data-consumable-cost style="flex:1;text-align:right;font-weight:500;color:var(--gray-600);min-width:100px;">-</span>' +
         '<button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>';
-    container.appendChild(row);
+
+    // Add event listeners to update cost
+    const select = row.querySelector('[data-consumable-select]');
+    const qtyInput = row.querySelector('[data-consumable-quantity]');
+    select.addEventListener('change', () => window.updateConsumableCost(row));
+    qtyInput.addEventListener('input', () => window.updateConsumableCost(row));
+
+    // Insert at top instead of bottom
+    container.insertBefore(row, container.firstChild);
 };
 
 function openModal(title, content, size='') {
@@ -706,7 +751,7 @@ const Pages = {
                     <p style="margin-top:0.5rem;margin-bottom:0.5rem;">Examples: Gloves, Gauze, Anesthetic cartridges, Sutures, Cotton rolls, Dental floss</p>
                     <p style="margin-bottom:0;color:var(--gray-700);">
                         <strong>How it works:</strong> You define how materials are packaged (pack → cases → units).
-                        The system calculates the per-case cost, then when you add a service, you specify how many cases/units are used.
+                        The system calculates the per-unit cost, then when you add a service, you specify how many units are used.
                     </p>
                 </div>
             </div>
@@ -725,20 +770,20 @@ const Pages = {
                                     <th>Pack Cost</th>
                                     <th>Cases per Pack</th>
                                     <th>Units per Case</th>
-                                    <th>Per Case Cost</th>
+                                    <th>Per Unit Cost</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${consumables.map(c => {
-                                    const perCaseCost = (c.pack_cost / c.cases_per_pack) * c.units_per_case;
+                                    const perUnitCost = c.pack_cost / c.cases_per_pack / c.units_per_case;
                                     return `
                                         <tr>
                                             <td><strong>${c.item_name}</strong></td>
                                             <td>${formatCurrency(c.pack_cost)}</td>
                                             <td>${c.cases_per_pack}</td>
                                             <td>${c.units_per_case}</td>
-                                            <td><strong>${formatCurrency(perCaseCost)}</strong></td>
+                                            <td><strong>${formatCurrency(perUnitCost)}</strong></td>
                                             <td>
                                                 <button class="btn btn-sm btn-ghost" onclick="Pages.showConsumableForm(${c.id})" title="Edit">✎</button>
                                                 <button class="btn btn-sm btn-ghost" onclick="Pages.deleteConsumable(${c.id})" title="Delete">🗑️</button>
@@ -938,12 +983,12 @@ const Pages = {
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">
-                            <input type="checkbox" name="use_default_profit" ${(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit === 1) ? 'checked' : ''} onchange="toggleCustomProfit(this)">
+                            <input type="checkbox" name="use_default_profit" ${(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit == 1 || service?.use_default_profit === true) ? 'checked' : ''} onchange="window.toggleCustomProfit(this)">
                             Use Default Profit Margin?
                         </label>
                         <small style="color:var(--gray-600);display:block;margin-top:0.25rem;">Check to use global profit setting</small>
                     </div>
-                    <div class="form-group" id="customProfitGroup" style="display:${(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit === 1) ? 'none' : 'block'}">
+                    <div class="form-group" id="customProfitGroup" style="display:${(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit == 1 || service?.use_default_profit === true) ? 'none' : 'block'}">
                         <label class="form-label">Custom Profit Margin %</label>
                         <input type="number" class="form-input" name="custom_profit_percent" value="${service?.custom_profit_percent||''}" step="1" placeholder="e.g., 50">
                         <small style="color:var(--gray-600);">Override default profit for this service only</small>
@@ -972,20 +1017,31 @@ const Pages = {
                         <label class="form-label" style="margin:0;">Consumables & Materials</label>
                         <button type="button" class="btn btn-sm btn-primary" onclick="addConsumableRow()">+ Add Consumable</button>
                     </div>
-                    <small style="color:var(--gray-600);display:block;margin-bottom:0.5rem;">Add materials used in this service (e.g., 2x Gloves, 1x Anesthetic cartridge)</small>
+                    <small style="color:var(--gray-600);display:block;margin-bottom:0.5rem;">Add materials used in this service. Enter quantity in units (e.g., 2 gloves, 1 cartridge)</small>
+                    <div style="display:flex;gap:0.5rem;margin-bottom:0.25rem;padding:0 0.25rem;font-size:0.75rem;color:var(--gray-500);font-weight:600;">
+                        <span style="flex:2;">Consumable</span>
+                        <span style="flex:1;">Units</span>
+                        <span style="flex:1;text-align:right;min-width:100px;">Total Cost</span>
+                        <span style="width:32px;"></span>
+                    </div>
                     <div id="consumablesContainer">
-                        ${service?.consumables?.length > 0 ? service.consumables.map(sc => `
+                        ${service?.consumables?.length > 0 ? service.consumables.map(sc => {
+                            const cons = consumables.find(c => c.id === sc.consumable_id);
+                            const unitCost = cons ? (cons.pack_cost || 0) / (cons.cases_per_pack || 1) / (cons.units_per_case || 1) : 0;
+                            const totalCost = unitCost * sc.quantity;
+                            return `
                             <div class="consumable-row" style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">
-                                <select class="form-select" style="flex:2;" data-consumable-select>
+                                <select class="form-select" style="flex:2;" data-consumable-select onchange="window.updateConsumableCost(this.parentElement)">
                                     <option value="">Select consumable...</option>
                                     ${consumables.map(c =>
                                         `<option value="${c.id}" ${sc.consumable_id===c.id?'selected':''}>${c.item_name}</option>`
                                     ).join('')}
                                 </select>
-                                <input type="number" class="form-input" style="flex:1;" placeholder="Quantity" value="${sc.quantity}" data-consumable-quantity min="0.1" step="0.1" required>
+                                <input type="number" class="form-input" style="flex:1;" placeholder="Units" value="${sc.quantity}" data-consumable-quantity min="0.1" step="0.1" required oninput="window.updateConsumableCost(this.parentElement)">
+                                <span data-consumable-cost style="flex:1;text-align:right;font-weight:500;color:var(--gray-600);min-width:100px;">${formatCurrency(totalCost)}</span>
                                 <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>
-                            </div>
-                        `).join('') : '<div style="color:var(--gray-500);text-align:center;padding:1rem;">No consumables added</div>'}
+                            </div>`;
+                        }).join('') : '<div style="color:var(--gray-500);text-align:center;padding:1rem;">No consumables added</div>'}
                     </div>
                 </div>
 
@@ -994,12 +1050,6 @@ const Pages = {
                     <button type="submit" class="btn btn-primary">Save</button>
                 </div>
             </form>
-            <script>
-                function toggleCustomProfit(checkbox) {
-                    document.getElementById('customProfitGroup').style.display = checkbox.checked ? 'none' : 'block';
-                }
-                // Note: addConsumableRow is now defined globally at the top of app.js
-            </script>
         `;
 
         openModal(id ? 'Edit Service' : 'Add Service', content, 'modal-lg');

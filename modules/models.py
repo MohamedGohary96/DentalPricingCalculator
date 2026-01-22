@@ -698,7 +698,7 @@ def calculate_service_price(service_id, clinic_id):
     consumables = service.get('consumables', [])
     materials_cost = 0
     for c in consumables:
-        per_case_cost = (c['pack_cost'] / c['cases_per_pack']) * c['units_per_case']
+        per_case_cost = (c['pack_cost'] / c['cases_per_pack'] / c['units_per_case'])
         materials_cost += per_case_cost * c['quantity']
 
     # Total cost
