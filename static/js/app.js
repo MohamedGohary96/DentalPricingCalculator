@@ -142,6 +142,27 @@ window.addConsumableRow = function() {
     container.insertBefore(row, container.firstChild);
 };
 
+// Toggle doctor fee input fields based on fee type
+window.toggleDoctorFeeInputs = function() {
+    const feeType = document.getElementById('doctorFeeTypeSelect')?.value || 'hourly';
+    const hourlyGroup = document.getElementById('doctorHourlyFeeGroup');
+    const fixedGroup = document.getElementById('doctorFixedFeeGroup');
+    const percentageGroup = document.getElementById('doctorPercentageGroup');
+
+    if (hourlyGroup) hourlyGroup.style.display = feeType === 'hourly' ? 'block' : 'none';
+    if (fixedGroup) fixedGroup.style.display = feeType === 'fixed' ? 'block' : 'none';
+    if (percentageGroup) percentageGroup.style.display = feeType === 'percentage' ? 'block' : 'none';
+
+    // Update required attribute
+    const hourlyInput = hourlyGroup?.querySelector('input');
+    const fixedInput = fixedGroup?.querySelector('input');
+    const percentageInput = percentageGroup?.querySelector('input');
+
+    if (hourlyInput) hourlyInput.required = feeType === 'hourly';
+    if (fixedInput) fixedInput.required = feeType === 'fixed';
+    if (percentageInput) percentageInput.required = feeType === 'percentage';
+};
+
 function openModal(title, content, size='') {
     const id = 'modal-' + Date.now();
     document.getElementById('modals').insertAdjacentHTML('beforeend',
@@ -281,7 +302,7 @@ const Pages = {
                     </div>
                 </div>
 
-                <div class="metric-card">
+                <div class="metric-card metric-card-wide">
                     <div class="metric-header">
                         <span class="metric-icon" style="background: #fce7f3; color: #db2777;">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -292,8 +313,22 @@ const Pages = {
                         <span class="metric-label">Monthly Fixed Costs</span>
                     </div>
                     <div class="metric-value currency">${formatCurrency(stats.total_fixed_monthly)}</div>
+                    <div class="metric-breakdown">
+                        <div class="breakdown-item">
+                            <span class="breakdown-label">Fixed Costs</span>
+                            <span class="breakdown-value">${formatCurrency(stats.fixed_costs)}</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <span class="breakdown-label">Staff Salaries</span>
+                            <span class="breakdown-value">${formatCurrency(stats.staff_salaries)}</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <span class="breakdown-label">Equipment Depreciation</span>
+                            <span class="breakdown-value">${formatCurrency(stats.equipment_depreciation)}</span>
+                        </div>
+                    </div>
                     <div class="metric-footer">
-                        <span class="metric-action" onclick="APP.loadPage('settings')">View breakdown →</span>
+                        <span class="metric-action" onclick="APP.loadPage('settings')">View details →</span>
                     </div>
                 </div>
             </div>
@@ -1106,17 +1141,27 @@ const Pages = {
                                 <tr>
                                     <th>Service Name</th>
                                     <th>Chair Time (hrs)</th>
-                                    <th>Doctor Fee/hr</th>
+                                    <th>Doctor Fee</th>
                                     <th>Equipment</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${services.map(s => `
+                                ${services.map(s => {
+                                    let doctorFeeDisplay = '';
+                                    const feeType = s.doctor_fee_type || 'hourly';
+                                    if (feeType === 'hourly') {
+                                        doctorFeeDisplay = `${formatCurrency(s.doctor_hourly_fee)}/hr`;
+                                    } else if (feeType === 'fixed') {
+                                        doctorFeeDisplay = `${formatCurrency(s.doctor_fixed_fee)} (Fixed)`;
+                                    } else if (feeType === 'percentage') {
+                                        doctorFeeDisplay = `${s.doctor_percentage}% of final`;
+                                    }
+                                    return `
                                     <tr>
                                         <td><strong>${s.name}</strong></td>
                                         <td>${s.chair_time_hours}</td>
-                                        <td>${formatCurrency(s.doctor_hourly_fee)}</td>
+                                        <td>${doctorFeeDisplay}</td>
                                         <td>${s.equipment_name||'-'}</td>
                                         <td>
                                             <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="View Price">💰</button>
@@ -1124,7 +1169,8 @@ const Pages = {
                                             <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="Delete">🗑️</button>
                                         </td>
                                     </tr>
-                                `).join('')}
+                                `;
+                                }).join('')}
                             </tbody>
                         </table>
                     ` : `
@@ -1179,11 +1225,34 @@ const Pages = {
                             </div>
                         </div>
                         <div class="form-group">
+                            <label class="form-label required">Doctor Fee Type</label>
+                            <select class="form-input" name="doctor_fee_type" id="doctorFeeTypeSelect" onchange="window.toggleDoctorFeeInputs()" required>
+                                <option value="hourly" ${(!service || service.doctor_fee_type === 'hourly') ? 'selected' : ''}>Hourly Rate</option>
+                                <option value="fixed" ${service?.doctor_fee_type === 'fixed' ? 'selected' : ''}>Fixed Fee</option>
+                                <option value="percentage" ${service?.doctor_fee_type === 'percentage' ? 'selected' : ''}>Percentage of Final Price</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="doctorHourlyFeeGroup" style="display:${(!service || service.doctor_fee_type === 'hourly') ? 'block' : 'none'}">
                             <label class="form-label required">Doctor Fee per Hour</label>
                             <div class="input-with-unit">
-                                <input type="number" class="form-input" name="doctor_hourly_fee" value="${service?.doctor_hourly_fee||''}" step="1" placeholder="e.g., 500" required>
+                                <input type="number" class="form-input" name="doctor_hourly_fee" value="${service?.doctor_hourly_fee||''}" step="1" placeholder="e.g., 500">
                                 <span class="input-unit">EGP/hr</span>
                             </div>
+                        </div>
+                        <div class="form-group" id="doctorFixedFeeGroup" style="display:${service?.doctor_fee_type === 'fixed' ? 'block' : 'none'}">
+                            <label class="form-label required">Fixed Doctor Fee</label>
+                            <div class="input-with-unit">
+                                <input type="number" class="form-input" name="doctor_fixed_fee" value="${service?.doctor_fixed_fee||''}" step="1" placeholder="e.g., 1000">
+                                <span class="input-unit">EGP</span>
+                            </div>
+                        </div>
+                        <div class="form-group" id="doctorPercentageGroup" style="display:${service?.doctor_fee_type === 'percentage' ? 'block' : 'none'}">
+                            <label class="form-label required">Doctor Fee Percentage</label>
+                            <div class="input-with-unit">
+                                <input type="number" class="form-input" name="doctor_percentage" value="${service?.doctor_percentage||''}" step="0.1" placeholder="e.g., 30" min="0" max="100">
+                                <span class="input-unit">%</span>
+                            </div>
+                            <small style="color:var(--gray-500);font-size:0.8125rem;">Percentage of final price (after profit & VAT)</small>
                         </div>
                     </div>
                     <div class="form-group">
@@ -1321,7 +1390,23 @@ const Pages = {
             e.preventDefault();
             const formData = Object.fromEntries(new FormData(e.target));
             formData.chair_time_hours = parseFloat(formData.chair_time_hours);
-            formData.doctor_hourly_fee = parseFloat(formData.doctor_hourly_fee);
+
+            // Doctor fee handling based on type
+            formData.doctor_fee_type = formData.doctor_fee_type || 'hourly';
+            if (formData.doctor_fee_type === 'hourly') {
+                formData.doctor_hourly_fee = parseFloat(formData.doctor_hourly_fee) || 0;
+                formData.doctor_fixed_fee = 0;
+                formData.doctor_percentage = 0;
+            } else if (formData.doctor_fee_type === 'fixed') {
+                formData.doctor_hourly_fee = 0;
+                formData.doctor_fixed_fee = parseFloat(formData.doctor_fixed_fee) || 0;
+                formData.doctor_percentage = 0;
+            } else if (formData.doctor_fee_type === 'percentage') {
+                formData.doctor_hourly_fee = 0;
+                formData.doctor_fixed_fee = 0;
+                formData.doctor_percentage = parseFloat(formData.doctor_percentage) || 0;
+            }
+
             // Checkbox is only in FormData when checked, so if it's undefined, it was unchecked
             formData.use_default_profit = formData.use_default_profit === 'on' ? 1 : 0;
             if (formData.custom_profit_percent) {
@@ -1421,7 +1506,23 @@ const Pages = {
                             </td>
                             <td style="text-align:right;vertical-align:top;">${formatCurrency(price.chair_time_cost)}</td>
                         </tr>
-                        <tr><td>Doctor Fee</td><td style="text-align:right;">${formatCurrency(price.doctor_fee)}</td></tr>
+                        <tr>
+                            <td>
+                                Doctor Fee
+                                ${(() => {
+                                    const feeType = service.doctor_fee_type || 'hourly';
+                                    if (feeType === 'hourly') {
+                                        return `<span style="font-size:0.75rem;color:#64748b;"> (${formatCurrency(service.doctor_hourly_fee)}/hr × ${service.chair_time_hours}hrs)</span>`;
+                                    } else if (feeType === 'fixed') {
+                                        return `<span style="font-size:0.75rem;color:#64748b;"> (Fixed fee)</span>`;
+                                    } else if (feeType === 'percentage') {
+                                        return `<span style="font-size:0.75rem;color:#64748b;"> (${service.doctor_percentage}% of final price)</span>`;
+                                    }
+                                    return '';
+                                })()}
+                            </td>
+                            <td style="text-align:right;">${formatCurrency(price.doctor_fee)}</td>
+                        </tr>
                         <tr><td>Equipment Cost</td><td style="text-align:right;">${formatCurrency(price.equipment_cost)}</td></tr>
                         <tr><td>Direct Materials</td><td style="text-align:right;">${formatCurrency(price.materials_cost)}</td></tr>
                         <tr style="border-top:1px solid #ccc;font-weight:bold;"><td>TOTAL COST</td><td style="text-align:right;">${formatCurrency(price.total_cost)}</td></tr>
@@ -1485,9 +1586,10 @@ const Pages = {
             const absPercent = Math.abs(variancePercent).toFixed(0);
 
             // Calculate position on the health bar (0-100)
-            // -50% = 0, 0% = 50%, +50% = 100
-            let position = 50 + (variancePercent / 2);
-            position = Math.max(5, Math.min(95, position));
+            // Zone layout: under (0-45%), optimal (45-55%), over (55-100%)
+            // Map: -50% variance = 0%, 0% variance = 50%, +50% variance = 100%
+            let position = 50 + (variancePercent);
+            position = Math.max(3, Math.min(97, position));
 
             if (Math.abs(variancePercent) <= 5) {
                 return {

@@ -231,6 +231,14 @@ def init_database():
     if 'current_price' not in columns:
         cursor.execute('ALTER TABLE services ADD COLUMN current_price REAL')
 
+    # Add doctor fee type columns if they don't exist (migration)
+    if 'doctor_fee_type' not in columns:
+        cursor.execute("ALTER TABLE services ADD COLUMN doctor_fee_type TEXT DEFAULT 'hourly'")
+    if 'doctor_fixed_fee' not in columns:
+        cursor.execute('ALTER TABLE services ADD COLUMN doctor_fixed_fee REAL DEFAULT 0')
+    if 'doctor_percentage' not in columns:
+        cursor.execute('ALTER TABLE services ADD COLUMN doctor_percentage REAL DEFAULT 0')
+
     # Service Consumables (junction table)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS service_consumables (

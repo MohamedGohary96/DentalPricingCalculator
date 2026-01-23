@@ -550,16 +550,19 @@ def get_service_by_id(service_id, clinic_id):
 
 
 def create_service(clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit=1,
-                   custom_profit_percent=None, equipment_id=None, equipment_hours_used=None, current_price=None):
+                   custom_profit_percent=None, equipment_id=None, equipment_hours_used=None, current_price=None,
+                   doctor_fee_type='hourly', doctor_fixed_fee=0, doctor_percentage=0):
     """Create new service for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO services (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit,
-                             custom_profit_percent, equipment_id, equipment_hours_used, current_price)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             custom_profit_percent, equipment_id, equipment_hours_used, current_price,
+                             doctor_fee_type, doctor_fixed_fee, doctor_percentage)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit,
-          custom_profit_percent, equipment_id, equipment_hours_used, current_price))
+          custom_profit_percent, equipment_id, equipment_hours_used, current_price,
+          doctor_fee_type, doctor_fixed_fee, doctor_percentage))
     service_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -681,8 +684,14 @@ def calculate_service_price(service_id, clinic_id):
     # Chair time cost
     chair_time_cost = chair_hourly_rate * service['chair_time_hours']
 
-    # Doctor fee
-    doctor_fee = service['doctor_hourly_fee'] * service['chair_time_hours']
+    # Doctor fee (based on fee type)
+    doctor_fee_type = service.get('doctor_fee_type', 'hourly')
+    if doctor_fee_type == 'hourly':
+        doctor_fee = service['doctor_hourly_fee'] * service['chair_time_hours']
+    elif doctor_fee_type == 'fixed':
+        doctor_fee = service.get('doctor_fixed_fee', 0)
+    else:  # percentage - will be calculated after final price
+        doctor_fee = 0
 
     # Equipment cost (per-hour equipment)
     equipment_cost = 0
@@ -701,21 +710,40 @@ def calculate_service_price(service_id, clinic_id):
         per_case_cost = (c['pack_cost'] / c['cases_per_pack'] / c['units_per_case'])
         materials_cost += per_case_cost * c['quantity']
 
-    # Total cost
+    # Total cost (initial calculation)
     total_cost = chair_time_cost + doctor_fee + equipment_cost + materials_cost
 
     # Profit
     profit_percent = service['custom_profit_percent'] if not service['use_default_profit'] else settings['default_profit_percent']
-    profit_amount = total_cost * (profit_percent / 100)
 
-    # Price before VAT
-    price_before_vat = total_cost + profit_amount
+    # For percentage-based doctor fee, we need to calculate differently
+    # Final price = (costs_without_doctor + doctor_fee) * (1 + profit%) * (1 + vat%)
+    # If doctor_fee = percentage% of final_price, then:
+    # final_price = costs_without_doctor * (1 + profit%) * (1 + vat%) / (1 - percentage%)
 
-    # VAT
-    vat_amount = price_before_vat * (settings['vat_percent'] / 100)
+    if doctor_fee_type == 'percentage':
+        doctor_percentage = service.get('doctor_percentage', 0) / 100  # Convert to decimal
+        costs_without_doctor = chair_time_cost + equipment_cost + materials_cost
 
-    # Final price
-    final_price = price_before_vat + vat_amount
+        # Calculate base price without doctor fee
+        profit_multiplier = 1 + (profit_percent / 100)
+        vat_multiplier = 1 + (settings['vat_percent'] / 100)
+
+        # Final price formula with doctor fee as percentage
+        final_price = (costs_without_doctor * profit_multiplier * vat_multiplier) / (1 - doctor_percentage)
+
+        # Back-calculate components
+        doctor_fee = final_price * doctor_percentage
+        price_before_vat = final_price / vat_multiplier
+        vat_amount = final_price - price_before_vat
+        total_cost = price_before_vat / profit_multiplier
+        profit_amount = price_before_vat - total_cost
+    else:
+        # Standard calculation for hourly and fixed fee types
+        profit_amount = total_cost * (profit_percent / 100)
+        price_before_vat = total_cost + profit_amount
+        vat_amount = price_before_vat * (settings['vat_percent'] / 100)
+        final_price = price_before_vat + vat_amount
 
     # Rounded price
     rounding = settings['rounding_nearest']

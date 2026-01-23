@@ -287,6 +287,44 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-sans); font-weight: 600; color:
     text-decoration: underline;
 }
 
+.metric-card-wide {
+    grid-column: span 2;
+}
+
+.metric-breakdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: var(--gray-50);
+    border-radius: var(--radius-lg);
+}
+
+.breakdown-item {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 120px;
+}
+
+.breakdown-label {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    margin-bottom: 0.25rem;
+}
+
+.breakdown-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--gray-800);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
 /* Setup Steps */
 .setup-steps {
     display: grid;
@@ -684,18 +722,18 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-sans); font-weight: 600; color:
 }
 
 .zone-under {
-    width: 40%;
-    background: linear-gradient(90deg, #fecaca, #fde68a);
+    width: 45%;
+    background: linear-gradient(90deg, #fecaca 0%, #fde68a 100%);
 }
 
 .zone-optimal {
-    width: 20%;
+    width: 10%;
     background: #86efac;
 }
 
 .zone-over {
-    width: 40%;
-    background: linear-gradient(90deg, #93c5fd, #a5b4fc);
+    width: 45%;
+    background: linear-gradient(90deg, #bfdbfe 0%, #c7d2fe 100%);
 }
 
 .health-indicator {
@@ -934,6 +972,8 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-sans); font-weight: 600; color:
     .metrics-grid { grid-template-columns: 1fr; }
     .setup-steps { grid-template-columns: 1fr; }
     .form-row { grid-template-columns: 1fr; }
+    .metric-card-wide { grid-column: span 1; }
+    .metric-breakdown { flex-direction: column; gap: 0.75rem; }
 
     /* Login page */
     .login-left { display: none; }
