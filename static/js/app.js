@@ -588,7 +588,7 @@ const Pages = {
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Equipment Depreciation</h3>
+                    <h3 class="card-title">Depreciation</h3>
                     <button class="btn btn-sm btn-primary" onclick="Pages.showEquipmentForm()">+ Add Equipment</button>
                 </div>
                 <div class="card-body" style="padding:0;">
