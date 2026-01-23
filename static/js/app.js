@@ -1252,7 +1252,7 @@ const Pages = {
                                 <input type="number" class="form-input" name="doctor_percentage" value="${service?.doctor_percentage||''}" step="0.1" placeholder="e.g., 30" min="0" max="100">
                                 <span class="input-unit">%</span>
                             </div>
-                            <small style="color:var(--gray-500);font-size:0.8125rem;">Percentage of final price (after profit & VAT)</small>
+                            <small style="color:var(--gray-500);font-size:0.8125rem;">Percentage of rounded final price (after profit, VAT & rounding)</small>
                         </div>
                     </div>
                     <div class="form-group">
@@ -1516,7 +1516,7 @@ const Pages = {
                                     } else if (feeType === 'fixed') {
                                         return `<span style="font-size:0.75rem;color:#64748b;"> (Fixed fee)</span>`;
                                     } else if (feeType === 'percentage') {
-                                        return `<span style="font-size:0.75rem;color:#64748b;"> (${service.doctor_percentage}% of final price)</span>`;
+                                        return `<span style="font-size:0.75rem;color:#64748b;"> (${service.doctor_percentage}% of rounded final price)</span>`;
                                     }
                                     return '';
                                 })()}

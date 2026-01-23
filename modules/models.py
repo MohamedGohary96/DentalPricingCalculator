@@ -716,10 +716,9 @@ def calculate_service_price(service_id, clinic_id):
     # Profit
     profit_percent = service['custom_profit_percent'] if not service['use_default_profit'] else settings['default_profit_percent']
 
-    # For percentage-based doctor fee, we need to calculate differently
-    # Final price = (costs_without_doctor + doctor_fee) * (1 + profit%) * (1 + vat%)
-    # If doctor_fee = percentage% of final_price, then:
-    # final_price = costs_without_doctor * (1 + profit%) * (1 + vat%) / (1 - percentage%)
+    # For percentage-based doctor fee, calculate from ROUNDED final price
+    # rounded_price = (costs_without_doctor * (1 + profit%) * (1 + vat%)) / (1 - percentage%)
+    # Then round it, and doctor_fee = rounded_price * percentage%
 
     if doctor_fee_type == 'percentage':
         doctor_percentage = service.get('doctor_percentage', 0) / 100  # Convert to decimal
@@ -729,11 +728,18 @@ def calculate_service_price(service_id, clinic_id):
         profit_multiplier = 1 + (profit_percent / 100)
         vat_multiplier = 1 + (settings['vat_percent'] / 100)
 
-        # Final price formula with doctor fee as percentage
-        final_price = (costs_without_doctor * profit_multiplier * vat_multiplier) / (1 - doctor_percentage)
+        # Final price formula with doctor fee as percentage of rounded price
+        final_price_before_rounding = (costs_without_doctor * profit_multiplier * vat_multiplier) / (1 - doctor_percentage)
 
-        # Back-calculate components
-        doctor_fee = final_price * doctor_percentage
+        # Round the price first
+        rounding = settings['rounding_nearest']
+        rounded_price = round(final_price_before_rounding / rounding) * rounding if rounding > 0 else final_price_before_rounding
+
+        # Now calculate doctor fee from the ROUNDED price
+        doctor_fee = rounded_price * doctor_percentage
+
+        # Back-calculate other components from rounded price
+        final_price = rounded_price
         price_before_vat = final_price / vat_multiplier
         vat_amount = final_price - price_before_vat
         total_cost = price_before_vat / profit_multiplier
@@ -745,9 +751,9 @@ def calculate_service_price(service_id, clinic_id):
         vat_amount = price_before_vat * (settings['vat_percent'] / 100)
         final_price = price_before_vat + vat_amount
 
-    # Rounded price
-    rounding = settings['rounding_nearest']
-    rounded_price = round(final_price / rounding) * rounding if rounding > 0 else final_price
+        # Rounded price
+        rounding = settings['rounding_nearest']
+        rounded_price = round(final_price / rounding) * rounding if rounding > 0 else final_price
 
     return {
         'service_name': service['name'],
