@@ -153,20 +153,37 @@ def api_dashboard_stats():
     clinic_id = get_clinic_id()
     services = get_all_services(clinic_id)
     fixed_costs = get_all_fixed_costs(clinic_id)
+    salaries = get_all_salaries(clinic_id)
+    equipment_list = get_all_equipment(clinic_id)
     capacity = get_clinic_capacity(clinic_id)
 
+    # Fixed costs breakdown (matching service price calculation)
     total_fixed = sum(c['monthly_amount'] for c in fixed_costs if c['included'])
+    total_salaries = sum(s['monthly_salary'] for s in salaries if s['included'])
+
+    # Fixed equipment depreciation
+    fixed_depreciation = 0
+    for eq in equipment_list:
+        if eq['allocation_type'] == 'fixed':
+            monthly_depreciation = eq['purchase_cost'] / (eq['life_years'] * 12)
+            fixed_depreciation += monthly_depreciation
+
+    total_monthly_fixed = total_fixed + total_salaries + fixed_depreciation
 
     theoretical_hours = capacity['chairs'] * capacity['days_per_month'] * capacity['hours_per_day']
     effective_hours = theoretical_hours * (capacity['utilization_percent'] / 100)
 
-    chair_hourly_rate = total_fixed / effective_hours if effective_hours > 0 else 0
+    chair_hourly_rate = total_monthly_fixed / effective_hours if effective_hours > 0 else 0
 
     return jsonify({
         'total_services': len(services),
-        'total_fixed_monthly': round(total_fixed, 2),
+        'total_fixed_monthly': round(total_monthly_fixed, 2),
         'chair_hourly_rate': round(chair_hourly_rate, 2),
-        'effective_hours': round(effective_hours, 2)
+        'effective_hours': round(effective_hours, 2),
+        # Breakdown components
+        'fixed_costs': round(total_fixed, 2),
+        'staff_salaries': round(total_salaries, 2),
+        'equipment_depreciation': round(fixed_depreciation, 2)
     })
 
 
