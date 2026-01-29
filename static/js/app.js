@@ -1234,7 +1234,7 @@ const Pages = {
                     <label class="form-label">${t('settings.notesOptional')}</label>
                     <input type="text" class="form-input" name="notes" value="${cost?.notes||''}">
                 </div>
-                <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
                     <button type="submit" class="btn btn-primary">${t('common.save')}</button>
                 </div>
@@ -1307,7 +1307,7 @@ const Pages = {
                     <label class="form-label">${t('settings.notes')}</label>
                     <input type="text" class="form-input" name="notes" value="${salary?.notes||''}">
                 </div>
-                <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
                     <button type="submit" class="btn btn-primary">${t('common.save')}</button>
                 </div>
@@ -1390,7 +1390,7 @@ const Pages = {
                         <small style="color:var(--gray-600);">${t('settings.monthlyUsageHelp')}</small>
                     </div>
                 </div>
-                <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
                     <button type="submit" class="btn btn-primary">${t('common.save')}</button>
                 </div>
@@ -1610,7 +1610,7 @@ const Pages = {
                     </div>
                 </div>
 
-                <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
                     <button type="submit" class="btn btn-primary">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.25rem;">
@@ -2036,7 +2036,7 @@ const Pages = {
                     </div>
                 </section>
 
-                <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
                     <button type="submit" class="btn btn-primary">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.25rem;">
@@ -2185,6 +2185,7 @@ const Pages = {
         }
 
         const content = `
+            <div class="modal-content-wrapper">
             <div style="font-family:monospace;background:#f9fafb;padding:1.5rem;border-radius:8px;">
                 <div style="text-align:center;margin-bottom:1.5rem;">
                     <h2 style="margin:0;color:#667eea;">🦷 ${price.service_name}</h2>
@@ -2243,8 +2244,9 @@ const Pages = {
                 </div>
                 ${varianceSection}
             </div>
-            <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+            <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Close</button>
+            </div>
             </div>
         `;
 
@@ -3029,7 +3031,7 @@ const Pages = {
                     <label class="form-label">Notes</label>
                     <textarea class="form-input" name="payment_notes" rows="2" placeholder="Optional notes"></textarea>
                 </div>
-                <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Record Payment</button>
                 </div>
@@ -3082,7 +3084,7 @@ const Pages = {
                         <span>Start from today (ignore current expiry)</span>
                     </label>
                 </div>
-                <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Extend</button>
                 </div>
@@ -3168,7 +3170,7 @@ const Pages = {
                         </label>
                         <span class="form-hint">Unchecking this will suspend the clinic immediately, regardless of subscription status.</span>
                     </div>
-                    <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                    <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
                         <button type="submit" class="btn btn-primary">Save Changes</button>
                     </div>
