@@ -391,6 +391,68 @@ window.cancelDelete = function(deleteId) {
     }
 };
 
+// ============================================
+// Mobile Menu Toggle
+// ============================================
+window.toggleMobileMenu = function() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    if (sidebar && overlay) {
+        const isOpen = sidebar.classList.contains('open');
+
+        if (isOpen) {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('active');
+        } else {
+            sidebar.classList.add('open');
+            overlay.classList.add('active');
+        }
+    }
+};
+
+// ============================================
+// Search & Filter Utilities
+// ============================================
+
+// Generic search function for tables
+window.filterTable = function(searchValue, categoryValue, items, searchFields, categoryField) {
+    let filtered = items;
+
+    // Apply search filter
+    if (searchValue) {
+        const search = searchValue.toLowerCase();
+        filtered = filtered.filter(item => {
+            return searchFields.some(field => {
+                const value = item[field];
+                return value && value.toString().toLowerCase().includes(search);
+            });
+        });
+    }
+
+    // Apply category filter
+    if (categoryValue && categoryValue !== 'all') {
+        filtered = filtered.filter(item => {
+            return item[categoryField] === categoryValue;
+        });
+    }
+
+    return filtered;
+};
+
+// Debounce helper for search inputs
+window.debounce = function(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+};
+
 // Global storage for consumables (populated when service form opens)
 window.serviceFormConsumables = [];
 
