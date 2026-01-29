@@ -100,6 +100,11 @@ async function toggleLanguage() {
     }
 }
 
+// Tooltip helper function
+function tooltip(text) {
+    return `<span class="tooltip-trigger">?<span class="tooltip-content">${text}</span></span>`;
+}
+
 // Get localized name for items with name_ar field
 // Supports both 'name' and 'service_name' as fallback keys
 function getLocalizedName(item) {
@@ -120,19 +125,271 @@ const API = {
     async delete(url) { const r = await fetch(url, { method: 'DELETE' }); if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed'); } return r.json(); }
 };
 
-function showToast(msg, type='success') {
+function showToast(msg, type='success', options = {}) {
     const c = document.getElementById('toastContainer');
     const t = document.createElement('div');
     t.className = `toast ${type}`;
-    t.innerHTML = `<div class="toast-icon">${type==='success'?'✓':'✕'}</div><div class="toast-message">${msg}</div>`;
+
+    // Icon based on type
+    const icons = {
+        success: '✓',
+        error: '✕',
+        info: 'ℹ',
+        warning: '⚠'
+    };
+
+    let html = `<div class="toast-icon">${icons[type] || icons.success}</div><div class="toast-message">${msg}</div>`;
+
+    // Add action button if provided (for undo functionality)
+    if (options.action) {
+        html += `<button class="toast-action" onclick="${options.action.onClick}">${options.action.text}</button>`;
+    }
+
+    // Add close button
+    html += `<button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
+
+    t.innerHTML = html;
     c.appendChild(t);
     setTimeout(() => t.classList.add('show'), 10);
-    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3000);
+
+    // Auto-hide after duration (default 3s, longer for undo actions)
+    const duration = options.duration || (options.action ? 5000 : 3000);
+    const timeoutId = setTimeout(() => {
+        t.classList.remove('show');
+        t.classList.add('hide');
+        setTimeout(() => t.remove(), 300);
+    }, duration);
+
+    // Store timeout ID so we can cancel it if user interacts
+    t.dataset.timeoutId = timeoutId;
+
+    return t;
 }
 
 function formatCurrency(amount, currency = 'EGP') {
     return `${currency} ${parseFloat(amount || 0).toFixed(2)}`;
 }
+
+// ============================================
+// Form Validation Helpers
+// ============================================
+function validateInput(input, rules = {}) {
+    const value = input.value.trim();
+    let isValid = true;
+    let errorMessage = '';
+
+    // Required validation
+    if (rules.required && !value) {
+        isValid = false;
+        errorMessage = t('validation.required') || 'This field is required';
+    }
+
+    // Min value validation
+    if (isValid && rules.min !== undefined && parseFloat(value) < rules.min) {
+        isValid = false;
+        errorMessage = t('validation.minValue') || `Minimum value is ${rules.min}`;
+    }
+
+    // Max value validation
+    if (isValid && rules.max !== undefined && parseFloat(value) > rules.max) {
+        isValid = false;
+        errorMessage = t('validation.maxValue') || `Maximum value is ${rules.max}`;
+    }
+
+    // Custom pattern validation
+    if (isValid && rules.pattern && !rules.pattern.test(value)) {
+        isValid = false;
+        errorMessage = rules.patternMessage || t('validation.invalid') || 'Invalid format';
+    }
+
+    // Update UI
+    input.classList.remove('valid', 'error');
+    if (value) {
+        input.classList.add(isValid ? 'valid' : 'error');
+    }
+
+    // Show/hide error message
+    let errorEl = input.parentElement.querySelector('.form-error-message');
+    if (!errorEl && !isValid) {
+        errorEl = document.createElement('div');
+        errorEl.className = 'form-error-message';
+        input.parentElement.appendChild(errorEl);
+    }
+
+    if (errorEl) {
+        if (!isValid) {
+            errorEl.textContent = errorMessage;
+            errorEl.classList.add('show');
+        } else {
+            errorEl.classList.remove('show');
+        }
+    }
+
+    return isValid;
+}
+
+function setupRealtimeValidation(formId, validationRules = {}) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+
+    Object.keys(validationRules).forEach(fieldName => {
+        const input = form.querySelector(`[name="${fieldName}"]`);
+        if (!input) return;
+
+        // Validate on blur
+        input.addEventListener('blur', () => {
+            validateInput(input, validationRules[fieldName]);
+        });
+
+        // Validate on input (with debounce)
+        let timeout;
+        input.addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                if (input.value.trim()) {
+                    validateInput(input, validationRules[fieldName]);
+                }
+            }, 500);
+        });
+    });
+}
+
+// ============================================
+// Skeleton Loading Helpers
+// ============================================
+function getSkeletonHTML(type = 'dashboard') {
+    const skeletons = {
+        dashboard: `
+            <div style="padding: 2rem;">
+                <div class="skeleton skeleton-title"></div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    ${Array(4).fill('<div class="skeleton-stat"><div class="skeleton skeleton-stat-icon"></div><div class="skeleton skeleton-stat-title"></div><div class="skeleton skeleton-stat-value"></div></div>').join('')}
+                </div>
+                <div class="skeleton skeleton-title" style="width: 30%;"></div>
+                ${Array(5).fill('<div class="skeleton skeleton-row"></div>').join('')}
+            </div>
+        `,
+        table: `
+            <div style="padding: 2rem;">
+                <div class="skeleton skeleton-title"></div>
+                ${Array(8).fill('<div class="skeleton skeleton-row"></div>').join('')}
+            </div>
+        `,
+        cards: `
+            <div style="padding: 2rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+                    ${Array(6).fill('<div class="skeleton skeleton-card"></div>').join('')}
+                </div>
+            </div>
+        `
+    };
+
+    return skeletons[type] || skeletons.table;
+}
+
+// ============================================
+// Undo Delete Helper
+// ============================================
+let pendingDeletes = {};
+
+async function deleteWithUndo(itemType, itemId, deleteFn, refreshFn) {
+    const deleteId = `${itemType}-${itemId}-${Date.now()}`;
+
+    // Find the row element to hide
+    const row = document.querySelector(`tr[data-${itemType}-id="${itemId}"]`);
+    let rowHTML = null;
+    let rowParent = null;
+    let rowNextSibling = null;
+
+    if (row) {
+        // Store row info for potential undo
+        rowHTML = row.outerHTML;
+        rowParent = row.parentElement;
+        rowNextSibling = row.nextElementSibling;
+        // Hide the row with a fade effect
+        row.style.transition = 'opacity 0.3s';
+        row.style.opacity = '0';
+        setTimeout(() => {
+            if (row.parentElement) {
+                row.remove();
+            }
+        }, 300);
+    }
+
+    // Show undo toast
+    const toastMessage = t(`toast.${itemType}DeletedWithUndo`) || `${itemType} deleted`;
+    const toast = showToast(toastMessage, 'info', {
+        action: {
+            text: t('common.undo') || 'Undo',
+            onClick: `cancelDelete('${deleteId}')`
+        },
+        duration: 5000
+    });
+
+    // Store delete info
+    pendingDeletes[deleteId] = {
+        itemType,
+        itemId,
+        deleteFn,
+        refreshFn,
+        toast,
+        rowHTML,
+        rowParent,
+        rowNextSibling
+    };
+
+    // Actually delete after 5 seconds if not cancelled
+    setTimeout(async () => {
+        if (pendingDeletes[deleteId]) {
+            try {
+                await deleteFn(itemId);
+                delete pendingDeletes[deleteId];
+                // Don't show another toast, item already removed from UI
+            } catch (err) {
+                delete pendingDeletes[deleteId];
+                showToast(err.message, 'error');
+                // Refresh to restore item in UI
+                if (refreshFn) refreshFn();
+            }
+        }
+    }, 5000);
+}
+
+window.cancelDelete = function(deleteId) {
+    const pending = pendingDeletes[deleteId];
+    if (pending) {
+        // Remove toast
+        if (pending.toast) pending.toast.remove();
+        delete pendingDeletes[deleteId];
+
+        // Restore the row if we have the HTML saved
+        if (pending.rowHTML && pending.rowParent) {
+            // Create a temporary container to parse the HTML
+            const temp = document.createElement('tbody');
+            temp.innerHTML = pending.rowHTML;
+            const restoredRow = temp.firstElementChild;
+
+            // Insert the row back
+            if (pending.rowNextSibling) {
+                pending.rowParent.insertBefore(restoredRow, pending.rowNextSibling);
+            } else {
+                pending.rowParent.appendChild(restoredRow);
+            }
+
+            // Animate the restoration
+            restoredRow.style.opacity = '0';
+            restoredRow.style.transition = 'opacity 0.3s';
+            setTimeout(() => {
+                restoredRow.style.opacity = '1';
+            }, 10);
+        } else {
+            // Fallback: refresh UI to restore item
+            if (pending.refreshFn) pending.refreshFn();
+        }
+
+        showToast(t('toast.deleteUndone') || 'Delete cancelled', 'success');
+    }
+};
 
 // Global storage for consumables (populated when service form opens)
 window.serviceFormConsumables = [];
@@ -169,6 +426,11 @@ window.updateConsumableCost = function(row) {
         costDisplay.textContent = formatCurrency(totalCost);
     } else {
         costDisplay.textContent = '-';
+    }
+
+    // Trigger live price preview update
+    if (typeof window.updateLivePricePreview === 'function') {
+        window.updateLivePricePreview();
     }
 };
 
@@ -631,7 +893,24 @@ const APP = {
         // Update navigation text based on language
         this.updateNavigationText();
 
-        this.loadPage('dashboard');
+        // Setup HTML5 History API routing
+        this.setupRouting();
+
+        // Load page from URL path or default to dashboard
+        const path = window.location.pathname.slice(1); // Remove leading /
+        const page = path || 'dashboard';
+        this.loadPage(page, null, false); // false = don't update URL since we're reading from it
+    },
+
+    setupRouting() {
+        // Listen for browser back/forward buttons (popstate event)
+        window.addEventListener('popstate', (event) => {
+            const path = window.location.pathname.slice(1);
+            const page = path || 'dashboard';
+            if (page !== this.currentPage) {
+                this.loadPage(page, null, false); // false = don't push state to avoid loop
+            }
+        });
     },
 
     updateNavigationText() {
@@ -682,13 +961,25 @@ const APP = {
         }
     },
 
-    async loadPage(page, scrollToSection = null) {
+    async loadPage(page, scrollToSection = null, updateURL = true) {
         this.currentPage = page;
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         document.querySelector(`[onclick="APP.loadPage('${page}')"]`)?.classList.add('active');
 
+        // Update URL using HTML5 History API if requested (default: true)
+        if (updateURL) {
+            const url = page === 'dashboard' ? '/' : `/${page}`;
+            if (window.location.pathname !== url) {
+                history.pushState({ page }, '', url);
+            }
+        }
+
         const content = document.getElementById('pageContent');
-        content.innerHTML = `<div style="padding:2rem;text-align:center;">${t('common.loading')}</div>`;
+
+        // Show appropriate skeleton based on page type
+        const skeletonType = page === 'dashboard' ? 'dashboard' :
+                            (page === 'price-list' ? 'table' : 'table');
+        content.innerHTML = getSkeletonHTML(skeletonType);
 
         // Convert kebab-case to camelCase for Pages object
         const pageKey = page.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
@@ -1064,9 +1355,8 @@ const Pages = {
                             <small style="color:var(--gray-600);">${t('settings.workingHoursHelp')}</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">${t('settings.utilizationRate')}</label>
+                            <label class="form-label">${t('settings.utilizationRate')} ${tooltip(t('settings.utilizationHelp'))}</label>
                             <input type="number" class="form-input" name="utilization_percent" value="${capacity.utilization_percent}" min="1" max="100" placeholder="e.g., 80">
-                            <small style="color:var(--gray-600);">${t('settings.utilizationHelp')}</small>
                         </div>
                     </form>
                     <div style="margin-top:1rem;">
@@ -1081,6 +1371,7 @@ const Pages = {
                     <button class="btn btn-sm btn-primary" onclick="Pages.showFixedCostForm()">+ ${t('settings.addCost')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
+                    ${fixedCosts.length > 0 ? `
                     <table class="data-table">
                         <thead>
                             <tr>
@@ -1106,6 +1397,18 @@ const Pages = {
                             `).join('')}
                         </tbody>
                     </table>
+                    ` : `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💰</div>
+                            <h3>No fixed costs yet</h3>
+                            <p>Add rent, utilities, and other monthly expenses to calculate accurate service pricing.</p>
+                            <div class="empty-state-actions">
+                                <button class="btn btn-primary" onclick="Pages.showFixedCostForm()">
+                                    + ${t('settings.addCost')}
+                                </button>
+                            </div>
+                        </div>
+                    `}
                 </div>
             </div>
 
@@ -1115,6 +1418,7 @@ const Pages = {
                     <button class="btn btn-sm btn-primary" onclick="Pages.showSalaryForm()">+ ${t('settings.addSalary')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
+                    ${salaries.length > 0 ? `
                     <table class="data-table">
                         <thead>
                             <tr>
@@ -1140,6 +1444,18 @@ const Pages = {
                             `).join('')}
                         </tbody>
                     </table>
+                    ` : `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">👥</div>
+                            <h3>No salaries yet</h3>
+                            <p>Add staff salaries to include labor costs in your service pricing calculations.</p>
+                            <div class="empty-state-actions">
+                                <button class="btn btn-primary" onclick="Pages.showSalaryForm()">
+                                    + ${t('settings.addSalary')}
+                                </button>
+                            </div>
+                        </div>
+                    `}
                 </div>
             </div>
 
@@ -1149,6 +1465,7 @@ const Pages = {
                     <button class="btn btn-sm btn-primary" onclick="Pages.showEquipmentForm()">+ ${t('settings.addEquipment')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
+                    ${equipment.length > 0 ? `
                     <table class="data-table">
                         <thead>
                             <tr>
@@ -1176,6 +1493,18 @@ const Pages = {
                             `).join('')}
                         </tbody>
                     </table>
+                    ` : `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔧</div>
+                            <h3>No equipment yet</h3>
+                            <p>Add dental equipment to track depreciation and include costs in service pricing.</p>
+                            <div class="empty-state-actions">
+                                <button class="btn btn-primary" onclick="Pages.showEquipmentForm()">
+                                    + ${t('settings.addEquipment')}
+                                </button>
+                            </div>
+                        </div>
+                    `}
                 </div>
             </div>
         `;
@@ -1490,7 +1819,7 @@ const Pages = {
                                 ${consumables.map(c => {
                                     const perUnitCost = c.pack_cost / c.cases_per_pack / c.units_per_case;
                                     return `
-                                        <tr>
+                                        <tr data-consumable-id="${c.id}">
                                             <td><strong>${getLocalizedName(c, 'item_name', 'name_ar')}</strong></td>
                                             <td>${formatCurrency(c.pack_cost)}</td>
                                             <td>${c.cases_per_pack}</td>
@@ -1510,6 +1839,11 @@ const Pages = {
                             <div class="empty-state-icon">📦</div>
                             <h3>${t('consumables.noConsumables')}</h3>
                             <p>${t('consumables.addFirst')}</p>
+                            <div class="empty-state-actions">
+                                <button class="btn btn-primary" onclick="Pages.showConsumableForm()">
+                                    + ${t('consumables.addConsumable')}
+                                </button>
+                            </div>
                         </div>
                     `}
                 </div>
@@ -1657,15 +1991,12 @@ const Pages = {
     },
 
     async deleteConsumable(id) {
-        if (confirm(t('modal.deleteMessage'))) {
-            try {
-                await API.delete(`/api/consumables/${id}`);
-                showToast(t('toast.consumableDeleted'));
-                APP.loadPage('consumables');
-            } catch(err) {
-                showToast(err.message, 'error');
-            }
-        }
+        deleteWithUndo(
+            'consumable',
+            id,
+            async (itemId) => await API.delete(`/api/consumables/${itemId}`),
+            () => APP.loadPage('consumables')
+        );
     },
 
     async services() {
@@ -1813,49 +2144,100 @@ const Pages = {
                     }
                 </div>
                 <div class="card-body" style="padding:0;">
-                    ${services.length > 0 ? `
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>${t('services.serviceName')}</th>
-                                    <th>${t('services.chairTimeHrs')}</th>
-                                    <th>${t('services.doctorFee')}</th>
-                                    <th>${t('services.equipment')}</th>
-                                    <th>${t('common.actions')}</th>
+                    ${services.length > 0 ? (() => {
+                        // Group services by category
+                        const grouped = {};
+                        const uncategorized = [];
+                        services.forEach(s => {
+                            if (s.category_name) {
+                                if (!grouped[s.category_name]) grouped[s.category_name] = [];
+                                grouped[s.category_name].push(s);
+                            } else {
+                                uncategorized.push(s);
+                            }
+                        });
+
+                        // Render service row
+                        const renderServiceRow = (s) => {
+                            let doctorFeeDisplay = '';
+                            const feeType = s.doctor_fee_type || 'hourly';
+                            if (feeType === 'hourly') {
+                                doctorFeeDisplay = `${formatCurrency(s.doctor_hourly_fee)}${t('services.perHour')}`;
+                            } else if (feeType === 'fixed') {
+                                doctorFeeDisplay = `${formatCurrency(s.doctor_fixed_fee)} (${t('services.fixed')})`;
+                            } else if (feeType === 'percentage') {
+                                doctorFeeDisplay = `${s.doctor_percentage}% ${t('services.ofFinal')}`;
+                            }
+                            return `
+                                <tr data-service-id="${s.id}">
+                                    <td style="padding-left:2rem;"><strong>${getLocalizedName(s)}</strong></td>
+                                    <td>${s.chair_time_hours}</td>
+                                    <td>${doctorFeeDisplay}</td>
+                                    <td>${s.equipment_name||'-'}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                ${services.map(s => {
-                                    let doctorFeeDisplay = '';
-                                    const feeType = s.doctor_fee_type || 'hourly';
-                                    if (feeType === 'hourly') {
-                                        doctorFeeDisplay = `${formatCurrency(s.doctor_hourly_fee)}${t('services.perHour')}`;
-                                    } else if (feeType === 'fixed') {
-                                        doctorFeeDisplay = `${formatCurrency(s.doctor_fixed_fee)} (${t('services.fixed')})`;
-                                    } else if (feeType === 'percentage') {
-                                        doctorFeeDisplay = `${s.doctor_percentage}% ${t('services.ofFinal')}`;
-                                    }
-                                    return `
+                            `;
+                        };
+
+                        const categoryNames = Object.keys(grouped);
+                        let tableRows = '';
+
+                        // Render categorized services
+                        categoryNames.forEach(catName => {
+                            tableRows += `
+                                <tr class="category-header" style="background:var(--gray-100);">
+                                    <td colspan="5" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
+                                        📁 ${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${grouped[catName].length} ${grouped[catName].length === 1 ? t('services.service') : t('services.services')})</span>
+                                    </td>
+                                </tr>
+                            `;
+                            tableRows += grouped[catName].map(renderServiceRow).join('');
+                        });
+
+                        // Render uncategorized services
+                        if (uncategorized.length > 0) {
+                            tableRows += `
+                                <tr class="category-header" style="background:var(--gray-100);">
+                                    <td colspan="5" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
+                                        📁 ${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length} ${uncategorized.length === 1 ? t('services.service') : t('services.services')})</span>
+                                    </td>
+                                </tr>
+                            `;
+                            tableRows += uncategorized.map(renderServiceRow).join('');
+                        }
+
+                        return `
+                            <table class="data-table">
+                                <thead>
                                     <tr>
-                                        <td><strong>${getLocalizedName(s)}</strong></td>
-                                        <td>${s.chair_time_hours}</td>
-                                        <td>${doctorFeeDisplay}</td>
-                                        <td>${s.equipment_name||'-'}</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
-                                            <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
-                                            <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
-                                        </td>
+                                        <th>${t('services.serviceName')}</th>
+                                        <th>${t('services.chairTimeHrs')}</th>
+                                        <th>${t('services.doctorFee')}</th>
+                                        <th>${t('services.equipment')}</th>
+                                        <th>${t('common.actions')}</th>
                                     </tr>
-                                `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    ` : `
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        `;
+                    })() : `
                         <div class="empty-state">
                             <div class="empty-state-icon">🦷</div>
                             <h3>${t('services.noServices')}</h3>
                             <p>${t('services.addFirst')}</p>
+                            ${canAddService ? `
+                                <div class="empty-state-actions">
+                                    <button class="btn btn-primary" onclick="Pages.showServiceForm()">
+                                        + ${t('services.addService')}
+                                    </button>
+                                </div>
+                            ` : ''}
                         </div>
                     `}
                 </div>
@@ -1886,6 +2268,27 @@ const Pages = {
 
         const content = `
             <form id="serviceForm">
+                <!-- Live Price Preview Card -->
+                <div id="livePricePreview" class="price-preview-card" style="display:none;">
+                    <div class="price-preview-header">
+                        <span class="price-preview-label">${t('services.calculatedPrice') || 'Calculated Price'}</span>
+                    </div>
+                    <div class="price-preview-amount">
+                        <span id="previewAmount">0.00</span>
+                        <span class="price-preview-currency">${APP.settings?.currency || 'EGP'}</span>
+                    </div>
+                    <div class="price-preview-breakdown">
+                        <div class="price-preview-item">
+                            <span class="price-preview-item-label">${t('dashboard.cost') || 'Cost'}</span>
+                            <span class="price-preview-item-value" id="previewCost">0.00</span>
+                        </div>
+                        <div class="price-preview-item">
+                            <span class="price-preview-item-label">${t('services.profitMargin') || 'Profit Margin'}</span>
+                            <span class="price-preview-item-value" id="previewProfit">0%</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Essential Fields Section -->
                 <section class="form-section-essential">
                     <div class="form-row">
@@ -2072,6 +2475,100 @@ const Pages = {
             service.equipment_list.forEach(eq => {
                 window.addEquipmentRow(eq.equipment_id, eq.hours_used);
             });
+        }
+
+        // Setup real-time form validation
+        setupRealtimeValidation('serviceForm', {
+            'name': { required: true },
+            'category_id': { required: true },
+            'chair_time_hours': { required: true, min: 0.25 },
+            'doctor_hourly_fee': { min: 0 },
+            'doctor_fixed_fee': { min: 0 },
+            'doctor_percentage': { min: 0, max: 100 }
+        });
+
+        // Live price calculation function
+        window.updateLivePricePreview = function() {
+            const form = document.getElementById('serviceForm');
+            if (!form) return;
+
+            const chairTime = parseFloat(form.querySelector('[name="chair_time_hours"]')?.value) || 0;
+            const doctorFeeType = form.querySelector('[name="doctor_fee_type"]')?.value || 'hourly';
+            const doctorHourlyFee = parseFloat(form.querySelector('[name="doctor_hourly_fee"]')?.value) || 0;
+            const doctorFixedFee = parseFloat(form.querySelector('[name="doctor_fixed_fee"]')?.value) || 0;
+            const doctorPercentage = parseFloat(form.querySelector('[name="doctor_percentage"]')?.value) || 0;
+            const useDefaultProfit = form.querySelector('[name="use_default_profit"]')?.checked;
+            const customProfit = parseFloat(form.querySelector('[name="custom_profit_percent"]')?.value) || 0;
+
+            // Calculate doctor cost
+            let doctorCost = 0;
+            if (doctorFeeType === 'hourly') {
+                doctorCost = doctorHourlyFee * chairTime;
+            } else if (doctorFeeType === 'fixed') {
+                doctorCost = doctorFixedFee;
+            }
+
+            // Get overhead cost from settings (simplified - actual calculation would need API call)
+            const overheadPerHour = (APP.settings?.total_overhead_per_hour || 0);
+            const overheadCost = overheadPerHour * chairTime;
+
+            // Calculate consumables cost
+            let consumablesCost = 0;
+            document.querySelectorAll('[data-consumable-cost]').forEach(el => {
+                const costText = el.textContent.replace(/[^0-9.]/g, '');
+                consumablesCost += parseFloat(costText) || 0;
+            });
+
+            // Total cost
+            const totalCost = doctorCost + overheadCost + consumablesCost;
+
+            // Calculate price with profit margin
+            const profitMargin = useDefaultProfit ? (APP.settings?.default_profit_margin || 30) : customProfit;
+            let calculatedPrice = totalCost * (1 + profitMargin / 100);
+
+            // If doctor fee is percentage, solve for price
+            if (doctorFeeType === 'percentage') {
+                calculatedPrice = (overheadCost + consumablesCost) / (1 - (profitMargin + doctorPercentage) / 100);
+            }
+
+            // Update preview card
+            const previewCard = document.getElementById('livePricePreview');
+            const previewAmount = document.getElementById('previewAmount');
+            const previewCost = document.getElementById('previewCost');
+            const previewProfit = document.getElementById('previewProfit');
+
+            if (chairTime > 0 && (doctorHourlyFee > 0 || doctorFixedFee > 0 || doctorPercentage > 0)) {
+                previewCard.style.display = 'block';
+                previewAmount.textContent = calculatedPrice.toFixed(2);
+                previewCost.textContent = totalCost.toFixed(2);
+                previewProfit.textContent = profitMargin.toFixed(0) + '%';
+            } else {
+                previewCard.style.display = 'none';
+            }
+        };
+
+        // Attach live price preview to relevant inputs
+        const priceInputs = [
+            '[name="chair_time_hours"]',
+            '[name="doctor_fee_type"]',
+            '[name="doctor_hourly_fee"]',
+            '[name="doctor_fixed_fee"]',
+            '[name="doctor_percentage"]',
+            '[name="use_default_profit"]',
+            '[name="custom_profit_percent"]'
+        ];
+
+        priceInputs.forEach(selector => {
+            const input = document.querySelector(selector);
+            if (input) {
+                input.addEventListener('input', window.updateLivePricePreview);
+                input.addEventListener('change', window.updateLivePricePreview);
+            }
+        });
+
+        // Trigger initial calculation if editing
+        if (service) {
+            setTimeout(window.updateLivePricePreview, 100);
         }
 
         document.getElementById('serviceForm').onsubmit = async (e) => {
@@ -2264,15 +2761,12 @@ const Pages = {
     },
 
     async deleteService(id) {
-        if (confirm(t('modal.deleteMessage'))) {
-            try {
-                await API.delete(`/api/services/${id}`);
-                showToast(t('toast.serviceDeleted'));
-                APP.loadPage('services');
-            } catch(err) {
-                showToast(err.message, 'error');
-            }
-        }
+        deleteWithUndo(
+            'service',
+            id,
+            async (itemId) => await API.delete(`/api/services/${itemId}`),
+            () => APP.loadPage('services')
+        );
     },
 
     async priceList() {

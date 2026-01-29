@@ -42,7 +42,8 @@
     "optional": "اختياري",
     "viewAll": "عرض الكل",
     "viewDetails": "عرض التفاصيل",
-    "or": "أو"
+    "or": "أو",
+    "undo": "تراجع"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -536,8 +537,11 @@
     "equipmentDeleted": "تم حذف المعدات",
     "consumableSaved": "تم حفظ المستهلك",
     "consumableDeleted": "تم حذف المستهلك",
+    "consumableDeletedWithUndo": "تم حذف المستهلك",
     "serviceSaved": "تم حفظ الخدمة",
     "serviceDeleted": "تم حذف الخدمة",
+    "serviceDeletedWithUndo": "تم حذف الخدمة",
+    "deleteUndone": "تم إلغاء الحذف",
     "clinicStatusUpdated": "تم تحديث حالة العيادة",
     "paymentRecorded": "تم تسجيل الدفعة. تاريخ الانتهاء الجديد: {date}",
     "subscriptionExtended": "تم تمديد الاشتراك إلى {date}",
@@ -566,8 +570,9 @@
     "required": "هذا الحقل مطلوب",
     "invalidEmail": "عنوان بريد إلكتروني غير صالح",
     "invalidNumber": "الرجاء إدخال رقم صحيح",
-    "minValue": "القيمة يجب أن تكون على الأقل {min}",
-    "maxValue": "القيمة لا يمكن أن تتجاوز {max}"
+    "minValue": "الحد الأدنى للقيمة هو {min}",
+    "maxValue": "الحد الأقصى للقيمة هو {max}",
+    "invalid": "تنسيق غير صالح"
   },
   "categories": {
     "diagnosis": "التشخيص",
