@@ -803,6 +803,27 @@ def api_update_clinic_user(user_id):
     return jsonify({'success': True})
 
 
+# ============== SPA Catch-All Route ==============
+
+@app.route('/<path:path>')
+def catch_all(path):
+    """Catch-all route for SPA - serves index.html for all app routes"""
+    # List of valid SPA routes
+    spa_routes = [
+        'dashboard', 'settings', 'consumables', 'services',
+        'price-list', 'subscription', 'super-admin'
+    ]
+
+    # If it's a valid SPA route, serve index.html
+    if path in spa_routes:
+        if 'user_id' not in session:
+            return render_template('login.html')
+        return render_template('index.html')
+
+    # Otherwise, return 404
+    return jsonify({'error': 'Not found'}), 404
+
+
 # ============== Error Handlers ==============
 
 @app.errorhandler(404)

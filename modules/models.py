@@ -505,11 +505,16 @@ def update_consumable(consumable_id, clinic_id, **kwargs):
 def delete_consumable(consumable_id, clinic_id):
     """Delete consumable (must belong to clinic)"""
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM consumables WHERE id = ? AND clinic_id = ?', (consumable_id, clinic_id))
-    conn.commit()
-    conn.close()
-    return True
+    try:
+        cursor = conn.cursor()
+        # First delete from service_consumables to avoid foreign key constraint
+        cursor.execute('DELETE FROM service_consumables WHERE consumable_id = ?', (consumable_id,))
+        # Then delete the consumable itself
+        cursor.execute('DELETE FROM consumables WHERE id = ? AND clinic_id = ?', (consumable_id, clinic_id))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 
 # ============== Service Categories ==============
@@ -681,11 +686,17 @@ def update_service(service_id, clinic_id, **kwargs):
 def delete_service(service_id, clinic_id):
     """Delete service (must belong to clinic)"""
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM services WHERE id = ? AND clinic_id = ?', (service_id, clinic_id))
-    conn.commit()
-    conn.close()
-    return True
+    try:
+        cursor = conn.cursor()
+        # Explicitly delete child records first (even though CASCADE should handle it)
+        cursor.execute('DELETE FROM service_consumables WHERE service_id = ?', (service_id,))
+        cursor.execute('DELETE FROM service_equipment WHERE service_id = ?', (service_id,))
+        # Then delete the service itself
+        cursor.execute('DELETE FROM services WHERE id = ? AND clinic_id = ?', (service_id, clinic_id))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 
 def add_service_consumable(service_id, consumable_id, quantity):

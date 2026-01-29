@@ -42,7 +42,8 @@
     "optional": "Optional",
     "viewAll": "View All",
     "viewDetails": "View details",
-    "or": "or"
+    "or": "or",
+    "undo": "Undo"
   },
   "auth": {
     "login": "Sign In",
@@ -536,8 +537,11 @@
     "equipmentDeleted": "Equipment deleted",
     "consumableSaved": "Consumable saved",
     "consumableDeleted": "Consumable deleted",
+    "consumableDeletedWithUndo": "Consumable deleted",
     "serviceSaved": "Service saved",
     "serviceDeleted": "Service deleted",
+    "serviceDeletedWithUndo": "Service deleted",
+    "deleteUndone": "Delete cancelled",
     "clinicStatusUpdated": "Clinic status updated",
     "paymentRecorded": "Payment recorded. New expiry: {date}",
     "subscriptionExtended": "Subscription extended to {date}",
@@ -566,8 +570,9 @@
     "required": "This field is required",
     "invalidEmail": "Invalid email address",
     "invalidNumber": "Please enter a valid number",
-    "minValue": "Value must be at least {min}",
-    "maxValue": "Value cannot exceed {max}"
+    "minValue": "Minimum value is {min}",
+    "maxValue": "Maximum value is {max}",
+    "invalid": "Invalid format"
   },
   "categories": {
     "diagnosis": "Diagnosis",
