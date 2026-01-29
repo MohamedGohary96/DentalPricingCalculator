@@ -1081,6 +1081,7 @@ const Pages = {
                     <button class="btn btn-sm btn-primary" onclick="Pages.showFixedCostForm()">+ ${t('settings.addCost')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
+                    ${fixedCosts.length > 0 ? `
                     <table class="data-table">
                         <thead>
                             <tr>
@@ -1106,6 +1107,18 @@ const Pages = {
                             `).join('')}
                         </tbody>
                     </table>
+                    ` : `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💰</div>
+                            <h3>No fixed costs yet</h3>
+                            <p>Add rent, utilities, and other monthly expenses to calculate accurate service pricing.</p>
+                            <div class="empty-state-actions">
+                                <button class="btn btn-primary" onclick="Pages.showFixedCostForm()">
+                                    + ${t('settings.addCost')}
+                                </button>
+                            </div>
+                        </div>
+                    `}
                 </div>
             </div>
 
@@ -1115,6 +1128,7 @@ const Pages = {
                     <button class="btn btn-sm btn-primary" onclick="Pages.showSalaryForm()">+ ${t('settings.addSalary')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
+                    ${salaries.length > 0 ? `
                     <table class="data-table">
                         <thead>
                             <tr>
@@ -1140,6 +1154,18 @@ const Pages = {
                             `).join('')}
                         </tbody>
                     </table>
+                    ` : `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">👥</div>
+                            <h3>No salaries yet</h3>
+                            <p>Add staff salaries to include labor costs in your service pricing calculations.</p>
+                            <div class="empty-state-actions">
+                                <button class="btn btn-primary" onclick="Pages.showSalaryForm()">
+                                    + ${t('settings.addSalary')}
+                                </button>
+                            </div>
+                        </div>
+                    `}
                 </div>
             </div>
 
@@ -1149,6 +1175,7 @@ const Pages = {
                     <button class="btn btn-sm btn-primary" onclick="Pages.showEquipmentForm()">+ ${t('settings.addEquipment')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
+                    ${equipment.length > 0 ? `
                     <table class="data-table">
                         <thead>
                             <tr>
@@ -1176,6 +1203,18 @@ const Pages = {
                             `).join('')}
                         </tbody>
                     </table>
+                    ` : `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔧</div>
+                            <h3>No equipment yet</h3>
+                            <p>Add dental equipment to track depreciation and include costs in service pricing.</p>
+                            <div class="empty-state-actions">
+                                <button class="btn btn-primary" onclick="Pages.showEquipmentForm()">
+                                    + ${t('settings.addEquipment')}
+                                </button>
+                            </div>
+                        </div>
+                    `}
                 </div>
             </div>
         `;
@@ -1510,6 +1549,11 @@ const Pages = {
                             <div class="empty-state-icon">📦</div>
                             <h3>${t('consumables.noConsumables')}</h3>
                             <p>${t('consumables.addFirst')}</p>
+                            <div class="empty-state-actions">
+                                <button class="btn btn-primary" onclick="Pages.showConsumableForm()">
+                                    + ${t('consumables.addConsumable')}
+                                </button>
+                            </div>
                         </div>
                     `}
                 </div>
@@ -1856,6 +1900,13 @@ const Pages = {
                             <div class="empty-state-icon">🦷</div>
                             <h3>${t('services.noServices')}</h3>
                             <p>${t('services.addFirst')}</p>
+                            ${canAddService ? `
+                                <div class="empty-state-actions">
+                                    <button class="btn btn-primary" onclick="Pages.showServiceForm()">
+                                        + ${t('services.addService')}
+                                    </button>
+                                </div>
+                            ` : ''}
                         </div>
                     `}
                 </div>
