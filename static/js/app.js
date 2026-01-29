@@ -88,6 +88,7 @@ const i18n = {
 
 // Shorthand translation function
 const t = (key, params) => i18n.t(key, params);
+window.t = t; // Expose for embedded scripts
 
 // Toggle language function
 async function toggleLanguage() {
@@ -114,6 +115,7 @@ function getLocalizedName(item) {
     }
     return item.name || item.service_name || '';
 }
+window.getLocalizedName = getLocalizedName; // Expose for embedded scripts
 
 // ============================================
 // API Module
@@ -169,6 +171,7 @@ function showToast(msg, type='success', options = {}) {
 function formatCurrency(amount, currency = 'EGP') {
     return `${currency} ${parseFloat(amount || 0).toFixed(2)}`;
 }
+window.formatCurrency = formatCurrency; // Expose for embedded scripts
 
 // ============================================
 // Form Validation Helpers
