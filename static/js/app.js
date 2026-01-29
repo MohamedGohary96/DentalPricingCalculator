@@ -2392,42 +2392,6 @@ const Pages = {
                 // Store services for filtering
                 window.allServices = ${JSON.stringify(services)};
 
-                // Filter services function
-                window.filterServices = function() {
-                    const searchValue = document.getElementById('servicesSearch')?.value || '';
-                    const categoryValue = document.getElementById('servicesCategory')?.value || 'all';
-
-                    let filtered = window.allServices;
-
-                    // Apply search filter
-                    if (searchValue) {
-                        const search = searchValue.toLowerCase();
-                        filtered = filtered.filter(s => {
-                            const name = (s.name || s.service_name || '').toLowerCase();
-                            const nameAr = (s.name_ar || '').toLowerCase();
-                            const category = (s.category_name || '').toLowerCase();
-                            const equipment = (s.equipment_name || '').toLowerCase();
-                            return name.includes(search) || nameAr.includes(search) ||
-                                   category.includes(search) || equipment.includes(search);
-                        });
-                    }
-
-                    // Apply category filter
-                    if (categoryValue && categoryValue !== 'all') {
-                        if (categoryValue === 'uncategorized') {
-                            filtered = filtered.filter(s => !s.category_name);
-                        } else {
-                            filtered = filtered.filter(s => s.category_name === categoryValue);
-                        }
-                    }
-
-                    // Re-render table and cards
-                    renderServicesTable(filtered);
-                };
-
-                // Debounced version for search input
-                window.filterServicesDebounced = window.debounce(window.filterServices, 300);
-
                 // Render services table/cards
                 function renderServicesTable(servicesToRender) {
                     const container = document.getElementById('servicesTableContainer');
@@ -2564,6 +2528,42 @@ const Pages = {
                         </div>
                     \`;
                 }
+
+                // Filter services function
+                window.filterServices = function() {
+                    const searchValue = document.getElementById('servicesSearch')?.value || '';
+                    const categoryValue = document.getElementById('servicesCategory')?.value || 'all';
+
+                    let filtered = window.allServices;
+
+                    // Apply search filter
+                    if (searchValue) {
+                        const search = searchValue.toLowerCase();
+                        filtered = filtered.filter(s => {
+                            const name = (s.name || s.service_name || '').toLowerCase();
+                            const nameAr = (s.name_ar || '').toLowerCase();
+                            const category = (s.category_name || '').toLowerCase();
+                            const equipment = (s.equipment_name || '').toLowerCase();
+                            return name.includes(search) || nameAr.includes(search) ||
+                                   category.includes(search) || equipment.includes(search);
+                        });
+                    }
+
+                    // Apply category filter
+                    if (categoryValue && categoryValue !== 'all') {
+                        if (categoryValue === 'uncategorized') {
+                            filtered = filtered.filter(s => !s.category_name);
+                        } else {
+                            filtered = filtered.filter(s => s.category_name === categoryValue);
+                        }
+                    }
+
+                    // Re-render table and cards
+                    renderServicesTable(filtered);
+                };
+
+                // Debounced version for search input
+                window.filterServicesDebounced = window.debounce(window.filterServices, 300);
             </script>
         `;
     },
