@@ -100,6 +100,11 @@ async function toggleLanguage() {
     }
 }
 
+// Tooltip helper function
+function tooltip(text) {
+    return `<span class="tooltip-trigger">?<span class="tooltip-content">${text}</span></span>`;
+}
+
 // Get localized name for items with name_ar field
 // Supports both 'name' and 'service_name' as fallback keys
 function getLocalizedName(item) {
@@ -1064,9 +1069,8 @@ const Pages = {
                             <small style="color:var(--gray-600);">${t('settings.workingHoursHelp')}</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">${t('settings.utilizationRate')}</label>
+                            <label class="form-label">${t('settings.utilizationRate')} ${tooltip(t('settings.utilizationHelp'))}</label>
                             <input type="number" class="form-input" name="utilization_percent" value="${capacity.utilization_percent}" min="1" max="100" placeholder="e.g., 80">
-                            <small style="color:var(--gray-600);">${t('settings.utilizationHelp')}</small>
                         </div>
                     </form>
                     <div style="margin-top:1rem;">
