@@ -43,7 +43,11 @@
     "viewAll": "عرض الكل",
     "viewDetails": "عرض التفاصيل",
     "or": "أو",
-    "undo": "تراجع"
+    "undo": "تراجع",
+    "category": "الفئة",
+    "allCategories": "كل الفئات",
+    "noResults": "لا توجد نتائج",
+    "tryDifferentSearch": "جرّب تعديل البحث أو الفلاتر"
   },
   "auth": {
     "login": "تسجيل الدخول",

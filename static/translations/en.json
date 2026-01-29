@@ -43,7 +43,11 @@
     "viewAll": "View All",
     "viewDetails": "View details",
     "or": "or",
-    "undo": "Undo"
+    "undo": "Undo",
+    "category": "Category",
+    "allCategories": "All Categories",
+    "noResults": "No results found",
+    "tryDifferentSearch": "Try adjusting your search or filters"
   },
   "auth": {
     "login": "Sign In",
@@ -405,7 +409,9 @@
     "optional": "Optional",
     "useDefaultProfitMargin": "Use Default Profit Margin",
     "customProfitMarginLabel": "Custom Profit Margin %",
-    "customProfitHelp": "Override the global profit setting for this service only"
+    "customProfitHelp": "Override the global profit setting for this service only",
+    "service": "service",
+    "services": "services"
   },
   "priceList": {
     "title": "Price List",
