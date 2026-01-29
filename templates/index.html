@@ -6,7 +6,7 @@
     <title>Dental Pricing Calculator</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
         @media print {
@@ -36,8 +36,8 @@
             </div>
 
             <nav class="sidebar-nav" role="navigation" aria-label="Main navigation">
-                <div class="nav-section">Overview</div>
-                <a href="#" class="nav-link active" onclick="APP.loadPage('dashboard')" aria-current="page">
+                <div class="nav-section" id="overviewSection">Overview</div>
+                <a href="#" class="nav-link active" id="dashboardLink" onclick="APP.loadPage('dashboard')" aria-current="page">
                     <span class="nav-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <rect x="3" y="3" width="7" height="7" rx="1"/>
@@ -49,8 +49,8 @@
                     <span class="nav-text">Dashboard</span>
                 </a>
 
-                <div class="nav-section">Configuration</div>
-                <a href="#" class="nav-link" onclick="APP.loadPage('settings')">
+                <div class="nav-section" id="configSection">Configuration</div>
+                <a href="#" class="nav-link" id="settingsLink" onclick="APP.loadPage('settings')">
                     <span class="nav-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="4" y1="21" x2="4" y2="14"/>
@@ -66,7 +66,7 @@
                     </span>
                     <span class="nav-text">Settings</span>
                 </a>
-                <a href="#" class="nav-link" onclick="APP.loadPage('consumables')">
+                <a href="#" class="nav-link" id="consumablesLink" onclick="APP.loadPage('consumables')">
                     <span class="nav-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -74,11 +74,11 @@
                             <line x1="12" y1="22.08" x2="12" y2="12"/>
                         </svg>
                     </span>
-                    <span class="nav-text">Consumables</span>
+                    <span class="nav-text">Consumables & Materials</span>
                 </a>
 
-                <div class="nav-section">Services & Pricing</div>
-                <a href="#" class="nav-link" onclick="APP.loadPage('services')">
+                <div class="nav-section" id="servicesPricingSection">Services & Pricing</div>
+                <a href="#" class="nav-link" id="servicesLink" onclick="APP.loadPage('services')">
                     <span class="nav-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
@@ -89,7 +89,7 @@
                     </span>
                     <span class="nav-text">Services</span>
                 </a>
-                <a href="#" class="nav-link" onclick="APP.loadPage('price-list')">
+                <a href="#" class="nav-link" id="priceListLink" onclick="APP.loadPage('price-list')">
                     <span class="nav-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="12" y1="1" x2="12" y2="23"/>
@@ -98,9 +98,41 @@
                     </span>
                     <span class="nav-text">Price List</span>
                 </a>
+
+                <div class="nav-section" id="accountSection">Account</div>
+                <a href="#" class="nav-link" id="subscriptionLink" onclick="APP.loadPage('subscription')">
+                    <span class="nav-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                    </span>
+                    <span class="nav-text">Subscription</span>
+                </a>
+
+                <!-- Super Admin Section (visible only to super admins) -->
+                <div class="nav-section" id="superAdminSection" style="display:none;">Super Admin</div>
+                <a href="#" class="nav-link" id="superAdminLink" onclick="APP.loadPage('super-admin')" style="display:none;">
+                    <span class="nav-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <path d="M9 12l2 2 4-4"/>
+                        </svg>
+                    </span>
+                    <span class="nav-text">Manage Clinics</span>
+                </a>
             </nav>
 
             <div class="sidebar-footer">
+                <!-- Language Toggle -->
+                <button class="lang-toggle" onclick="toggleLanguage()" title="Switch Language">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="2" y1="12" x2="22" y2="12"/>
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                    <span id="langLabel">عربي</span>
+                </button>
+
                 <div class="user-menu">
                     <div class="user-avatar" style="background: linear-gradient(135deg, var(--primary-400), var(--primary-600));">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -112,7 +144,7 @@
                         <div class="user-name" id="userName">Admin User</div>
                         <div class="user-role">Administrator</div>
                     </div>
-                    <a href="/logout" class="btn btn-sm btn-ghost" title="Logout" aria-label="Log out">
+                    <a href="/logout" class="btn btn-sm btn-ghost" id="logoutBtn" title="Logout" aria-label="Log out">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                             <polyline points="16 17 21 12 16 7"/>

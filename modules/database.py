@@ -78,17 +78,20 @@ def init_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             slug TEXT UNIQUE NOT NULL,
-            email TEXT NOT NULL,
+            email TEXT,
             phone TEXT,
             address TEXT,
             city TEXT,
             country TEXT DEFAULT 'Egypt',
             logo_url TEXT,
-            subscription_plan TEXT DEFAULT 'free',
-            subscription_status TEXT DEFAULT 'active',
-            subscription_expires_at TIMESTAMP,
-            max_users INTEGER DEFAULT 3,
-            max_services INTEGER DEFAULT 50,
+            subscription_plan TEXT DEFAULT 'professional',
+            subscription_status TEXT DEFAULT 'trial',
+            subscription_expires_at DATE,
+            last_payment_date DATE,
+            last_payment_amount REAL,
+            grace_period_start DATE,
+            max_users INTEGER DEFAULT 10,
+            max_services INTEGER DEFAULT 100,
             is_active INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -106,6 +109,7 @@ def init_database():
             last_name TEXT NOT NULL,
             email TEXT,
             role TEXT DEFAULT 'staff',
+            is_super_admin INTEGER DEFAULT 0,
             is_active INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -205,11 +209,25 @@ def init_database():
         )
     ''')
 
+    # Service Categories table (per clinic)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS service_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            clinic_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            display_order INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (clinic_id) REFERENCES clinics(id)
+        )
+    ''')
+
     # Services table (per clinic)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS services (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             clinic_id INTEGER NOT NULL,
+            category_id INTEGER,
             name TEXT NOT NULL,
             chair_time_hours REAL NOT NULL,
             doctor_hourly_fee REAL NOT NULL,
@@ -221,6 +239,7 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id),
+            FOREIGN KEY (category_id) REFERENCES service_categories(id),
             FOREIGN KEY (equipment_id) REFERENCES equipment(id)
         )
     ''')
@@ -238,6 +257,8 @@ def init_database():
         cursor.execute('ALTER TABLE services ADD COLUMN doctor_fixed_fee REAL DEFAULT 0')
     if 'doctor_percentage' not in columns:
         cursor.execute('ALTER TABLE services ADD COLUMN doctor_percentage REAL DEFAULT 0')
+    if 'category_id' not in columns:
+        cursor.execute('ALTER TABLE services ADD COLUMN category_id INTEGER REFERENCES service_categories(id)')
 
     # Service Consumables (junction table)
     cursor.execute('''
@@ -248,6 +269,18 @@ def init_database():
             quantity REAL NOT NULL,
             FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE,
             FOREIGN KEY (consumable_id) REFERENCES consumables(id)
+        )
+    ''')
+
+    # Service Equipment (junction table for multiple equipment per service)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS service_equipment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            service_id INTEGER NOT NULL,
+            equipment_id INTEGER NOT NULL,
+            hours_used REAL NOT NULL DEFAULT 0.25,
+            FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE,
+            FOREIGN KEY (equipment_id) REFERENCES equipment(id)
         )
     ''')
 
@@ -279,8 +312,105 @@ def init_database():
         )
     ''')
 
+    # Subscription payments table (for tracking payments)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS subscription_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            clinic_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            currency TEXT DEFAULT 'EGP',
+            payment_date DATE NOT NULL,
+            payment_method TEXT CHECK(payment_method IN ('cash', 'bank_transfer', 'check', 'other')),
+            months_paid INTEGER DEFAULT 1,
+            receipt_number TEXT,
+            payment_notes TEXT,
+            recorded_by INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (clinic_id) REFERENCES clinics(id),
+            FOREIGN KEY (recorded_by) REFERENCES users(id)
+        )
+    ''')
+
+    # Migration: Add is_super_admin to users if it doesn't exist
+    cursor.execute("PRAGMA table_info(users)")
+    user_columns = [column[1] for column in cursor.fetchall()]
+    if 'is_super_admin' not in user_columns:
+        cursor.execute('ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0')
+
+    # Migration: Add subscription fields to clinics if they don't exist
+    cursor.execute("PRAGMA table_info(clinics)")
+    clinic_columns = [column[1] for column in cursor.fetchall()]
+    if 'last_payment_date' not in clinic_columns:
+        cursor.execute('ALTER TABLE clinics ADD COLUMN last_payment_date DATE')
+    if 'last_payment_amount' not in clinic_columns:
+        cursor.execute('ALTER TABLE clinics ADD COLUMN last_payment_amount REAL')
+    if 'grace_period_start' not in clinic_columns:
+        cursor.execute('ALTER TABLE clinics ADD COLUMN grace_period_start DATE')
+    if 'language' not in clinic_columns:
+        cursor.execute("ALTER TABLE clinics ADD COLUMN language TEXT DEFAULT 'en'")
+
+    # Add name_ar column to services table
+    cursor.execute('PRAGMA table_info(services)')
+    service_columns = [column[1] for column in cursor.fetchall()]
+    if 'name_ar' not in service_columns:
+        cursor.execute('ALTER TABLE services ADD COLUMN name_ar TEXT')
+
+    # Add name_ar column to consumables table
+    cursor.execute('PRAGMA table_info(consumables)')
+    consumable_columns = [column[1] for column in cursor.fetchall()]
+    if 'name_ar' not in consumable_columns:
+        cursor.execute('ALTER TABLE consumables ADD COLUMN name_ar TEXT')
+
+    # Add custom_unit_price column to service_consumables table (for service-specific pricing)
+    cursor.execute('PRAGMA table_info(service_consumables)')
+    sc_columns = [column[1] for column in cursor.fetchall()]
+    if 'custom_unit_price' not in sc_columns:
+        cursor.execute('ALTER TABLE service_consumables ADD COLUMN custom_unit_price REAL')
+
     conn.commit()
     conn.close()
+
+
+# Default dental service categories
+DEFAULT_SERVICE_CATEGORIES = [
+    'Diagnosis',
+    'Periodontics',
+    'Restorative',
+    'Endodontics',
+    'Surgery',
+    'Implant',
+    'Prosthodontics',
+    'Pedodontics',
+    'Orthodontics'
+]
+
+
+def create_default_categories(clinic_id, conn=None):
+    """Create default service categories for a clinic"""
+    close_conn = False
+    if conn is None:
+        conn = get_connection()
+        close_conn = True
+
+    cursor = conn.cursor()
+
+    # Check if categories already exist for this clinic
+    cursor.execute('SELECT COUNT(*) FROM service_categories WHERE clinic_id = ?', (clinic_id,))
+    if cursor.fetchone()[0] > 0:
+        if close_conn:
+            conn.close()
+        return
+
+    # Create default categories
+    for order, name in enumerate(DEFAULT_SERVICE_CATEGORIES):
+        cursor.execute('''
+            INSERT INTO service_categories (clinic_id, name, display_order)
+            VALUES (?, ?, ?)
+        ''', (clinic_id, name, order))
+
+    conn.commit()
+    if close_conn:
+        conn.close()
 
 
 def create_initial_admin():
@@ -303,19 +433,19 @@ def create_initial_admin():
     print("\n🔐 Please change this password after first login!")
     print("="*60 + "\n")
 
-    # Create demo clinic
+    # Create demo clinic (super admin clinic - always active)
     cursor.execute('''
-        INSERT INTO clinics (name, slug, email, phone, address, city, country, subscription_plan, max_users, max_services)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO clinics (name, slug, email, phone, address, city, country, subscription_plan, subscription_status, max_users, max_services)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', ('Demo Dental Clinic', 'demo-clinic', 'demo@dentalcalc.local', '+20 100 000 0000',
-          '123 Demo Street', 'Cairo', 'Egypt', 'professional', 10, 100))
+          '123 Demo Street', 'Cairo', 'Egypt', 'professional', 'active', 10, 100))
     clinic_id = cursor.lastrowid
 
-    # Create admin user for demo clinic
+    # Create admin user for demo clinic (this is the super admin)
     admin_hash = hash_password('12345')
     cursor.execute('''
-        INSERT INTO users (clinic_id, username, password_hash, first_name, last_name, email, role)
-        VALUES (?, ?, ?, 'Admin', 'User', 'admin@dentalcalc.local', 'owner')
+        INSERT INTO users (clinic_id, username, password_hash, first_name, last_name, email, role, is_super_admin)
+        VALUES (?, ?, ?, 'Admin', 'User', 'admin@dentalcalc.local', 'owner', 1)
     ''', (clinic_id, 'admin', admin_hash))
 
     # Create default settings for demo clinic
@@ -329,6 +459,9 @@ def create_initial_admin():
         INSERT INTO clinic_capacity (clinic_id, chairs, days_per_month, hours_per_day, utilization_percent)
         VALUES (?, 1, 24, 8, 80)
     ''', (clinic_id,))
+
+    # Create default service categories
+    create_default_categories(clinic_id, conn)
 
     conn.commit()
     conn.close()

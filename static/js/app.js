@@ -2,6 +2,117 @@
  * Dental Pricing Calculator - Main Application
  */
 
+// ============================================
+// Internationalization (i18n) System
+// ============================================
+const i18n = {
+    currentLang: 'en',
+    translations: {},
+    initialized: false,
+
+    async init() {
+        const savedLang = localStorage.getItem('language') || 'en';
+        await this.setLanguage(savedLang, false);
+        this.initialized = true;
+    },
+
+    async loadTranslations(lang) {
+        if (this.translations[lang]) return;
+        try {
+            const response = await fetch(`/static/translations/${lang}.json`);
+            if (!response.ok) throw new Error(`Failed to load ${lang} translations`);
+            this.translations[lang] = await response.json();
+        } catch (error) {
+            console.error(`Failed to load ${lang} translations:`, error);
+            // Fallback to English if available
+            if (lang !== 'en' && !this.translations['en']) {
+                await this.loadTranslations('en');
+            }
+        }
+    },
+
+    async setLanguage(lang, saveToServer = true) {
+        await this.loadTranslations(lang);
+        this.currentLang = lang;
+        localStorage.setItem('language', lang);
+
+        // Update HTML attributes for RTL
+        document.documentElement.lang = lang;
+        document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+
+        // Update language toggle button text
+        const langLabel = document.getElementById('langLabel');
+        if (langLabel) {
+            langLabel.textContent = this.t('language.toggle');
+        }
+
+        // Save preference to server if logged in
+        if (saveToServer && typeof APP !== 'undefined' && APP.user) {
+            API.put('/api/settings/language', { language: lang }).catch(() => {});
+        }
+    },
+
+    // Get translation by key path (e.g., 'nav.dashboard')
+    t(key, params = {}) {
+        const keys = key.split('.');
+        let value = this.translations[this.currentLang];
+
+        for (const k of keys) {
+            if (value === undefined) break;
+            value = value[k];
+        }
+
+        // Fallback to English if translation missing
+        if (value === undefined && this.currentLang !== 'en') {
+            value = this.translations['en'];
+            for (const k of keys) {
+                if (value === undefined) break;
+                value = value[k];
+            }
+        }
+
+        // Return key if no translation found
+        if (value === undefined) {
+            console.warn(`Missing translation: ${key}`);
+            return key;
+        }
+
+        // Replace parameters like {name} with values
+        if (typeof value === 'string' && Object.keys(params).length > 0) {
+            return value.replace(/\{(\w+)\}/g, (_, param) => params[param] !== undefined ? params[param] : `{${param}}`);
+        }
+
+        return value;
+    }
+};
+
+// Shorthand translation function
+const t = (key, params) => i18n.t(key, params);
+
+// Toggle language function
+async function toggleLanguage() {
+    const newLang = i18n.currentLang === 'en' ? 'ar' : 'en';
+    await i18n.setLanguage(newLang);
+
+    // Re-render current page with new language
+    if (typeof APP !== 'undefined' && APP.currentPage) {
+        APP.loadPage(APP.currentPage);
+    }
+}
+
+// Get localized name for items with name_ar field
+// Supports both 'name' and 'service_name' as fallback keys
+function getLocalizedName(item) {
+    if (!item) return '';
+    if (i18n.currentLang === 'ar' && item.name_ar) {
+        return item.name_ar;
+    }
+    return item.name || item.service_name || '';
+}
+
+// ============================================
+// API Module
+// ============================================
 const API = {
     async get(url) { const r = await fetch(url); if (!r.ok) throw new Error(await r.text()); return r.json(); },
     async post(url, data) { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed'); } return r.json(); },
@@ -35,10 +146,11 @@ window.getConsumableUnitCost = function(consumableId) {
     return (c.pack_cost || 0) / unitsPerPack;
 };
 
-// Update cost display for a consumable row
+// Update cost display for a consumable row (uses custom unit price if entered)
 window.updateConsumableCost = function(row) {
     const select = row.querySelector('[data-consumable-select]');
     const qtyInput = row.querySelector('[data-consumable-quantity]');
+    const unitPriceInput = row.querySelector('[data-consumable-unit-price]');
     const costDisplay = row.querySelector('[data-consumable-cost]');
     if (!select || !qtyInput || !costDisplay) return;
 
@@ -46,7 +158,13 @@ window.updateConsumableCost = function(row) {
     const quantity = parseFloat(qtyInput.value) || 0;
 
     if (consumableId && quantity > 0) {
-        const unitCost = window.getConsumableUnitCost(consumableId);
+        // Use custom unit price if entered, otherwise use calculated price
+        let unitCost;
+        if (unitPriceInput && unitPriceInput.value) {
+            unitCost = parseFloat(unitPriceInput.value);
+        } else {
+            unitCost = window.getConsumableUnitCost(consumableId);
+        }
         const totalCost = unitCost * quantity;
         costDisplay.textContent = formatCurrency(totalCost);
     } else {
@@ -101,8 +219,8 @@ window.updatePackagingPreview = function() {
     if (unitCostResult) unitCostResult.textContent = unitCost.toFixed(3);
 };
 
-// Global function to add consumable row (defined here so it's always available)
-window.addConsumableRow = function() {
+// Global function to add consumable row with searchable dropdown (defined here so it's always available)
+window.addConsumableRow = function(preselectedId = null, preselectedQty = 1, preselectedCustomPrice = null) {
     const container = document.getElementById('consumablesContainer');
     if (!container) {
         console.error('consumablesContainer not found');
@@ -117,28 +235,317 @@ window.addConsumableRow = function() {
 
     const consumables = window.serviceFormConsumables;
     if (!consumables || consumables.length === 0) {
-        alert('Please add consumables to your library first before adding them to services.');
+        alert('Please add consumables & materials to your library first before adding them to services.');
         return;
     }
 
+    const preselected = preselectedId ? consumables.find(c => c.id == preselectedId) : null;
+    // Calculate default unit price from consumable
+    const defaultUnitPrice = preselected ? (preselected.pack_cost / preselected.cases_per_pack / preselected.units_per_case) : null;
+    const rowId = 'consumable-row-' + Date.now();
+
     const row = document.createElement('div');
     row.className = 'consumable-row';
+    row.id = rowId;
     row.style.cssText = 'display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;';
-    row.innerHTML = '<select class="form-select" style="flex:2;" data-consumable-select>' +
-        '<option value="">Select consumable...</option>' +
-        consumables.map(c => '<option value="' + c.id + '">' + c.item_name + '</option>').join('') +
-        '</select>' +
-        '<input type="number" class="form-input" style="flex:1;" placeholder="Units" value="1" data-consumable-quantity min="0.1" step="0.1" required>' +
-        '<span data-consumable-cost style="flex:1;text-align:right;font-weight:500;color:var(--gray-600);min-width:100px;">-</span>' +
-        '<button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>';
 
-    // Add event listeners to update cost
-    const select = row.querySelector('[data-consumable-select]');
+    // Get localized name for preselected consumable
+    const preselectedName = preselected ? (i18n.currentLang === 'ar' && preselected.name_ar ? preselected.name_ar : preselected.item_name) : '';
+
+    // Use custom price if set, otherwise show default
+    const displayUnitPrice = preselectedCustomPrice !== null ? preselectedCustomPrice : (defaultUnitPrice ? defaultUnitPrice.toFixed(2) : '');
+
+    row.innerHTML = `
+        <div class="consumable-search-wrapper" style="flex:2;position:relative;">
+            <input type="text" class="form-input consumable-search"
+                   placeholder="${t('services.searchConsumables')}" autocomplete="off"
+                   value="${preselectedName}"
+                   data-consumable-search readonly style="cursor:pointer;">
+            <input type="hidden" data-consumable-select value="${preselectedId || ''}">
+            <input type="hidden" data-consumable-default-price value="${defaultUnitPrice || ''}">
+            <svg class="dropdown-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--gray-400);">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
+        </div>
+        <input type="number" class="form-input" style="width:70px;" placeholder="${t('services.qty')}" value="${preselectedQty}" data-consumable-quantity min="0.1" step="0.1" required>
+        <input type="number" class="form-input" style="width:90px;" placeholder="${t('services.unitPrice')}" value="${displayUnitPrice}" data-consumable-unit-price step="0.01" min="0">
+        <span data-consumable-cost style="width:80px;text-align:right;font-weight:500;color:var(--gray-600);">-</span>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="${t('common.delete')}">✕</button>
+    `;
+
+    // Set up searchable dropdown - create dropdown in body for proper positioning
+    const searchInput = row.querySelector('[data-consumable-search]');
+    const hiddenInput = row.querySelector('[data-consumable-select]');
     const qtyInput = row.querySelector('[data-consumable-quantity]');
-    select.addEventListener('change', () => window.updateConsumableCost(row));
+
+    // Create dropdown element in document body
+    const dropdown = document.createElement('div');
+    dropdown.className = 'consumable-dropdown';
+    dropdown.style.display = 'none';
+    document.body.appendChild(dropdown);
+    let highlightedIndex = -1;
+
+    // Create dropdown structure once - search input stays, only options update
+    dropdown.innerHTML = `
+        <div class="dropdown-search-container" style="padding:0.5rem;border-bottom:1px solid var(--gray-200);position:sticky;top:0;background:white;z-index:1;">
+            <input type="text" class="dropdown-search-input form-input" placeholder="${t('common.search')}"
+                   style="width:100%;padding:0.5rem 0.75rem;font-size:0.875rem;">
+        </div>
+        <div class="dropdown-options-container"></div>
+    `;
+
+    const dropdownSearchInput = dropdown.querySelector('.dropdown-search-input');
+    const optionsContainer = dropdown.querySelector('.dropdown-options-container');
+
+    // Set up search input event listener once
+    dropdownSearchInput.addEventListener('input', (e) => {
+        e.stopPropagation();
+        renderOptions(e.target.value);
+    });
+    dropdownSearchInput.addEventListener('click', (e) => e.stopPropagation());
+
+    // Render dropdown options - only updates the options container, not the search input
+    const renderOptions = (filter = '') => {
+        const filterLower = filter.toLowerCase();
+        const filtered = consumables.filter(c => {
+            const itemName = c.item_name.toLowerCase();
+            const nameAr = (c.name_ar || '').toLowerCase();
+            return itemName.includes(filterLower) || nameAr.includes(filterLower);
+        });
+
+        if (filtered.length === 0) {
+            optionsContainer.innerHTML = `<div style="padding:0.75rem 1rem;color:var(--gray-500);text-align:center;">${t('common.noData')}</div>`;
+        } else {
+            optionsContainer.innerHTML = filtered.map((c, idx) => {
+                const unitCost = c.pack_cost / c.cases_per_pack / c.units_per_case;
+                const displayName = i18n.currentLang === 'ar' && c.name_ar ? c.name_ar : c.item_name;
+                return `<div class="consumable-option ${idx === highlightedIndex ? 'highlighted' : ''}"
+                            data-id="${c.id}" data-name="${displayName}" data-index="${idx}">
+                    <span>${displayName}</span>
+                    <span style="font-size:0.75rem;color:var(--gray-500);">${formatCurrency(unitCost)}/${t('services.unit')}</span>
+                </div>`;
+            }).join('');
+        }
+        highlightedIndex = filtered.length > 0 ? 0 : -1;
+        updateHighlight();
+    };
+
+    const updateHighlight = () => {
+        dropdown.querySelectorAll('.consumable-option').forEach((opt, idx) => {
+            opt.style.background = idx === highlightedIndex ? 'var(--primary-50)' : '';
+        });
+    };
+
+    const selectOption = (id, name) => {
+        hiddenInput.value = id;
+        searchInput.value = name;
+        dropdown.style.display = 'none';
+
+        // Set default unit price when selecting a consumable
+        const selectedConsumable = consumables.find(c => c.id == id);
+        if (selectedConsumable) {
+            const defaultPrice = selectedConsumable.pack_cost / selectedConsumable.cases_per_pack / selectedConsumable.units_per_case;
+            const defaultPriceInput = row.querySelector('[data-consumable-default-price]');
+            const unitPriceInput = row.querySelector('[data-consumable-unit-price]');
+            if (defaultPriceInput) defaultPriceInput.value = defaultPrice;
+            if (unitPriceInput) unitPriceInput.value = defaultPrice.toFixed(2);
+        }
+
+        window.updateConsumableCost(row);
+    };
+
+    // Position dropdown using fixed positioning to escape overflow
+    const positionDropdown = () => {
+        const rect = searchInput.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const dropdownHeight = 200; // max-height from CSS
+        const spaceBelow = viewportHeight - rect.bottom;
+        const spaceAbove = rect.top;
+
+        dropdown.style.position = 'fixed';
+        dropdown.style.left = `${rect.left}px`;
+        dropdown.style.width = `${rect.width}px`;
+
+        // Position above if not enough space below
+        if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+            dropdown.style.bottom = `${viewportHeight - rect.top + 2}px`;
+            dropdown.style.top = 'auto';
+        } else {
+            dropdown.style.top = `${rect.bottom + 2}px`;
+            dropdown.style.bottom = 'auto';
+        }
+    };
+
+    // Event listeners - click to open dropdown (readonly input acts as dropdown trigger)
+    const openDropdown = () => {
+        dropdownSearchInput.value = '';  // Clear search
+        renderOptions('');  // Show all options initially
+        positionDropdown();
+        dropdown.style.display = 'block';
+        setTimeout(() => dropdownSearchInput.focus(), 0);  // Focus search input
+    };
+
+    searchInput.addEventListener('click', openDropdown);
+    searchInput.addEventListener('focus', openDropdown);
+
+    searchInput.addEventListener('keydown', (e) => {
+        const options = dropdown.querySelectorAll('.consumable-option[data-id]');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlightedIndex = Math.min(highlightedIndex + 1, options.length - 1);
+            updateHighlight();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightedIndex = Math.max(highlightedIndex - 1, 0);
+            updateHighlight();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightedIndex >= 0 && options[highlightedIndex]) {
+                const opt = options[highlightedIndex];
+                selectOption(opt.dataset.id, opt.dataset.name);
+            }
+        } else if (e.key === 'Escape') {
+            dropdown.style.display = 'none';
+        }
+    });
+
+    dropdown.addEventListener('click', (e) => {
+        const opt = e.target.closest('.consumable-option[data-id]');
+        if (opt) {
+            selectOption(opt.dataset.id, opt.dataset.name);
+        }
+    });
+
+    // Close dropdown when clicking outside
+    const handleClickOutside = (e) => {
+        if (!row.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    };
+    document.addEventListener('click', handleClickOutside);
+
+    // Close and reposition dropdown on scroll
+    const handleScroll = (e) => {
+        // If scrolling within modal content, reposition dropdown
+        if (dropdown.style.display !== 'none') {
+            positionDropdown();
+            // Hide if input scrolled out of view
+            const rect = searchInput.getBoundingClientRect();
+            const modalContent = searchInput.closest('.modal-content');
+            if (modalContent) {
+                const modalRect = modalContent.getBoundingClientRect();
+                if (rect.bottom < modalRect.top || rect.top > modalRect.bottom) {
+                    dropdown.style.display = 'none';
+                }
+            }
+        }
+    };
+    window.addEventListener('scroll', handleScroll, true);
+
+    // Clean up event listeners and dropdown when row is removed
+    const cleanup = () => {
+        document.removeEventListener('click', handleClickOutside);
+        window.removeEventListener('scroll', handleScroll, true);
+        if (dropdown.parentNode) {
+            dropdown.remove();
+        }
+    };
+
+    // Override the remove button to also cleanup dropdown
+    const removeBtn = row.querySelector('.btn-ghost');
+    if (removeBtn) {
+        removeBtn.onclick = () => {
+            cleanup();
+            row.remove();
+        };
+    }
+
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.removedNodes.forEach((node) => {
+                if (node === row || node.contains && node.contains(row)) {
+                    cleanup();
+                    observer.disconnect();
+                }
+            });
+        });
+    });
+    if (row.parentNode) {
+        observer.observe(row.parentNode, { childList: true });
+    }
+
+    // Also cleanup when modal is closed
+    const modal = document.getElementById('modalOverlay');
+    if (modal) {
+        const modalObserver = new MutationObserver((mutations) => {
+            if (!document.body.contains(row)) {
+                cleanup();
+                modalObserver.disconnect();
+            }
+        });
+        modalObserver.observe(modal, { attributes: true, attributeFilter: ['class'] });
+    }
+
     qtyInput.addEventListener('input', () => window.updateConsumableCost(row));
 
+    // Add listener for unit price input
+    const unitPriceInput = row.querySelector('[data-consumable-unit-price]');
+    if (unitPriceInput) {
+        unitPriceInput.addEventListener('input', () => window.updateConsumableCost(row));
+    }
+
     // Insert at top instead of bottom
+    container.insertBefore(row, container.firstChild);
+
+    // Update cost if preselected
+    if (preselectedId) {
+        window.updateConsumableCost(row);
+    }
+};
+
+// Global function to add equipment row
+window.addEquipmentRow = function(preselectedId = null, preselectedHours = 0.25) {
+    const container = document.getElementById('equipmentContainer');
+    if (!container) {
+        console.error('equipmentContainer not found');
+        return;
+    }
+
+    // Remove "no equipment" message if it exists
+    const emptyMsg = container.querySelector('.empty-equipment');
+    if (emptyMsg) {
+        emptyMsg.remove();
+    }
+
+    const equipmentList = window.serviceFormEquipment;
+    if (!equipmentList || equipmentList.length === 0) {
+        alert(t('services.noPerHourEquipment'));
+        return;
+    }
+
+    const preselected = preselectedId ? equipmentList.find(e => e.id == preselectedId) : null;
+    const rowId = 'equipment-row-' + Date.now();
+
+    const row = document.createElement('div');
+    row.className = 'equipment-row';
+    row.id = rowId;
+    row.style.cssText = 'display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;';
+
+    row.innerHTML = `
+        <select class="form-select" style="flex:2;" data-equipment-select>
+            <option value="">${t('services.selectEquipment')}</option>
+            ${equipmentList.map(e =>
+                `<option value="${e.id}" ${preselectedId == e.id ? 'selected' : ''}>${e.asset_name}</option>`
+            ).join('')}
+        </select>
+        <div class="input-with-unit" style="flex:1;">
+            <input type="number" class="form-input" style="width:100%;" data-equipment-hours value="${preselectedHours}" step="0.1" min="0.1" placeholder="0.25">
+            <span class="input-unit">${t('services.hours')}</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="${t('common.delete')}">✕</button>
+    `;
+
+    // Insert at top
     container.insertBefore(row, container.firstChild);
 };
 
@@ -199,10 +606,80 @@ const APP = {
     settings: null,
 
     async init() {
+        // Initialize i18n first
+        await i18n.init();
+
         this.user = await API.get('/api/user');
         this.settings = await API.get('/api/settings/global');
+        this.subscription = this.user.subscription || {};
         document.getElementById('userName').textContent = this.user.name;
+
+        // Show super admin nav if user is super admin
+        if (this.user.is_super_admin) {
+            document.getElementById('superAdminSection').style.display = 'block';
+            document.getElementById('superAdminLink').style.display = 'flex';
+        }
+
+        // Store subscription info
+        this.subscription = this.user.subscription;
+
+        // Set language from user preference if available
+        if (this.user.language && this.user.language !== i18n.currentLang) {
+            await i18n.setLanguage(this.user.language, false);
+        }
+
+        // Update navigation text based on language
+        this.updateNavigationText();
+
         this.loadPage('dashboard');
+    },
+
+    updateNavigationText() {
+        // Update navigation labels with translations
+        const navItems = {
+            'dashboardLink': 'nav.dashboard',
+            'settingsLink': 'nav.settings',
+            'consumablesLink': 'nav.consumables',
+            'servicesLink': 'nav.services',
+            'priceListLink': 'nav.priceList',
+            'subscriptionLink': 'nav.subscription',
+            'superAdminLink': 'nav.manageClinics'
+        };
+
+        for (const [id, key] of Object.entries(navItems)) {
+            const el = document.getElementById(id);
+            if (el) {
+                const textSpan = el.querySelector('.nav-text');
+                if (textSpan) {
+                    textSpan.textContent = t(key);
+                }
+            }
+        }
+
+        // Update section headers
+        const sections = {
+            'overviewSection': 'nav.overview',
+            'configSection': 'nav.configuration',
+            'servicesPricingSection': 'nav.servicesPricing',
+            'accountSection': 'nav.account',
+            'superAdminSection': 'nav.superAdmin'
+        };
+
+        for (const [id, key] of Object.entries(sections)) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = t(key);
+            }
+        }
+
+        // Update logout text
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            const textSpan = logoutBtn.querySelector('.nav-text');
+            if (textSpan) {
+                textSpan.textContent = t('nav.logout');
+            }
+        }
     },
 
     async loadPage(page) {
@@ -211,32 +688,87 @@ const APP = {
         document.querySelector(`[onclick="APP.loadPage('${page}')"]`)?.classList.add('active');
 
         const content = document.getElementById('pageContent');
-        content.innerHTML = '<div style="padding:2rem;text-align:center;">Loading...</div>';
+        content.innerHTML = `<div style="padding:2rem;text-align:center;">${t('common.loading')}</div>`;
 
         // Convert kebab-case to camelCase for Pages object
         const pageKey = page.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
         const html = await Pages[pageKey]();
         content.innerHTML = html;
+
+        // Re-update navigation text (in case language changed)
+        this.updateNavigationText();
     }
 };
 
 const Pages = {
     async dashboard() {
         const stats = await API.get('/api/dashboard/stats');
-        const priceList = await API.get('/api/price-list');
-        const topServices = priceList.slice(0, 5);
 
-        // Calculate pricing health metrics
-        const underpriced = priceList.filter(s => s.current_price && s.current_price < s.rounded_price * 0.95).length;
-        const optimal = priceList.filter(s => !s.current_price || (s.current_price >= s.rounded_price * 0.95 && s.current_price <= s.rounded_price * 1.05)).length;
-        const potentialRevenue = priceList.reduce((sum, s) => {
-            if (s.current_price && s.current_price < s.rounded_price) {
-                return sum + (s.rounded_price - s.current_price);
-            }
-            return sum;
-        }, 0);
+        // Check subscription status - show limited dashboard for trial/expired/suspended users
+        const restrictedLevels = ['trial', 'lockout', 'readonly'];
+        const isRestricted = APP.subscription && restrictedLevels.includes(APP.subscription.restriction_level);
+        const isSuspended = APP.subscription && APP.subscription.is_suspended;
+        const isExpired = APP.subscription && (APP.subscription.restriction_level === 'lockout' || APP.subscription.restriction_level === 'readonly');
+        const isTrial = APP.subscription && APP.subscription.restriction_level === 'trial';
+
+        let priceList = [];
+        let underpriced = 0;
+        let optimal = 0;
+        let potentialRevenue = 0;
+        let topServices = [];
+
+        if (!isRestricted) {
+            priceList = await API.get('/api/price-list');
+            topServices = priceList.slice(0, 5);
+
+            // Calculate pricing health metrics
+            underpriced = priceList.filter(s => s.current_price && s.current_price < s.rounded_price * 0.95).length;
+            optimal = priceList.filter(s => !s.current_price || (s.current_price >= s.rounded_price * 0.95 && s.current_price <= s.rounded_price * 1.05)).length;
+            potentialRevenue = priceList.reduce((sum, s) => {
+                if (s.current_price && s.current_price < s.rounded_price) {
+                    return sum + (s.rounded_price - s.current_price);
+                }
+                return sum;
+            }, 0);
+        }
+
+        // Subscription banner for restricted users (trial, expired, or suspended)
+        const trialDaysLeft = APP.subscription ? APP.subscription.trial_days_remaining : 0;
+        let bannerTitle, bannerMessage, bannerButtonText, bannerIcon;
+
+        if (isSuspended) {
+            bannerTitle = t('subscription.accountOnHold');
+            bannerMessage = t('subscription.onHoldMessage');
+            bannerButtonText = t('subscription.getHelp');
+            bannerIcon = '⏸️';
+        } else if (isExpired) {
+            bannerTitle = t('subscription.timeToRenew');
+            bannerMessage = t('subscription.renewMessage');
+            bannerButtonText = t('subscription.renewNow');
+            bannerIcon = '🔄';
+        } else {
+            const trialText = trialDaysLeft > 0 ? ` ${t('subscription.trialDaysLeft', {days: trialDaysLeft})}` : '';
+            bannerTitle = t('subscription.welcomeTrial');
+            bannerMessage = `${t('subscription.trialMessage')}${trialText} ${t('subscription.upgradeAnytime')}`;
+            bannerButtonText = t('subscription.seePlans');
+            bannerIcon = '✨';
+        }
+
+        const subscriptionBanner = isRestricted ? `
+            <div class="subscription-banner ${(isExpired || isSuspended) ? 'subscription-banner-expired' : ''}">
+                <div class="subscription-banner-icon">
+                    <span style="font-size: 1.5rem;">${bannerIcon}</span>
+                </div>
+                <div class="subscription-banner-content">
+                    <h4>${bannerTitle}</h4>
+                    <p>${bannerMessage}</p>
+                </div>
+                <button class="btn btn-primary" onclick="APP.loadPage('subscription')">${bannerButtonText}</button>
+            </div>
+        ` : '';
 
         return `
+            ${subscriptionBanner}
             <div class="metrics-grid">
                 <div class="metric-card">
                     <div class="metric-header">
@@ -246,15 +778,31 @@ const Pages = {
                                 <rect x="9" y="3" width="6" height="4" rx="1"/>
                             </svg>
                         </span>
-                        <span class="metric-label">Total Services</span>
+                        <span class="metric-label">${t('dashboard.totalServices')}</span>
                     </div>
                     <div class="metric-value">${stats.total_services}</div>
                     <div class="metric-footer">
-                        <span class="metric-subtext">Active dental procedures</span>
+                        <span class="metric-subtext">${t('dashboard.activeProcedures')}</span>
                     </div>
                 </div>
 
-                ${underpriced > 0 ? `
+                ${isRestricted ? `
+                <div class="metric-card metric-locked">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: var(--gray-100); color: var(--gray-400);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">${t('dashboard.pricingHealth')}</span>
+                    </div>
+                    <div class="metric-value" style="color: var(--gray-400);">${t('dashboard.locked')}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${isExpired ? t('dashboard.renewToUnlock') : t('dashboard.subscribeToUnlock')}</span>
+                    </div>
+                </div>
+                ` : underpriced > 0 ? `
                 <div class="metric-card metric-highlight">
                     <div class="metric-header">
                         <span class="metric-icon" style="background: #fef3c7; color: var(--warning);">
@@ -262,11 +810,11 @@ const Pages = {
                                 <path d="M12 2L2 22h20L12 2zm0 15a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-1-2V9h2v6h-2z"/>
                             </svg>
                         </span>
-                        <span class="metric-label">Needs Attention</span>
+                        <span class="metric-label">${t('dashboard.needsAttention')}</span>
                     </div>
                     <div class="metric-value">${underpriced}</div>
                     <div class="metric-footer">
-                        <span class="metric-action" onclick="APP.loadPage('price-list')">Services underpriced →</span>
+                        <span class="metric-action" onclick="APP.loadPage('price-list')">${t('dashboard.servicesUnderpriced')} →</span>
                     </div>
                 </div>
                 ` : `
@@ -277,11 +825,11 @@ const Pages = {
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </span>
-                        <span class="metric-label">Pricing Health</span>
+                        <span class="metric-label">${t('dashboard.pricingHealth')}</span>
                     </div>
-                    <div class="metric-value" style="color: var(--success);">Good</div>
+                    <div class="metric-value" style="color: var(--success);">${t('dashboard.good')}</div>
                     <div class="metric-footer">
-                        <span class="metric-subtext">All services properly priced</span>
+                        <span class="metric-subtext">${t('dashboard.allProperlyPriced')}</span>
                     </div>
                 </div>
                 `}
@@ -294,11 +842,11 @@ const Pages = {
                                 <polyline points="12 6 12 12 16 14"/>
                             </svg>
                         </span>
-                        <span class="metric-label">Chair Hourly Rate</span>
+                        <span class="metric-label">${t('dashboard.chairHourlyRate')}</span>
                     </div>
                     <div class="metric-value currency">${formatCurrency(stats.chair_hourly_rate)}</div>
                     <div class="metric-footer">
-                        <span class="metric-subtext">${stats.effective_hours.toFixed(0)} effective hours/month</span>
+                        <span class="metric-subtext">${t('dashboard.effectiveHoursMonth', {hours: stats.effective_hours.toFixed(0)})}</span>
                     </div>
                 </div>
 
@@ -310,25 +858,25 @@ const Pages = {
                                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                             </svg>
                         </span>
-                        <span class="metric-label">Monthly Fixed Costs</span>
+                        <span class="metric-label">${t('dashboard.monthlyFixedCosts')}</span>
                     </div>
                     <div class="metric-value currency">${formatCurrency(stats.total_fixed_monthly)}</div>
                     <div class="metric-breakdown">
                         <div class="breakdown-item">
-                            <span class="breakdown-label">Fixed Costs</span>
+                            <span class="breakdown-label">${t('dashboard.fixedCosts')}</span>
                             <span class="breakdown-value">${formatCurrency(stats.fixed_costs)}</span>
                         </div>
                         <div class="breakdown-item">
-                            <span class="breakdown-label">Staff Salaries</span>
+                            <span class="breakdown-label">${t('dashboard.staffSalaries')}</span>
                             <span class="breakdown-value">${formatCurrency(stats.staff_salaries)}</span>
                         </div>
                         <div class="breakdown-item">
-                            <span class="breakdown-label">Equipment Depreciation</span>
+                            <span class="breakdown-label">${t('dashboard.equipmentDepreciation')}</span>
                             <span class="breakdown-value">${formatCurrency(stats.equipment_depreciation)}</span>
                         </div>
                     </div>
                     <div class="metric-footer">
-                        <span class="metric-action" onclick="APP.loadPage('settings')">View details →</span>
+                        <span class="metric-action" onclick="APP.loadPage('settings')">${t('common.viewDetails')} →</span>
                     </div>
                 </div>
             </div>
@@ -341,13 +889,12 @@ const Pages = {
                             <path d="M12 16v-4"/>
                             <path d="M12 8h.01"/>
                         </svg>
-                        Quick Start Guide
+                        ${t('dashboard.quickStartGuide')}
                     </h3>
                 </div>
                 <div class="card-body">
                     <p style="color:var(--gray-700);margin-bottom:1.5rem;">
-                        This calculator uses <strong>Cost-Plus pricing</strong> to ensure all your costs are covered.
-                        Follow these steps to set up your clinic and calculate accurate prices:
+                        ${t('dashboard.quickStartIntro')}
                     </p>
                     <div class="setup-steps">
                         <div class="setup-step" onclick="APP.loadPage('settings')">
@@ -360,8 +907,8 @@ const Pages = {
                                     <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
                                 </svg>
                             </div>
-                            <h4>Configure Settings</h4>
-                            <p>Add rent, utilities, salaries, and equipment. Set your working hours and capacity.</p>
+                            <h4>${t('dashboard.step1Title')}</h4>
+                            <p>${t('dashboard.step1Desc')}</p>
                         </div>
                         <div class="setup-step" onclick="APP.loadPage('consumables')">
                             <div class="step-number">2</div>
@@ -371,8 +918,8 @@ const Pages = {
                                     <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
                                 </svg>
                             </div>
-                            <h4>Add Consumables</h4>
-                            <p>Create a library of materials like gloves, anesthetics, gauze, and sutures.</p>
+                            <h4>${t('dashboard.step2Title')}</h4>
+                            <p>${t('dashboard.step2Desc')}</p>
                         </div>
                         <div class="setup-step" onclick="APP.loadPage('services')">
                             <div class="step-number">3</div>
@@ -382,8 +929,8 @@ const Pages = {
                                     <path d="M9 22h6"/>
                                 </svg>
                             </div>
-                            <h4>Create Services</h4>
-                            <p>Define procedures with chair time, doctor fees, and materials. Prices calculated automatically!</p>
+                            <h4>${t('dashboard.step3Title')}</h4>
+                            <p>${t('dashboard.step3Desc')}</p>
                         </div>
                     </div>
                 </div>
@@ -392,23 +939,23 @@ const Pages = {
             ${topServices.length > 0 ? `
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Recent Services</h3>
-                    <button class="btn btn-sm btn-primary" onclick="APP.loadPage('price-list')">View All →</button>
+                    <h3 class="card-title">${t('dashboard.recentServices')}</h3>
+                    <button class="btn btn-sm btn-primary" onclick="APP.loadPage('price-list')">${t('common.viewAll')} →</button>
                 </div>
                 <div class="card-body" style="padding:0;">
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Service</th>
-                                <th>Cost</th>
-                                <th>Final Price</th>
-                                <th>Margin</th>
+                                <th>${t('dashboard.service')}</th>
+                                <th>${t('dashboard.cost')}</th>
+                                <th>${t('dashboard.finalPrice')}</th>
+                                <th>${t('dashboard.margin')}</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${topServices.map(s => `
                                 <tr>
-                                    <td><strong>${s.service_name}</strong></td>
+                                    <td><strong>${getLocalizedName(s, 'service_name', 'service_name_ar')}</strong></td>
                                     <td>${formatCurrency(s.total_cost)}</td>
                                     <td><strong>${formatCurrency(s.rounded_price)}</strong></td>
                                     <td><span class="badge badge-success">${s.profit_percent}%</span></td>
@@ -432,106 +979,106 @@ const Pages = {
         return `
             <div class="card" style="background:#e0f2fe;border-color:#38bdf8;">
                 <div class="card-header" style="background:#7dd3fc;">
-                    <h3 class="card-title">💡 How Cost-Plus Pricing Works</h3>
+                    <h3 class="card-title">💡 ${t('settings.howPricingWorks')}</h3>
                 </div>
                 <div class="card-body">
-                    <p style="margin-bottom:0.75rem;"><strong>The system calculates your service prices in 4 steps:</strong></p>
+                    <p style="margin-bottom:0.75rem;"><strong>${t('settings.pricingSteps')}</strong></p>
                     <ol style="margin-left:1.25rem;line-height:1.8;">
-                        <li><strong>Fixed Costs:</strong> Monthly expenses (rent, utilities, salaries) are spread across your available chair hours</li>
-                        <li><strong>Service Cost:</strong> Chair time cost + Doctor fees + Equipment depreciation + Direct materials (consumables)</li>
-                        <li><strong>Add Profit:</strong> Your desired profit margin is added to the total cost</li>
-                        <li><strong>Add VAT:</strong> Final tax is applied and the price is rounded for convenience</li>
+                        <li>${t('settings.step1')}</li>
+                        <li>${t('settings.step2')}</li>
+                        <li>${t('settings.step3')}</li>
+                        <li>${t('settings.step4')}</li>
                     </ol>
-                    <p style="margin-top:0.75rem;color:var(--gray-700);"><em>This ensures every service covers its costs and generates the profit margin you set!</em></p>
+                    <p style="margin-top:0.75rem;color:var(--gray-700);"><em>${t('settings.pricingNote')}</em></p>
                 </div>
             </div>
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Global Settings</h3>
+                    <h3 class="card-title">${t('settings.globalSettings')}</h3>
                 </div>
                 <div class="card-body">
                     <form id="globalSettingsForm" class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Currency</label>
+                            <label class="form-label">${t('settings.currency')}</label>
                             <select class="form-select" name="currency">
-                                <option value="EGP" ${settings.currency==='EGP'?'selected':''}>EGP - Egyptian Pound</option>
-                                <option value="USD" ${settings.currency==='USD'?'selected':''}>USD - US Dollar</option>
-                                <option value="EUR" ${settings.currency==='EUR'?'selected':''}>EUR - Euro</option>
+                                <option value="EGP" ${settings.currency==='EGP'?'selected':''}>${t('currency.EGP')}</option>
+                                <option value="USD" ${settings.currency==='USD'?'selected':''}>${t('currency.USD')}</option>
+                                <option value="EUR" ${settings.currency==='EUR'?'selected':''}>${t('currency.EUR')}</option>
                             </select>
-                            <small style="color:var(--gray-600);">Currency displayed in price calculations</small>
+                            <small style="color:var(--gray-600);">${t('settings.currencyHelp')}</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">VAT % (Value Added Tax)</label>
+                            <label class="form-label">${t('settings.vatPercent')}</label>
                             <input type="number" class="form-input" name="vat_percent" value="${settings.vat_percent}" step="0.1" min="0" max="100" placeholder="e.g., 14">
-                            <small style="color:var(--gray-600);">Tax added to final price (e.g., 14% in Egypt)</small>
+                            <small style="color:var(--gray-600);">${t('settings.vatHelp')}</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Default Profit Margin %</label>
+                            <label class="form-label">${t('settings.defaultProfit')}</label>
                             <input type="number" class="form-input" name="default_profit_percent" value="${settings.default_profit_percent}" step="1" min="0" max="200" placeholder="e.g., 40">
-                            <small style="color:var(--gray-600);">Profit added to cost (typically 30-50%)</small>
+                            <small style="color:var(--gray-600);">${t('settings.defaultProfitHelp')}</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Round Final Price To</label>
+                            <label class="form-label">${t('settings.roundingNearest')}</label>
                             <select class="form-select" name="rounding_nearest">
-                                ${[1,5,10,50,100].map(v => `<option value="${v}" ${settings.rounding_nearest===v?'selected':''}>Nearest ${v}</option>`).join('')}
+                                ${[1,5,10,50,100].map(v => `<option value="${v}" ${settings.rounding_nearest===v?'selected':''}>${t('settings.nearest')} ${v}</option>`).join('')}
                             </select>
-                            <small style="color:var(--gray-600);">Round prices for cleaner numbers (e.g., 345 → 350)</small>
+                            <small style="color:var(--gray-600);">${t('settings.roundingHelp')}</small>
                         </div>
                     </form>
                     <div style="margin-top:1rem;">
-                        <button class="btn btn-primary" onclick="Pages.saveGlobalSettings()">Save Settings</button>
+                        <button class="btn btn-primary" onclick="Pages.saveGlobalSettings()">${t('settings.saveSettings')}</button>
                     </div>
                 </div>
             </div>
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Clinic Capacity</h3>
+                    <h3 class="card-title">${t('settings.clinicCapacity')}</h3>
                 </div>
                 <div class="card-body">
                     <form id="capacityForm" class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Number of Dental Chairs</label>
+                            <label class="form-label">${t('settings.dentalChairs')}</label>
                             <input type="number" class="form-input" name="chairs" value="${capacity.chairs}" min="1" placeholder="e.g., 3">
-                            <small style="color:var(--gray-600);">Treatment chairs in your clinic</small>
+                            <small style="color:var(--gray-600);">${t('settings.chairsHelp')}</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Working Days per Month</label>
+                            <label class="form-label">${t('settings.workingDays')}</label>
                             <input type="number" class="form-input" name="days_per_month" value="${capacity.days_per_month}" min="1" placeholder="e.g., 24">
-                            <small style="color:var(--gray-600);">Operational days (e.g., 24 for 6 days/week)</small>
+                            <small style="color:var(--gray-600);">${t('settings.workingDaysHelp')}</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Working Hours per Day</label>
+                            <label class="form-label">${t('settings.workingHours')}</label>
                             <input type="number" class="form-input" name="hours_per_day" value="${capacity.hours_per_day}" min="1" step="0.5" placeholder="e.g., 8">
-                            <small style="color:var(--gray-600);">Daily operating hours per chair</small>
+                            <small style="color:var(--gray-600);">${t('settings.workingHoursHelp')}</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Utilization Rate %</label>
+                            <label class="form-label">${t('settings.utilizationRate')}</label>
                             <input type="number" class="form-input" name="utilization_percent" value="${capacity.utilization_percent}" min="1" max="100" placeholder="e.g., 80">
-                            <small style="color:var(--gray-600);">Expected chair occupancy (70-85% is typical)</small>
+                            <small style="color:var(--gray-600);">${t('settings.utilizationHelp')}</small>
                         </div>
                     </form>
                     <div style="margin-top:1rem;">
-                        <button class="btn btn-primary" onclick="Pages.saveCapacity()">Save Capacity</button>
+                        <button class="btn btn-primary" onclick="Pages.saveCapacity()">${t('settings.saveCapacity')}</button>
                     </div>
                 </div>
             </div>
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Fixed Monthly Costs</h3>
-                    <button class="btn btn-sm btn-primary" onclick="Pages.showFixedCostForm()">+ Add Cost</button>
+                    <h3 class="card-title">${t('settings.fixedMonthlyCosts')}</h3>
+                    <button class="btn btn-sm btn-primary" onclick="Pages.showFixedCostForm()">+ ${t('settings.addCost')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Category</th>
-                                <th>Monthly Amount</th>
-                                <th>Include?</th>
-                                <th>Notes</th>
-                                <th>Actions</th>
+                                <th>${t('settings.costName')}</th>
+                                <th>${t('settings.monthlyAmount')}</th>
+                                <th>${t('settings.includeInCalculations')}</th>
+                                <th>${t('settings.notes')}</th>
+                                <th>${t('common.actions')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -542,8 +1089,8 @@ const Pages = {
                                     <td><span class="badge badge-${c.included?'success':'gray'}">${c.included?'✓':'✗'}</span></td>
                                     <td>${c.notes||'-'}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showFixedCostForm(${c.id})" title="Edit">✎</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteFixedCost(${c.id})" title="Delete">🗑️</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showFixedCostForm(${c.id})" title="${t('common.edit')}">✎</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteFixedCost(${c.id})" title="${t('common.delete')}">🗑️</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -554,18 +1101,18 @@ const Pages = {
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Staff Salaries</h3>
-                    <button class="btn btn-sm btn-primary" onclick="Pages.showSalaryForm()">+ Add Salary</button>
+                    <h3 class="card-title">${t('settings.salaries')}</h3>
+                    <button class="btn btn-sm btn-primary" onclick="Pages.showSalaryForm()">+ ${t('settings.addSalary')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Role/Name</th>
-                                <th>Monthly Salary</th>
-                                <th>Include?</th>
-                                <th>Notes</th>
-                                <th>Actions</th>
+                                <th>${t('settings.role')}</th>
+                                <th>${t('settings.monthlySalary')}</th>
+                                <th>${t('settings.includeInCalculations')}</th>
+                                <th>${t('settings.notes')}</th>
+                                <th>${t('common.actions')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -576,8 +1123,8 @@ const Pages = {
                                     <td><span class="badge badge-${s.included?'success':'gray'}">${s.included?'✓':'✗'}</span></td>
                                     <td>${s.notes||'-'}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showSalaryForm(${s.id})" title="Edit">✎</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteSalary(${s.id})" title="Delete">🗑️</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showSalaryForm(${s.id})" title="${t('common.edit')}">✎</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteSalary(${s.id})" title="${t('common.delete')}">🗑️</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -588,19 +1135,19 @@ const Pages = {
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Depreciation</h3>
-                    <button class="btn btn-sm btn-primary" onclick="Pages.showEquipmentForm()">+ Add Equipment</button>
+                    <h3 class="card-title">${t('settings.depreciation')}</h3>
+                    <button class="btn btn-sm btn-primary" onclick="Pages.showEquipmentForm()">+ ${t('settings.addEquipment')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Asset Name</th>
-                                <th>Purchase Cost</th>
-                                <th>Life (years)</th>
-                                <th>Allocation</th>
-                                <th>Monthly Usage Hours</th>
-                                <th>Actions</th>
+                                <th>${t('settings.equipmentName')}</th>
+                                <th>${t('settings.purchaseCost')}</th>
+                                <th>${t('settings.lifeYears')}</th>
+                                <th>${t('settings.allocation')}</th>
+                                <th>${t('settings.monthlyUsageHours')}</th>
+                                <th>${t('common.actions')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -612,8 +1159,8 @@ const Pages = {
                                     <td><span class="badge badge-${e.allocation_type==='fixed'?'info':'warning'}">${e.allocation_type}</span></td>
                                     <td>${e.monthly_usage_hours||'-'}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showEquipmentForm(${e.id})" title="Edit">✎</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteEquipment(${e.id})" title="Delete">🗑️</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showEquipmentForm(${e.id})" title="${t('common.edit')}">✎</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteEquipment(${e.id})" title="${t('common.delete')}">🗑️</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -633,7 +1180,7 @@ const Pages = {
 
         try {
             await API.put('/api/settings/global', formData);
-            showToast('Settings saved');
+            showToast(t('toast.settingsSaved'));
             APP.settings = await API.get('/api/settings/global');
         } catch(err) {
             showToast(err.message, 'error');
@@ -650,7 +1197,7 @@ const Pages = {
 
         try {
             await API.put('/api/capacity', formData);
-            showToast('Capacity saved');
+            showToast(t('toast.capacitySaved'));
         } catch(err) {
             showToast(err.message, 'error');
         }
@@ -666,35 +1213,35 @@ const Pages = {
         const content = `
             <form id="fixedCostForm">
                 <div class="form-group">
-                    <label class="form-label">Cost Category</label>
+                    <label class="form-label">${t('settings.costCategory')}</label>
                     <input type="text" class="form-input" name="category" value="${cost?.category||''}" placeholder="e.g., Rent, Electricity, Internet" required>
-                    <small style="color:var(--gray-600);">Examples: Rent, Utilities, Insurance, Cleaning, Security</small>
+                    <small style="color:var(--gray-600);">${t('settings.costCategoryHelp')}</small>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Monthly Amount</label>
+                    <label class="form-label">${t('settings.monthlyAmount')}</label>
                     <input type="number" class="form-input" name="monthly_amount" value="${cost?.monthly_amount||''}" step="0.01" placeholder="e.g., 5000" required>
-                    <small style="color:var(--gray-600);">Total monthly cost for this category</small>
+                    <small style="color:var(--gray-600);">${t('settings.monthlyAmountHelp')}</small>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Include in calculations?</label>
+                    <label class="form-label">${t('settings.includeInPricing')}</label>
                     <select class="form-select" name="included">
-                        <option value="1" ${cost?.included?'selected':''}>Yes - Include in pricing</option>
-                        <option value="0" ${!cost?.included?'selected':''}>No - Track only</option>
+                        <option value="1" ${cost?.included?'selected':''}>${t('settings.includeYes')}</option>
+                        <option value="0" ${!cost?.included?'selected':''}>${t('settings.includeNo')}</option>
                     </select>
-                    <small style="color:var(--gray-600);">Exclude costs you want to track but not include in pricing</small>
+                    <small style="color:var(--gray-600);">${t('settings.includeHelp')}</small>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Notes (Optional)</label>
+                    <label class="form-label">${t('settings.notesOptional')}</label>
                     <input type="text" class="form-input" name="notes" value="${cost?.notes||''}">
                 </div>
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
-                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
+                    <button type="submit" class="btn btn-primary">${t('common.save')}</button>
                 </div>
             </form>
         `;
 
-        openModal(id ? 'Edit Fixed Cost' : 'Add Fixed Cost', content);
+        openModal(id ? t('modal.editFixedCost') : t('modal.addFixedCost'), content);
 
         document.getElementById('fixedCostForm').onsubmit = async (e) => {
             e.preventDefault();
@@ -708,7 +1255,7 @@ const Pages = {
                 } else {
                     await API.post('/api/fixed-costs', formData);
                 }
-                showToast('Fixed cost saved');
+                showToast(t('toast.fixedCostSaved'));
                 closeAllModals();
                 APP.loadPage('settings');
             } catch(err) {
@@ -718,10 +1265,10 @@ const Pages = {
     },
 
     async deleteFixedCost(id) {
-        if (confirm('Delete this fixed cost?')) {
+        if (confirm(t('modal.deleteMessage'))) {
             try {
                 await API.delete(`/api/fixed-costs/${id}`);
-                showToast('Fixed cost deleted');
+                showToast(t('toast.fixedCostDeleted'));
                 APP.loadPage('settings');
             } catch(err) {
                 showToast(err.message, 'error');
@@ -739,35 +1286,35 @@ const Pages = {
         const content = `
             <form id="salaryForm">
                 <div class="form-group">
-                    <label class="form-label">Role or Staff Name</label>
+                    <label class="form-label">${t('settings.roleOrName')}</label>
                     <input type="text" class="form-input" name="role_name" value="${salary?.role_name||''}" placeholder="e.g., Receptionist, Dental Assistant" required>
-                    <small style="color:var(--gray-600);">Examples: Dentist, Nurse, Receptionist, Cleaner</small>
+                    <small style="color:var(--gray-600);">${t('settings.roleHelp')}</small>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Monthly Salary</label>
+                    <label class="form-label">${t('settings.monthlySalary')}</label>
                     <input type="number" class="form-input" name="monthly_salary" value="${salary?.monthly_salary||''}" step="0.01" placeholder="e.g., 3000" required>
-                    <small style="color:var(--gray-600);">Total monthly salary including benefits</small>
+                    <small style="color:var(--gray-600);">${t('settings.salaryHelp')}</small>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Include in calculations?</label>
+                    <label class="form-label">${t('settings.includeInPricing')}</label>
                     <select class="form-select" name="included">
-                        <option value="1" ${salary?.included?'selected':''}>Yes - Include in pricing</option>
-                        <option value="0" ${!salary?.included?'selected':''}>No - Track only</option>
+                        <option value="1" ${salary?.included?'selected':''}>${t('settings.includeYes')}</option>
+                        <option value="0" ${!salary?.included?'selected':''}>${t('settings.includeNo')}</option>
                     </select>
-                    <small style="color:var(--gray-600);">Exclude salaries you want to track but not include in pricing</small>
+                    <small style="color:var(--gray-600);">${t('settings.includeHelp')}</small>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Notes</label>
+                    <label class="form-label">${t('settings.notes')}</label>
                     <input type="text" class="form-input" name="notes" value="${salary?.notes||''}">
                 </div>
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
-                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
+                    <button type="submit" class="btn btn-primary">${t('common.save')}</button>
                 </div>
             </form>
         `;
 
-        openModal(id ? 'Edit Salary' : 'Add Salary', content);
+        openModal(id ? t('modal.editSalary') : t('modal.addSalary'), content);
 
         document.getElementById('salaryForm').onsubmit = async (e) => {
             e.preventDefault();
@@ -781,7 +1328,7 @@ const Pages = {
                 } else {
                     await API.post('/api/salaries', formData);
                 }
-                showToast('Salary saved');
+                showToast(t('toast.salarySaved'));
                 closeAllModals();
                 APP.loadPage('settings');
             } catch(err) {
@@ -791,10 +1338,10 @@ const Pages = {
     },
 
     async deleteSalary(id) {
-        if (confirm('Delete this salary?')) {
+        if (confirm(t('modal.deleteMessage'))) {
             try {
                 await API.delete(`/api/salaries/${id}`);
-                showToast('Salary deleted');
+                showToast(t('toast.salaryDeleted'));
                 APP.loadPage('settings');
             } catch(err) {
                 showToast(err.message, 'error');
@@ -812,40 +1359,40 @@ const Pages = {
         const content = `
             <form id="equipmentForm">
                 <div class="form-group">
-                    <label class="form-label">Equipment Name</label>
+                    <label class="form-label">${t('settings.equipmentName')}</label>
                     <input type="text" class="form-input" name="asset_name" value="${equipment?.asset_name||''}" placeholder="e.g., X-Ray Machine, Dental Chair" required>
-                    <small style="color:var(--gray-600);">Examples: X-Ray, Sterilizer, Compressor, Laser</small>
+                    <small style="color:var(--gray-600);">${t('settings.equipmentNameHelp')}</small>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Purchase Cost</label>
+                        <label class="form-label">${t('settings.purchaseCost')}</label>
                         <input type="number" class="form-input" name="purchase_cost" value="${equipment?.purchase_cost||''}" step="0.01" placeholder="e.g., 50000" required>
-                        <small style="color:var(--gray-600);">Total cost when purchased</small>
+                        <small style="color:var(--gray-600);">${t('settings.purchaseCostHelp')}</small>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Expected Life (years)</label>
+                        <label class="form-label">${t('settings.lifeYears')}</label>
                         <input type="number" class="form-input" name="life_years" value="${equipment?.life_years||10}" min="1" placeholder="e.g., 10" required>
-                        <small style="color:var(--gray-600);">How many years until replacement</small>
+                        <small style="color:var(--gray-600);">${t('settings.lifeYearsHelp')}</small>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Cost Allocation Method</label>
+                        <label class="form-label">${t('settings.allocationMethod')}</label>
                         <select class="form-select" name="allocation_type" id="allocationType" onchange="toggleUsageHours()" required>
-                            <option value="fixed" ${equipment?.allocation_type==='fixed'?'selected':''}>Fixed - Spread across all services</option>
-                            <option value="per-hour" ${equipment?.allocation_type==='per-hour'?'selected':''}>Per-Hour - Charge only when used</option>
+                            <option value="fixed" ${equipment?.allocation_type==='fixed'?'selected':''}>${t('settings.allocationFixed')}</option>
+                            <option value="per-hour" ${equipment?.allocation_type==='per-hour'?'selected':''}>${t('settings.allocationPerHour')}</option>
                         </select>
-                        <small style="color:var(--gray-600);">Fixed: Dental chairs, general tools | Per-Hour: X-Ray, specialized machines</small>
+                        <small style="color:var(--gray-600);">${t('settings.allocationHelp')}</small>
                     </div>
                     <div class="form-group" id="usageHoursGroup" style="display:${equipment?.allocation_type==='per-hour'?'block':'none'}">
-                        <label class="form-label">Expected Monthly Usage Hours</label>
+                        <label class="form-label">${t('settings.monthlyUsageHours')}</label>
                         <input type="number" class="form-input" name="monthly_usage_hours" value="${equipment?.monthly_usage_hours||''}" step="0.1" placeholder="e.g., 20">
-                        <small style="color:var(--gray-600);">How many hours per month you expect to use this equipment</small>
+                        <small style="color:var(--gray-600);">${t('settings.monthlyUsageHelp')}</small>
                     </div>
                 </div>
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
-                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
+                    <button type="submit" class="btn btn-primary">${t('common.save')}</button>
                 </div>
             </form>
             <script>
@@ -856,7 +1403,7 @@ const Pages = {
             </script>
         `;
 
-        openModal(id ? 'Edit Equipment' : 'Add Equipment', content);
+        openModal(id ? t('modal.editEquipment') : t('modal.addEquipment'), content);
 
         document.getElementById('equipmentForm').onsubmit = async (e) => {
             e.preventDefault();
@@ -873,7 +1420,7 @@ const Pages = {
                 } else {
                     await API.post('/api/equipment', formData);
                 }
-                showToast('Equipment saved');
+                showToast(t('toast.equipmentSaved'));
                 closeAllModals();
                 APP.loadPage('settings');
             } catch(err) {
@@ -883,10 +1430,10 @@ const Pages = {
     },
 
     async deleteEquipment(id) {
-        if (confirm('Delete this equipment?')) {
+        if (confirm(t('modal.deleteMessage'))) {
             try {
                 await API.delete(`/api/equipment/${id}`);
-                showToast('Equipment deleted');
+                showToast(t('toast.equipmentDeleted'));
                 APP.loadPage('settings');
             } catch(err) {
                 showToast(err.message, 'error');
@@ -900,34 +1447,33 @@ const Pages = {
         return `
             <div class="card" style="background:#fef3c7;border-color:#fbbf24;">
                 <div class="card-header" style="background:#fde68a;">
-                    <h3 class="card-title">📦 About Consumables</h3>
+                    <h3 class="card-title">📦 ${t('consumables.aboutTitle')}</h3>
                 </div>
                 <div class="card-body">
-                    <p><strong>Consumables are materials used during dental procedures.</strong></p>
-                    <p style="margin-top:0.5rem;margin-bottom:0.5rem;">Examples: Gloves, Gauze, Anesthetic cartridges, Sutures, Cotton rolls, Dental floss</p>
+                    <p><strong>${t('consumables.aboutDescription')}</strong></p>
+                    <p style="margin-top:0.5rem;margin-bottom:0.5rem;">${t('consumables.aboutExamples')}</p>
                     <p style="margin-bottom:0;color:var(--gray-700);">
-                        <strong>How it works:</strong> You define how materials are packaged (pack → cases → units).
-                        The system calculates the per-unit cost, then when you add a service, you specify how many units are used.
+                        <strong>${t('consumables.howItWorks')}</strong> ${t('consumables.howItWorksDesc')}
                     </p>
                 </div>
             </div>
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Consumables Library</h3>
-                    <button class="btn btn-primary" onclick="Pages.showConsumableForm()">+ Add Consumable</button>
+                    <h3 class="card-title">${t('consumables.library')}</h3>
+                    <button class="btn btn-primary" onclick="Pages.showConsumableForm()">+ ${t('consumables.addConsumable')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
                     ${consumables.length > 0 ? `
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Item Name</th>
-                                    <th>Pack Cost</th>
-                                    <th>Cases per Pack</th>
-                                    <th>Units per Case</th>
-                                    <th>Per Unit Cost</th>
-                                    <th>Actions</th>
+                                    <th>${t('consumables.itemName')}</th>
+                                    <th>${t('consumables.packCost')}</th>
+                                    <th>${t('consumables.casesPerPack')}</th>
+                                    <th>${t('consumables.unitsPerCase')}</th>
+                                    <th>${t('consumables.perUnitCost')}</th>
+                                    <th>${t('common.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -935,14 +1481,14 @@ const Pages = {
                                     const perUnitCost = c.pack_cost / c.cases_per_pack / c.units_per_case;
                                     return `
                                         <tr>
-                                            <td><strong>${c.item_name}</strong></td>
+                                            <td><strong>${getLocalizedName(c, 'item_name', 'name_ar')}</strong></td>
                                             <td>${formatCurrency(c.pack_cost)}</td>
                                             <td>${c.cases_per_pack}</td>
                                             <td>${c.units_per_case}</td>
                                             <td><strong>${formatCurrency(perUnitCost)}</strong></td>
                                             <td>
-                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showConsumableForm(${c.id})" title="Edit">✎</button>
-                                                <button class="btn btn-sm btn-ghost" onclick="Pages.deleteConsumable(${c.id})" title="Delete">🗑️</button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showConsumableForm(${c.id})" title="${t('common.edit')}">✎</button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.deleteConsumable(${c.id})" title="${t('common.delete')}">🗑️</button>
                                             </td>
                                         </tr>
                                     `;
@@ -952,8 +1498,8 @@ const Pages = {
                     ` : `
                         <div class="empty-state">
                             <div class="empty-state-icon">📦</div>
-                            <h3>No Consumables</h3>
-                            <p>Start by adding your first consumable item</p>
+                            <h3>${t('consumables.noConsumables')}</h3>
+                            <p>${t('consumables.addFirst')}</p>
                         </div>
                     `}
                 </div>
@@ -971,8 +1517,12 @@ const Pages = {
         const content = `
             <form id="consumableForm">
                 <div class="form-group">
-                    <label class="form-label required">Consumable Item Name</label>
+                    <label class="form-label required">${t('consumables.name')}</label>
                     <input type="text" class="form-input" name="item_name" value="${consumable?.item_name||''}" placeholder="e.g., Latex Gloves, Anesthetic Cartridge" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${t('consumables.nameArabic')}</label>
+                    <input type="text" class="form-input" name="name_ar" value="${consumable?.name_ar||''}" dir="rtl" placeholder="اسم المستهلك بالعربية" style="font-family: 'Noto Sans Arabic', var(--font-sans);">
                 </div>
 
                 <!-- Packaging Calculator with Visual Flow -->
@@ -982,9 +1532,9 @@ const Pages = {
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -3px; margin-right: 0.5rem;">
                                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                             </svg>
-                            Packaging Breakdown
+                            ${t('consumables.packagingBreakdown')}
                         </span>
-                        <span class="packaging-help">How is this item packaged?</span>
+                        <span class="packaging-help">${t('consumables.packagingQuestion')}</span>
                     </div>
 
                     <div class="packaging-flow">
@@ -992,15 +1542,15 @@ const Pages = {
                         <div class="packaging-step">
                             <div class="step-badge">1</div>
                             <div class="step-content">
-                                <label class="form-label required">Pack Cost</label>
+                                <label class="form-label required">${t('consumables.packCostLabel')}</label>
                                 <div class="input-with-unit">
                                     <input type="number" class="form-input" name="pack_cost" id="packCostInput" value="${consumable?.pack_cost||''}" step="0.01" placeholder="e.g., 180" required oninput="window.updatePackagingPreview()">
-                                    <span class="input-unit">EGP</span>
+                                    <span class="input-unit">${APP.settings?.currency || 'EGP'}</span>
                                 </div>
-                                <small>Total price for one pack from supplier</small>
+                                <small>${t('consumables.packCostHelp')}</small>
                             </div>
                             <div class="step-visual">
-                                <div class="visual-box">📦 1 Pack</div>
+                                <div class="visual-box">📦 1 ${t('consumables.pack')}</div>
                             </div>
                         </div>
 
@@ -1008,16 +1558,16 @@ const Pages = {
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 5v14M19 12l-7 7-7-7"/>
                             </svg>
-                            <span>contains</span>
+                            <span>${t('consumables.contains')}</span>
                         </div>
 
                         <!-- Step 2: Cases per Pack -->
                         <div class="packaging-step">
                             <div class="step-badge">2</div>
                             <div class="step-content">
-                                <label class="form-label required">Cases per Pack</label>
+                                <label class="form-label required">${t('consumables.casesPerPack')}</label>
                                 <input type="number" class="form-input" name="cases_per_pack" id="casesInput" value="${consumable?.cases_per_pack||1}" min="1" placeholder="e.g., 10" required oninput="window.updatePackagingPreview()">
-                                <small>How many boxes/cases inside the pack?</small>
+                                <small>${t('consumables.casesPerPackHelp')}</small>
                             </div>
                             <div class="step-visual">
                                 <div class="visual-box">📦 × <span id="casesPreview">${consumable?.cases_per_pack||1}</span></div>
@@ -1028,16 +1578,16 @@ const Pages = {
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 5v14M19 12l-7 7-7-7"/>
                             </svg>
-                            <span>each contains</span>
+                            <span>${t('consumables.eachContains')}</span>
                         </div>
 
                         <!-- Step 3: Units per Case -->
                         <div class="packaging-step">
                             <div class="step-badge">3</div>
                             <div class="step-content">
-                                <label class="form-label required">Units per Case</label>
+                                <label class="form-label required">${t('consumables.unitsPerCase')}</label>
                                 <input type="number" class="form-input" name="units_per_case" id="unitsInput" value="${consumable?.units_per_case||1}" min="1" placeholder="e.g., 100" required oninput="window.updatePackagingPreview()">
-                                <small>Individual items you use (e.g., 100 gloves)</small>
+                                <small>${t('consumables.unitsPerCaseHelp')}</small>
                             </div>
                             <div class="step-visual">
                                 <div class="visual-box">🧤 × <span id="unitsPreview">${consumable?.units_per_case||1}</span></div>
@@ -1048,31 +1598,31 @@ const Pages = {
                     <!-- Live Calculation Result -->
                     <div class="packaging-result">
                         <div class="result-equation">
-                            <span class="eq-part">EGP <span id="packCostResult">${consumable?.pack_cost||0}</span></span>
+                            <span class="eq-part">${APP.settings?.currency || 'EGP'} <span id="packCostResult">${consumable?.pack_cost||0}</span></span>
                             <span class="eq-operator">÷</span>
-                            <span class="eq-part"><span id="totalUnitsResult">${(consumable?.cases_per_pack||1) * (consumable?.units_per_case||1)}</span> units</span>
+                            <span class="eq-part"><span id="totalUnitsResult">${(consumable?.cases_per_pack||1) * (consumable?.units_per_case||1)}</span> ${t('consumables.units')}</span>
                             <span class="eq-operator">=</span>
                             <span class="eq-final">
-                                <strong>EGP <span id="unitCostResult">${consumable ? (consumable.pack_cost / consumable.cases_per_pack / consumable.units_per_case).toFixed(3) : '0.000'}</span></strong>
-                                <small>per unit</small>
+                                <strong>${APP.settings?.currency || 'EGP'} <span id="unitCostResult">${consumable ? (consumable.pack_cost / consumable.cases_per_pack / consumable.units_per_case).toFixed(3) : '0.000'}</span></strong>
+                                <small>${t('consumables.perUnit')}</small>
                             </span>
                         </div>
                     </div>
                 </div>
 
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
-                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
                     <button type="submit" class="btn btn-primary">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.25rem;">
                             <polyline points="20 6 9 17 4 12"/>
                         </svg>
-                        Save Consumable
+                        ${t('consumables.saveConsumable')}
                     </button>
                 </div>
             </form>
         `;
 
-        openModal(id ? 'Edit Consumable' : 'Add Consumable', content);
+        openModal(id ? t('modal.editConsumable') : t('modal.addConsumable'), content);
 
         document.getElementById('consumableForm').onsubmit = async (e) => {
             e.preventDefault();
@@ -1087,7 +1637,7 @@ const Pages = {
                 } else {
                     await API.post('/api/consumables', formData);
                 }
-                showToast('Consumable saved');
+                showToast(t('toast.consumableSaved'));
                 closeAllModals();
                 APP.loadPage('consumables');
             } catch(err) {
@@ -1097,10 +1647,10 @@ const Pages = {
     },
 
     async deleteConsumable(id) {
-        if (confirm('Delete this consumable?')) {
+        if (confirm(t('modal.deleteMessage'))) {
             try {
                 await API.delete(`/api/consumables/${id}`);
-                showToast('Consumable deleted');
+                showToast(t('toast.consumableDeleted'));
                 APP.loadPage('consumables');
             } catch(err) {
                 showToast(err.message, 'error');
@@ -1109,41 +1659,159 @@ const Pages = {
     },
 
     async services() {
+        // Check subscription status first
+        const sub = APP.subscription || {};
+        const isSuspended = sub.is_suspended === true;
+        const isTrial = sub.restriction_level === 'trial';
+        const trialDaysLeft = sub.trial_days_remaining || 0;
+        const trialEnded = sub.trial_ended === true;
+        const isExpiredOrGracePeriod = sub.restriction_level === 'lockout' || sub.restriction_level === 'readonly';
+
+        // LOCKOUT RULES (same as priceList):
+        // 1. Suspended (inactive) = full lockout - show subscription wall
+        // 2. Trial ended (7 days passed) = full lockout - show subscription wall
+        // 3. Subscription expired/grace period = full lockout - show subscription wall
+        const isFullLockout = isSuspended || trialEnded || isExpiredOrGracePeriod;
+
+        // Show subscription wall for full lockout (same as priceList)
+        if (isFullLockout) {
+            let title, description, iconStyle;
+
+            if (isSuspended) {
+                title = t('subscription.accountOnHold');
+                description = t('subscription.onHoldMessage');
+                iconStyle = 'background: linear-gradient(135deg, #fef2f2, #fee2e2); color: var(--danger);';
+            } else if (trialEnded) {
+                title = t('subscription.trialEnded');
+                description = t('subscription.trialEndedMessage');
+                iconStyle = 'background: linear-gradient(135deg, #fef2f2, #fee2e2); color: var(--danger);';
+            } else {
+                title = t('subscription.timeToRenew');
+                description = t('subscription.renewMessage');
+                iconStyle = 'background: linear-gradient(135deg, #fef2f2, #fee2e2); color: var(--danger);';
+            }
+
+            return `
+                <div class="subscription-wall">
+                    <div class="subscription-wall-content">
+                        <div class="subscription-icon" style="${iconStyle}">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                <circle cx="12" cy="16" r="1"/>
+                            </svg>
+                        </div>
+                        <h2>${title}</h2>
+                        <p class="subscription-description">${description}</p>
+
+                        <div class="subscription-plan-card">
+                            <div class="plan-header">
+                                <h3>${t('subscription.dentalPricingPro')}</h3>
+                                <span class="plan-badge">${t('subscription.fullAccess')}</span>
+                            </div>
+                            <ul class="plan-features">
+                                <li>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    ${t('subscription.unlimitedServices')}
+                                </li>
+                                <li>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    ${t('subscription.fullPriceCalculations')}
+                                </li>
+                                <li>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    ${t('subscription.priceListExport')}
+                                </li>
+                                <li>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    ${t('subscription.smartInsights')}
+                                </li>
+                                <li>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    ${t('subscription.prioritySupport')}
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="subscription-contact">
+                            <p>${t('subscription.readyToUpgrade')}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Not locked out - fetch services and show the page
         const services = await API.get('/api/services');
+        const servicesUsed = sub.services_used || services.length;
+        const maxTrialServices = sub.max_trial_services || 2;
+
+        // Trial limit reached (can still view, but can't add more)
+        const trialLimitReached = isTrial && servicesUsed >= maxTrialServices;
+
+        // Can add services only if not in trial OR trial limit not reached
+        const canAddService = !trialLimitReached;
+
+        // Determine which banner to show (only for active trial)
+        let bannerHtml = '';
+
+        if (isTrial) {
+            // Active trial
+            bannerHtml = `
+                <div class="restriction-banner ${trialLimitReached ? 'restriction-banner-warning' : 'restriction-banner-info'}">
+                    <div class="restriction-banner-icon">${trialLimitReached ? '⚠️' : '🎁'}</div>
+                    <div class="restriction-banner-content">
+                        <h4>${t('services.trialFree')}${trialLimitReached ? ' - ' + t('services.trialLimitReached') : ''}</h4>
+                        <p>${trialLimitReached
+                            ? t('services.trialUsedAll', {max: maxTrialServices})
+                            : t('services.trialRemaining', {max: maxTrialServices, days: trialDaysLeft, used: servicesUsed})}</p>
+                    </div>
+                    ${trialLimitReached ? `<button class="btn btn-primary" onclick="APP.loadPage('subscription')">${t('services.upgradeNow')}</button>` : ''}
+                </div>
+            `;
+        }
+
+        // Determine disabled button tooltip
+        const disabledReason = trialLimitReached ? t('services.trialLimitDisabled') : '';
 
         return `
+            ${bannerHtml}
+
             <div class="card" style="background:#e0e7ff;border-color:#818cf8;">
                 <div class="card-header" style="background:#c7d2fe;">
-                    <h3 class="card-title">🦷 About Services</h3>
+                    <h3 class="card-title">🦷 ${t('services.aboutTitle')}</h3>
                 </div>
                 <div class="card-body">
-                    <p><strong>Services are the dental procedures you offer to patients.</strong></p>
-                    <p style="margin-top:0.75rem;margin-bottom:0.5rem;"><strong>What you need to configure:</strong></p>
+                    <p><strong>${t('services.aboutDescription')}</strong></p>
+                    <p style="margin-top:0.75rem;margin-bottom:0.5rem;"><strong>${t('services.configureWhat')}</strong></p>
                     <ul style="margin-left:1.25rem;line-height:1.6;">
-                        <li><strong>Chair Time:</strong> How long the patient occupies the chair (affects fixed cost allocation)</li>
-                        <li><strong>Doctor Fee:</strong> The dentist's compensation for this procedure</li>
-                        <li><strong>Equipment:</strong> Any per-hour equipment used (like X-Ray machines)</li>
-                        <li><strong>Consumables:</strong> Materials consumed during the procedure (gloves, anesthetic, etc.)</li>
+                        <li>${t('services.configChairTime')}</li>
+                        <li>${t('services.configDoctorFee')}</li>
+                        <li>${t('services.configEquipment')}</li>
+                        <li>${t('services.configConsumables')}</li>
                     </ul>
-                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>Click the 💰 button to see the complete cost breakdown and calculated price!</em></p>
+                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>${t('services.priceButtonHint')}</em></p>
                 </div>
             </div>
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Services Configuration</h3>
-                    <button class="btn btn-primary" onclick="Pages.showServiceForm()">+ Add Service</button>
+                    <h3 class="card-title">${t('services.servicesConfig')}</h3>
+                    ${canAddService
+                        ? `<button class="btn btn-primary" onclick="Pages.showServiceForm()">+ ${t('services.addService')}</button>`
+                        : `<button class="btn btn-primary" disabled style="opacity:0.5;cursor:not-allowed;" title="${disabledReason}">+ ${t('services.addService')}</button>`
+                    }
                 </div>
                 <div class="card-body" style="padding:0;">
                     ${services.length > 0 ? `
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Service Name</th>
-                                    <th>Chair Time (hrs)</th>
-                                    <th>Doctor Fee</th>
-                                    <th>Equipment</th>
-                                    <th>Actions</th>
+                                    <th>${t('services.serviceName')}</th>
+                                    <th>${t('services.chairTimeHrs')}</th>
+                                    <th>${t('services.doctorFee')}</th>
+                                    <th>${t('services.equipment')}</th>
+                                    <th>${t('common.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1151,22 +1819,22 @@ const Pages = {
                                     let doctorFeeDisplay = '';
                                     const feeType = s.doctor_fee_type || 'hourly';
                                     if (feeType === 'hourly') {
-                                        doctorFeeDisplay = `${formatCurrency(s.doctor_hourly_fee)}/hr`;
+                                        doctorFeeDisplay = `${formatCurrency(s.doctor_hourly_fee)}${t('services.perHour')}`;
                                     } else if (feeType === 'fixed') {
-                                        doctorFeeDisplay = `${formatCurrency(s.doctor_fixed_fee)} (Fixed)`;
+                                        doctorFeeDisplay = `${formatCurrency(s.doctor_fixed_fee)} (${t('services.fixed')})`;
                                     } else if (feeType === 'percentage') {
-                                        doctorFeeDisplay = `${s.doctor_percentage}% of final`;
+                                        doctorFeeDisplay = `${s.doctor_percentage}% ${t('services.ofFinal')}`;
                                     }
                                     return `
                                     <tr>
-                                        <td><strong>${s.name}</strong></td>
+                                        <td><strong>${getLocalizedName(s)}</strong></td>
                                         <td>${s.chair_time_hours}</td>
                                         <td>${doctorFeeDisplay}</td>
                                         <td>${s.equipment_name||'-'}</td>
                                         <td>
-                                            <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="View Price">💰</button>
-                                            <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="Edit">✎</button>
-                                            <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="Delete">🗑️</button>
+                                            <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
+                                            <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
+                                            <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
                                         </td>
                                     </tr>
                                 `;
@@ -1176,8 +1844,8 @@ const Pages = {
                     ` : `
                         <div class="empty-state">
                             <div class="empty-state-icon">🦷</div>
-                            <h3>No Services</h3>
-                            <p>Start by adding your first dental service</p>
+                            <h3>${t('services.noServices')}</h3>
+                            <p>${t('services.addFirst')}</p>
                         </div>
                     `}
                 </div>
@@ -1188,6 +1856,7 @@ const Pages = {
     async showServiceForm(id=null) {
         const equipment = await API.get('/api/equipment');
         const consumables = await API.get('/api/consumables');
+        const categories = await API.get('/api/categories');
         // Store consumables globally so addConsumableRow can access them
         window.serviceFormConsumables = consumables;
 
@@ -1196,25 +1865,42 @@ const Pages = {
             service = await API.get(`/api/services/${id}`);
         }
 
-        // Count consumables for badge
+        // Count consumables and equipment for badge
         const consumablesCount = service?.consumables?.length || 0;
-        const hasEquipment = service?.equipment_id ? true : false;
+        const equipmentCount = service?.equipment_list?.length || 0;
+        const hasEquipment = equipmentCount > 0;
         const hasCustomProfit = !(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit == 1 || service?.use_default_profit === true);
+
+        // Store equipment globally for addEquipmentRow
+        window.serviceFormEquipment = equipment.filter(e => e.allocation_type === 'per-hour');
 
         const content = `
             <form id="serviceForm">
                 <!-- Essential Fields Section -->
                 <section class="form-section-essential">
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2;">
+                            <label class="form-label required">${t('services.serviceName')}</label>
+                            <input type="text" class="form-input" name="name" value="${service?.name||''}" placeholder="${t('services.serviceNamePlaceholder')}" required>
+                        </div>
+                        <div class="form-group" style="flex:1;">
+                            <label class="form-label required">${t('services.category')}</label>
+                            <select class="form-select" name="category_id" required>
+                                <option value="">${t('services.selectCategory')}</option>
+                                ${categories.map(c => `<option value="${c.id}" ${service?.category_id == c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
                     <div class="form-group">
-                        <label class="form-label required">Service Name</label>
-                        <input type="text" class="form-input" name="name" value="${service?.name||''}" placeholder="e.g., Tooth Extraction, Root Canal, Cleaning" required>
+                        <label class="form-label">${t('services.serviceNameArabic')}</label>
+                        <input type="text" class="form-input" name="name_ar" value="${service?.name_ar||''}" dir="rtl" placeholder="${t('services.serviceNameArabicPlaceholder')}" style="font-family: 'Noto Sans Arabic', var(--font-sans);">
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="form-label required">Chair Time</label>
+                            <label class="form-label required">${t('services.chairTime')}</label>
                             <div class="input-with-unit">
                                 <input type="number" class="form-input" name="chair_time_hours" value="${service?.chair_time_hours||''}" step="0.25" min="0.25" placeholder="e.g., 1.5" required>
-                                <span class="input-unit">hours</span>
+                                <span class="input-unit">${t('services.hours')}</span>
                             </div>
                             <div class="quick-options">
                                 <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='0.25'">15min</button>
@@ -1225,47 +1911,47 @@ const Pages = {
                             </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label required">Doctor Fee Type</label>
+                            <label class="form-label required">${t('services.doctorFeeType')}</label>
                             <select class="form-input" name="doctor_fee_type" id="doctorFeeTypeSelect" onchange="window.toggleDoctorFeeInputs()" required>
-                                <option value="hourly" ${(!service || service.doctor_fee_type === 'hourly') ? 'selected' : ''}>Hourly Rate</option>
-                                <option value="fixed" ${service?.doctor_fee_type === 'fixed' ? 'selected' : ''}>Fixed Fee</option>
-                                <option value="percentage" ${service?.doctor_fee_type === 'percentage' ? 'selected' : ''}>Percentage of Final Price</option>
+                                <option value="hourly" ${(!service || service.doctor_fee_type === 'hourly') ? 'selected' : ''}>${t('services.hourlyRate')}</option>
+                                <option value="fixed" ${service?.doctor_fee_type === 'fixed' ? 'selected' : ''}>${t('services.fixedFee')}</option>
+                                <option value="percentage" ${service?.doctor_fee_type === 'percentage' ? 'selected' : ''}>${t('services.percentage')}</option>
                             </select>
                         </div>
                         <div class="form-group" id="doctorHourlyFeeGroup" style="display:${(!service || service.doctor_fee_type === 'hourly') ? 'block' : 'none'}">
-                            <label class="form-label required">Doctor Fee per Hour</label>
+                            <label class="form-label required">${t('services.doctorFeePerHour')}</label>
                             <div class="input-with-unit">
                                 <input type="number" class="form-input" name="doctor_hourly_fee" value="${service?.doctor_hourly_fee||''}" step="1" placeholder="e.g., 500">
-                                <span class="input-unit">EGP/hr</span>
+                                <span class="input-unit">${APP.settings?.currency || 'EGP'}${t('services.perHour')}</span>
                             </div>
                         </div>
                         <div class="form-group" id="doctorFixedFeeGroup" style="display:${service?.doctor_fee_type === 'fixed' ? 'block' : 'none'}">
-                            <label class="form-label required">Fixed Doctor Fee</label>
+                            <label class="form-label required">${t('services.fixedDoctorFee')}</label>
                             <div class="input-with-unit">
                                 <input type="number" class="form-input" name="doctor_fixed_fee" value="${service?.doctor_fixed_fee||''}" step="1" placeholder="e.g., 1000">
-                                <span class="input-unit">EGP</span>
+                                <span class="input-unit">${APP.settings?.currency || 'EGP'}</span>
                             </div>
                         </div>
                         <div class="form-group" id="doctorPercentageGroup" style="display:${service?.doctor_fee_type === 'percentage' ? 'block' : 'none'}">
-                            <label class="form-label required">Doctor Fee Percentage</label>
+                            <label class="form-label required">${t('services.doctorFeePercentage')}</label>
                             <div class="input-with-unit">
                                 <input type="number" class="form-input" name="doctor_percentage" value="${service?.doctor_percentage||''}" step="0.1" placeholder="e.g., 30" min="0" max="100">
                                 <span class="input-unit">%</span>
                             </div>
-                            <small style="color:var(--gray-500);font-size:0.8125rem;">Percentage of rounded final price (after profit, VAT & rounding)</small>
+                            <small style="color:var(--gray-500);font-size:0.8125rem;">${t('services.doctorFeePercentageHelp')}</small>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Current Market Price</label>
+                        <label class="form-label">${t('services.currentMarketPrice')}</label>
                         <div class="input-with-unit">
                             <input type="number" class="form-input" name="current_price" value="${service?.current_price||''}" step="1" placeholder="What you currently charge">
-                            <span class="input-unit">EGP</span>
+                            <span class="input-unit">${APP.settings?.currency || 'EGP'}</span>
                         </div>
-                        <small style="color:var(--gray-500);font-size:0.8125rem;">Optional - Used to compare with calculated price</small>
+                        <small style="color:var(--gray-500);font-size:0.8125rem;">${t('services.currentMarketPriceHelp')}</small>
                     </div>
                 </section>
 
-                <!-- Collapsible: Materials & Consumables -->
+                <!-- Collapsible: Consumables & Materials -->
                 <section class="form-section-collapsible ${consumablesCount > 0 ? 'is-open' : ''}">
                     <button type="button" class="section-toggle" aria-expanded="${consumablesCount > 0 ? 'true' : 'false'}" onclick="window.toggleFormSection(this)">
                         <span class="toggle-icon">
@@ -1273,38 +1959,23 @@ const Pages = {
                                 <path d="M12 5v14M5 12h14"/>
                             </svg>
                         </span>
-                        <span class="toggle-title">Materials & Consumables</span>
-                        <span class="toggle-badge">${consumablesCount > 0 ? consumablesCount + ' items' : 'Optional'}</span>
+                        <span class="toggle-title">${t('services.consumablesSection')}</span>
+                        <span class="toggle-badge">${consumablesCount > 0 ? consumablesCount + ' ' + t('services.items') : t('services.optional')}</span>
                     </button>
                     <div class="section-content" ${consumablesCount > 0 ? '' : 'hidden'}>
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
-                            <small style="color:var(--gray-600);">Add materials used in this service (e.g., 2 gloves, 1 cartridge)</small>
-                            <button type="button" class="btn btn-sm btn-primary" onclick="addConsumableRow()">+ Add</button>
+                            <small style="color:var(--gray-600);">${t('services.consumablesHelp')}</small>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="addConsumableRow()">+ ${t('common.add')}</button>
                         </div>
-                        <div style="display:flex;gap:0.5rem;margin-bottom:0.25rem;padding:0 0.25rem;font-size:0.75rem;color:var(--gray-500);font-weight:600;">
-                            <span style="flex:2;">Consumable</span>
-                            <span style="flex:1;">Units</span>
-                            <span style="flex:1;text-align:right;min-width:80px;">Cost</span>
+                        <div class="consumables-header" style="display:flex;gap:0.5rem;margin-bottom:0.25rem;padding:0 0.25rem;font-size:0.75rem;color:var(--gray-500);font-weight:600;">
+                            <span style="flex:2;">${t('services.consumable')}</span>
+                            <span style="width:70px;">${t('services.qty')}</span>
+                            <span style="width:90px;">${t('services.unitPrice')}</span>
+                            <span style="width:80px;">${t('dashboard.cost')}</span>
                             <span style="width:32px;"></span>
                         </div>
                         <div id="consumablesContainer">
-                            ${service?.consumables?.length > 0 ? service.consumables.map(sc => {
-                                const cons = consumables.find(c => c.id === sc.consumable_id);
-                                const unitCost = cons ? (cons.pack_cost || 0) / (cons.cases_per_pack || 1) / (cons.units_per_case || 1) : 0;
-                                const totalCost = unitCost * sc.quantity;
-                                return `
-                                <div class="consumable-row" style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">
-                                    <select class="form-select" style="flex:2;" data-consumable-select onchange="window.updateConsumableCost(this.parentElement)">
-                                        <option value="">Select consumable...</option>
-                                        ${consumables.map(c =>
-                                            `<option value="${c.id}" ${sc.consumable_id===c.id?'selected':''}>${c.item_name}</option>`
-                                        ).join('')}
-                                    </select>
-                                    <input type="number" class="form-input" style="flex:1;" placeholder="Units" value="${sc.quantity}" data-consumable-quantity min="0.1" step="0.1" required oninput="window.updateConsumableCost(this.parentElement)">
-                                    <span data-consumable-cost style="flex:1;text-align:right;font-weight:500;color:var(--gray-600);min-width:80px;">${formatCurrency(totalCost)}</span>
-                                    <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="Remove">✕</button>
-                                </div>`;
-                            }).join('') : '<div class="empty-consumables" style="color:var(--gray-500);text-align:center;padding:1rem;background:var(--gray-50);border-radius:var(--radius);border:1px dashed var(--gray-300);">No consumables added yet</div>'}
+                            ${!service?.consumables?.length ? '<div class="empty-consumables" style="color:var(--gray-500);text-align:center;padding:1rem;background:var(--gray-50);border-radius:var(--radius);border:1px dashed var(--gray-300);">' + t('services.noConsumablesYet') + '</div>' : ''}
                         </div>
                     </div>
                 </section>
@@ -1317,28 +1988,21 @@ const Pages = {
                                 <path d="M12 5v14M5 12h14"/>
                             </svg>
                         </span>
-                        <span class="toggle-title">Special Equipment</span>
-                        <span class="toggle-badge">${hasEquipment ? 'Configured' : 'Optional'}</span>
+                        <span class="toggle-title">${t('services.specialEquipment')}</span>
+                        <span class="toggle-badge">${equipmentCount > 0 ? equipmentCount + ' ' + t('services.items') : t('services.optional')}</span>
                     </button>
                     <div class="section-content" ${hasEquipment ? '' : 'hidden'}>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">Equipment</label>
-                                <select class="form-select" name="equipment_id">
-                                    <option value="">None - No special equipment</option>
-                                    ${equipment.filter(e => e.allocation_type === 'per-hour').map(e =>
-                                        `<option value="${e.id}" ${service?.equipment_id===e.id?'selected':''}>${e.asset_name}</option>`
-                                    ).join('')}
-                                </select>
-                                <small style="color:var(--gray-500);font-size:0.8125rem;">Per-hour equipment like X-Ray machines</small>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Usage Time</label>
-                                <div class="input-with-unit">
-                                    <input type="number" class="form-input" name="equipment_hours_used" value="${service?.equipment_hours_used||''}" step="0.1" placeholder="e.g., 0.25">
-                                    <span class="input-unit">hours</span>
-                                </div>
-                            </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                            <small style="color:var(--gray-600);">${t('services.equipmentHelp')}</small>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="addEquipmentRow()">+ ${t('common.add')}</button>
+                        </div>
+                        <div class="equipment-header" style="display:flex;gap:0.5rem;margin-bottom:0.25rem;padding:0 0.25rem;font-size:0.75rem;color:var(--gray-500);font-weight:600;">
+                            <span style="flex:2;">${t('services.equipment')}</span>
+                            <span style="flex:1;">${t('services.usageTime')}</span>
+                            <span style="width:32px;"></span>
+                        </div>
+                        <div id="equipmentContainer">
+                            ${!hasEquipment ? `<div class="empty-equipment" style="color:var(--gray-500);text-align:center;padding:1rem;background:var(--gray-50);border-radius:var(--radius);border:1px dashed var(--gray-300);">${t('services.noEquipmentYet')}</div>` : ''}
                         </div>
                     </div>
                 </section>
@@ -1351,40 +2015,54 @@ const Pages = {
                                 <path d="M12 5v14M5 12h14"/>
                             </svg>
                         </span>
-                        <span class="toggle-title">Custom Pricing</span>
-                        <span class="toggle-badge">${hasCustomProfit ? service.custom_profit_percent + '%' : 'Using default'}</span>
+                        <span class="toggle-title">${t('services.customPricing')}</span>
+                        <span class="toggle-badge">${hasCustomProfit ? service.custom_profit_percent + '%' : t('services.usingDefault')}</span>
                     </button>
                     <div class="section-content" ${hasCustomProfit ? '' : 'hidden'}>
                         <div class="form-group">
                             <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;">
                                 <input type="checkbox" name="use_default_profit" ${!hasCustomProfit ? 'checked' : ''} onchange="window.toggleCustomProfit(this)" style="width:18px;height:18px;">
-                                <span>Use Default Profit Margin</span>
+                                <span>${t('services.useDefaultProfitMargin')}</span>
                             </label>
                         </div>
                         <div class="form-group" id="customProfitGroup" style="display:${hasCustomProfit ? 'block' : 'none'}">
-                            <label class="form-label">Custom Profit Margin</label>
+                            <label class="form-label">${t('services.customProfitMarginLabel')}</label>
                             <div class="input-with-unit">
                                 <input type="number" class="form-input" name="custom_profit_percent" value="${service?.custom_profit_percent||''}" step="1" placeholder="e.g., 50">
                                 <span class="input-unit">%</span>
                             </div>
-                            <small style="color:var(--gray-500);font-size:0.8125rem;">Override the global profit setting for this service only</small>
+                            <small style="color:var(--gray-500);font-size:0.8125rem;">${t('services.customProfitHelp')}</small>
                         </div>
                     </div>
                 </section>
 
                 <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
-                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
                     <button type="submit" class="btn btn-primary">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.25rem;">
                             <polyline points="20 6 9 17 4 12"/>
                         </svg>
-                        Save Service
+                        ${t('services.saveService')}
                     </button>
                 </div>
             </form>
         `;
 
-        openModal(id ? 'Edit Service' : 'Add Service', content, 'modal-lg');
+        openModal(id ? t('modal.editService') : t('modal.addService'), content, 'modal-lg');
+
+        // Load existing consumables after modal opens (script tags in innerHTML don't execute)
+        if (service?.consumables?.length > 0) {
+            service.consumables.forEach(sc => {
+                window.addConsumableRow(sc.consumable_id, sc.quantity, sc.custom_unit_price);
+            });
+        }
+
+        // Load existing equipment
+        if (service?.equipment_list?.length > 0) {
+            service.equipment_list.forEach(eq => {
+                window.addEquipmentRow(eq.equipment_id, eq.hours_used);
+            });
+        }
 
         document.getElementById('serviceForm').onsubmit = async (e) => {
             e.preventDefault();
@@ -1417,25 +2095,47 @@ const Pages = {
             } else {
                 delete formData.current_price;
             }
-            if (formData.equipment_id) {
-                formData.equipment_id = parseInt(formData.equipment_id);
-                if (formData.equipment_hours_used) {
-                    formData.equipment_hours_used = parseFloat(formData.equipment_hours_used);
-                }
-            } else {
-                delete formData.equipment_id;
-                delete formData.equipment_hours_used;
-            }
+            // Remove legacy single equipment fields (we now use equipment_list)
+            delete formData.equipment_id;
+            delete formData.equipment_hours_used;
 
-            // Collect consumables data
+            // Collect consumables data (with optional custom unit price)
             formData.consumables = [];
             document.querySelectorAll('.consumable-row').forEach(row => {
                 const select = row.querySelector('[data-consumable-select]');
                 const quantity = row.querySelector('[data-consumable-quantity]');
+                const unitPrice = row.querySelector('[data-consumable-unit-price]');
+                const defaultPrice = row.querySelector('[data-consumable-default-price]');
+
                 if (select.value && quantity.value) {
-                    formData.consumables.push({
+                    const consumableData = {
                         consumable_id: parseInt(select.value),
                         quantity: parseFloat(quantity.value)
+                    };
+
+                    // Include custom_unit_price only if it differs from default
+                    if (unitPrice && unitPrice.value && defaultPrice && defaultPrice.value) {
+                        const enteredPrice = parseFloat(unitPrice.value);
+                        const calcDefaultPrice = parseFloat(defaultPrice.value);
+                        // Only save if custom price differs from default (with small tolerance for floating point)
+                        if (Math.abs(enteredPrice - calcDefaultPrice) > 0.001) {
+                            consumableData.custom_unit_price = enteredPrice;
+                        }
+                    }
+
+                    formData.consumables.push(consumableData);
+                }
+            });
+
+            // Collect equipment data
+            formData.equipment_list = [];
+            document.querySelectorAll('.equipment-row').forEach(row => {
+                const select = row.querySelector('[data-equipment-select]');
+                const hours = row.querySelector('[data-equipment-hours]');
+                if (select.value && hours.value) {
+                    formData.equipment_list.push({
+                        equipment_id: parseInt(select.value),
+                        hours_used: parseFloat(hours.value)
                     });
                 }
             });
@@ -1446,7 +2146,7 @@ const Pages = {
                 } else {
                     await API.post('/api/services', formData);
                 }
-                showToast('Service saved');
+                showToast(t('toast.serviceSaved'));
                 closeAllModals();
                 APP.loadPage('services');
             } catch(err) {
@@ -1548,14 +2248,14 @@ const Pages = {
             </div>
         `;
 
-        openModal('Service Price Calculation', content, 'modal-lg');
+        openModal(t('modal.priceCalculation'), content, 'modal-lg');
     },
 
     async deleteService(id) {
-        if (confirm('Delete this service?')) {
+        if (confirm(t('modal.deleteMessage'))) {
             try {
                 await API.delete(`/api/services/${id}`);
-                showToast('Service deleted');
+                showToast(t('toast.serviceDeleted'));
                 APP.loadPage('services');
             } catch(err) {
                 showToast(err.message, 'error');
@@ -1564,7 +2264,96 @@ const Pages = {
     },
 
     async priceList() {
-        const priceList = await API.get('/api/price-list');
+        // Check subscription status - consistent with services() logic
+        const sub = APP.subscription || {};
+        const isSuspended = sub.is_suspended === true;
+        const isTrial = sub.restriction_level === 'trial';
+        const trialDaysLeft = sub.trial_days_remaining || 0;
+        const trialEnded = sub.trial_ended === true;
+        const isExpiredOrGracePeriod = sub.restriction_level === 'lockout' || sub.restriction_level === 'readonly';
+        const maxTrialServices = sub.max_trial_services || 2;
+
+        // LOCKOUT RULES (same logic as services page):
+        // 1. Suspended (inactive) = show subscription wall
+        // 2. Trial ended (7 days passed) = show subscription wall
+        // 3. Subscription expired/grace period = show subscription wall
+        // Trial users CAN see the price list (limited to 2 services)
+        const isFullLockout = isSuspended || trialEnded || isExpiredOrGracePeriod;
+
+        if (isFullLockout) {
+            let title, description, iconStyle;
+
+            if (isSuspended) {
+                title = t('subscription.accountOnHold');
+                description = t('subscription.onHoldMessage');
+                iconStyle = 'background: linear-gradient(135deg, #fef2f2, #fee2e2); color: var(--danger);';
+            } else if (trialEnded) {
+                title = t('subscription.trialEnded');
+                description = t('priceList.trialEndedMessage');
+                iconStyle = 'background: linear-gradient(135deg, #fef2f2, #fee2e2); color: var(--danger);';
+            } else {
+                title = t('subscription.timeToRenew');
+                description = t('priceList.renewMessagePriceList');
+                iconStyle = 'background: linear-gradient(135deg, #fef2f2, #fee2e2); color: var(--danger);';
+            }
+
+            return `
+                <div class="subscription-wall">
+                    <div class="subscription-wall-content">
+                        <div class="subscription-icon" style="${iconStyle}">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                <circle cx="12" cy="16" r="1"/>
+                            </svg>
+                        </div>
+                        <h2>${title}</h2>
+                        <p class="subscription-description">${description}</p>
+
+                        <div class="subscription-plan-card">
+                            <div class="plan-header">
+                                <h3>${t('subscription.dentalPricingPro')}</h3>
+                                <span class="plan-badge">${t('subscription.fullAccess')}</span>
+                            </div>
+                            <ul class="plan-features">
+                                <li>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    ${t('priceList.completePriceCalcs')}
+                                </li>
+                                <li>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    ${t('subscription.priceListExport')}
+                                </li>
+                                <li>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    ${t('priceList.unlimitedServicesMaterials')}
+                                </li>
+                                <li>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    ${t('subscription.smartInsights')}
+                                </li>
+                                <li>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    ${t('subscription.prioritySupport')}
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="subscription-contact">
+                            <p>${t('subscription.readyToUpgrade')}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        let priceList = await API.get('/api/price-list');
+
+        // For trial users, limit to first 2 services
+        const totalServices = priceList.length;
+        if (isTrial && priceList.length > maxTrialServices) {
+            priceList = priceList.slice(0, maxTrialServices);
+        }
         const settings = await API.get('/api/settings/global');
 
         // Calculate summary statistics
@@ -1578,7 +2367,7 @@ const Pages = {
 
         // Helper function for variance display with health bar
         const getVarianceDisplay = (p) => {
-            if (!p.current_price) return { html: '<span class="price-health-none">-</span>', status: 'none' };
+            if (!p.current_price) return { html: `<span class="price-health-none">${t('priceList.noPriceData')}</span>`, status: 'none' };
 
             const variance = p.rounded_price - p.current_price;
             const variancePercent = ((variance / p.current_price) * 100);
@@ -1586,23 +2375,23 @@ const Pages = {
             const absPercent = Math.abs(variancePercent).toFixed(0);
 
             // Calculate position on the health bar (0-100)
-            // Zone layout: under (0-45%), optimal (45-55%), over (55-100%)
+            // Zone layout: under (0-40%), optimal (40-60%), over (60-100%)
             // Map: -50% variance = 0%, 0% variance = 50%, +50% variance = 100%
             let position = 50 + (variancePercent);
-            position = Math.max(3, Math.min(97, position));
+            position = Math.max(8, Math.min(92, position));
 
             if (Math.abs(variancePercent) <= 5) {
                 return {
                     html: `<div class="price-health optimal">
                         <div class="health-bar">
-                            <div class="health-zone zone-under"></div>
-                            <div class="health-zone zone-optimal"></div>
-                            <div class="health-zone zone-over"></div>
-                            <div class="health-indicator" style="left:${position}%"></div>
+                            <div class="health-zone zone-under" title="${t('priceList.underpricedZone')}"></div>
+                            <div class="health-zone zone-optimal" title="${t('priceList.optimalZone')}"></div>
+                            <div class="health-zone zone-over" title="${t('priceList.extraMarginZone')}"></div>
+                            <div class="health-indicator" style="left:${position}%" title="${variancePercent > 0 ? '+' : ''}${variancePercent.toFixed(1)}%"></div>
                         </div>
                         <span class="health-label">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                            Optimal ${variancePercent > 0 ? '+' : ''}${variancePercent.toFixed(0)}%
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>
+                            ${t('priceList.perfect')} ${variancePercent > 0 ? '+' : ''}${variancePercent.toFixed(0)}%
                         </span>
                     </div>`,
                     status: 'optimal'
@@ -1611,14 +2400,14 @@ const Pages = {
                 return {
                     html: `<div class="price-health underpriced">
                         <div class="health-bar">
-                            <div class="health-zone zone-under"></div>
-                            <div class="health-zone zone-optimal"></div>
-                            <div class="health-zone zone-over"></div>
-                            <div class="health-indicator" style="left:${position}%"></div>
+                            <div class="health-zone zone-under" title="${t('priceList.underpricedZone')}"></div>
+                            <div class="health-zone zone-optimal" title="${t('priceList.optimalZone')}"></div>
+                            <div class="health-zone zone-over" title="${t('priceList.extraMarginZone')}"></div>
+                            <div class="health-indicator" style="left:${position}%" title="+${variancePercent.toFixed(1)}%"></div>
                         </div>
                         <span class="health-label">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 22h20L12 2zm0 15a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-1-2V9h2v6h-2z"/></svg>
-                            Underpriced ${formatCurrency(absVariance)}
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                            ${t('priceList.raiseBy')} ${formatCurrency(absVariance)}
                         </span>
                     </div>`,
                     status: 'underpriced'
@@ -1627,14 +2416,14 @@ const Pages = {
                 return {
                     html: `<div class="price-health overpriced">
                         <div class="health-bar">
-                            <div class="health-zone zone-under"></div>
-                            <div class="health-zone zone-optimal"></div>
-                            <div class="health-zone zone-over"></div>
-                            <div class="health-indicator" style="left:${position}%"></div>
+                            <div class="health-zone zone-under" title="${t('priceList.underpricedZone')}"></div>
+                            <div class="health-zone zone-optimal" title="${t('priceList.optimalZone')}"></div>
+                            <div class="health-zone zone-over" title="${t('priceList.extraMarginZone')}"></div>
+                            <div class="health-indicator" style="left:${position}%" title="${variancePercent.toFixed(1)}%"></div>
                         </div>
                         <span class="health-label">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                            Extra +${formatCurrency(absVariance)}
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+                            +${formatCurrency(absVariance)} ${t('priceList.buffer')}
                         </span>
                     </div>`,
                     status: 'overpriced'
@@ -1644,32 +2433,72 @@ const Pages = {
 
         // Summary cards HTML
         const summaryHtml = servicesWithPrice.length > 0 ? `
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
-                <div style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:1.25rem;border-radius:12px;text-align:center;">
-                    <div style="font-size:2rem;font-weight:700;">${servicesWithPrice.length}</div>
-                    <div style="font-size:0.875rem;opacity:0.9;">Services Tracked</div>
+            <div class="metrics-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.5rem;">
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: var(--primary-100); color: var(--primary-600);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                                <rect x="9" y="3" width="6" height="4" rx="1"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">${t('priceList.servicesTracked')}</span>
+                    </div>
+                    <div class="metric-value">${servicesWithPrice.length}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${t('priceList.withCurrentPricing')}</span>
+                    </div>
                 </div>
-                <div style="background:${underpriced.length > 0 ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#22c55e,#16a34a)'};color:white;padding:1.25rem;border-radius:12px;text-align:center;">
-                    <div style="font-size:2rem;font-weight:700;">${underpriced.length}</div>
-                    <div style="font-size:0.875rem;opacity:0.9;">${underpriced.length > 0 ? '⚠️ Underpriced' : '✓ None Underpriced'}</div>
+                <div class="metric-card ${underpriced.length > 0 ? 'metric-highlight' : ''}">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: ${underpriced.length > 0 ? '#fef3c7' : '#d1fae5'}; color: ${underpriced.length > 0 ? 'var(--warning)' : 'var(--success)'};">
+                            ${underpriced.length > 0 ?
+                                '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 22h20L12 2zm0 15a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-1-2V9h2v6h-2z"/></svg>' :
+                                '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
+                            }
+                        </span>
+                        <span class="metric-label">${underpriced.length > 0 ? t('priceList.underpriced') : t('priceList.noneUnderpriced')}</span>
+                    </div>
+                    <div class="metric-value">${underpriced.length}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${underpriced.length > 0 ? t('priceList.needPriceIncrease') : t('priceList.allPricedWell')}</span>
+                    </div>
                 </div>
-                <div style="background:linear-gradient(135deg,#22c55e,#16a34a);color:white;padding:1.25rem;border-radius:12px;text-align:center;">
-                    <div style="font-size:2rem;font-weight:700;">${optimal.length}</div>
-                    <div style="font-size:0.875rem;opacity:0.9;">✓ Optimal Pricing</div>
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: #d1fae5; color: var(--success);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        </span>
+                        <span class="metric-label">${t('priceList.optimalPricing')}</span>
+                    </div>
+                    <div class="metric-value" style="color: var(--success);">${optimal.length}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${t('priceList.withinRange')}</span>
+                    </div>
                 </div>
-                <div style="background:${totalVariance > 0 ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#3b82f6,#2563eb)'};color:white;padding:1.25rem;border-radius:12px;text-align:center;">
-                    <div style="font-size:1.5rem;font-weight:700;">${totalVariance > 0 ? '+' : ''}${formatCurrency(totalVariance)}</div>
-                    <div style="font-size:0.875rem;opacity:0.9;">${totalVariance > 0 ? '💸 Lost Revenue' : '💰 Extra Margin'}</div>
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: ${totalVariance > 0 ? '#fee2e2' : '#dbeafe'}; color: ${totalVariance > 0 ? 'var(--danger)' : 'var(--info)'};">
+                            ${totalVariance > 0 ?
+                                '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>' :
+                                '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m7-7l-7 7-7-7"/></svg>'
+                            }
+                        </span>
+                        <span class="metric-label">${totalVariance > 0 ? t('priceList.lostRevenue') : t('priceList.extraMargin')}</span>
+                    </div>
+                    <div class="metric-value currency" style="color: ${totalVariance > 0 ? 'var(--danger)' : 'var(--success)'};">${totalVariance > 0 ? '+' : ''}${formatCurrency(totalVariance)}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${t('priceList.perServiceRendered')}</span>
+                    </div>
                 </div>
             </div>
             ${underpriced.length > 0 ? `
                 <div style="background:linear-gradient(90deg,#fef3c7,#fde68a);border-left:4px solid #f59e0b;padding:1rem 1.25rem;border-radius:8px;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;">
                     <span style="font-size:2rem;">💡</span>
                     <div>
-                        <strong style="color:#b45309;">Pricing Opportunity Found!</strong>
+                        <strong style="color:#b45309;">${t('priceList.pricingOpportunityFound')}</strong>
                         <p style="margin:0.25rem 0 0;color:#92400e;font-size:0.875rem;">
-                            You have ${underpriced.length} service${underpriced.length > 1 ? 's' : ''} priced below calculated cost.
-                            Adjusting could recover <strong>${formatCurrency(underpriced.reduce((sum, p) => sum + (p.rounded_price - p.current_price), 0))}</strong> per service rendered!
+                            ${t('priceList.underpricedServicesMsg', { count: underpriced.length, amount: formatCurrency(underpriced.reduce((sum, p) => sum + (p.rounded_price - p.current_price), 0)) })}
                         </p>
                     </div>
                 </div>
@@ -1677,27 +2506,39 @@ const Pages = {
                 <div style="background:linear-gradient(90deg,#dcfce7,#bbf7d0);border-left:4px solid #22c55e;padding:1rem 1.25rem;border-radius:8px;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;">
                     <span style="font-size:2rem;">🏆</span>
                     <div>
-                        <strong style="color:#15803d;">Excellent Pricing Strategy!</strong>
+                        <strong style="color:#15803d;">${t('priceList.excellentPricing')}</strong>
                         <p style="margin:0.25rem 0 0;color:#166534;font-size:0.875rem;">
-                            All your services are priced at or above their calculated cost. Keep up the great work!
+                            ${t('priceList.allServicesWellPriced')}
                         </p>
                     </div>
                 </div>
             `}
         ` : '';
 
+        // Trial banner for limited access
+        const trialBannerHtml = isTrial ? `
+            <div class="restriction-banner restriction-banner-info">
+                <div class="restriction-banner-icon">🎁</div>
+                <div class="restriction-banner-content">
+                    <h4>${t('priceList.trialBannerTitle')}</h4>
+                    <p>${t('priceList.trialBannerMsg', { maxServices: maxTrialServices, daysLeft: trialDaysLeft })}${totalServices > maxTrialServices ? ` (${t('priceList.showingOfServices', { shown: maxTrialServices, total: totalServices })})` : ''}</p>
+                </div>
+                <button class="btn btn-primary" onclick="APP.loadPage('subscription')">${t('priceList.upgradeNow')}</button>
+            </div>
+        ` : '';
+
         return `
+            ${trialBannerHtml}
             <div class="card" style="background:#d1fae5;border-color:#34d399;">
                 <div class="card-header" style="background:#a7f3d0;">
-                    <h3 class="card-title">💰 Price List Overview</h3>
+                    <h3 class="card-title">💰 ${t('priceList.overview')}</h3>
                 </div>
                 <div class="card-body">
-                    <p><strong>This is your complete calculated price list for all services.</strong></p>
+                    <p><strong>${t('priceList.overviewDescription')}</strong></p>
                     <p style="margin-top:0.5rem;color:var(--gray-700);">
-                        Each price includes: Fixed costs (rent, salaries) + Service costs (chair time, doctor fee, equipment) +
-                        Materials (consumables) + Your profit margin (${settings.default_profit_percent}%) + VAT (${settings.vat_percent}%)
+                        ${t('priceList.priceIncludesDesc', { profitPercent: settings.default_profit_percent, vatPercent: settings.vat_percent })}
                     </p>
-                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>💡 Add "Current Market Price" to your services to see variance analysis!</em></p>
+                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>💡 ${t('priceList.addCurrentPriceTip')}</em></p>
                 </div>
             </div>
 
@@ -1705,42 +2546,87 @@ const Pages = {
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Complete Price List</h3>
-                    <button class="btn btn-primary" onclick="window.print()">🖨️ Print</button>
+                    <h3 class="card-title">${t('priceList.completePriceList')}</h3>
+                    <button class="btn btn-primary" onclick="window.print()">🖨️ ${t('priceList.print')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
-                    ${priceList.length > 0 ? `
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Service</th>
-                                    <th>Total Cost</th>
-                                    <th>Profit</th>
-                                    <th>Calculated Price</th>
-                                    <th>Current Price</th>
-                                    <th>Variance</th>
+                    ${priceList.length > 0 ? (() => {
+                        // Group services by category
+                        const grouped = {};
+                        const uncategorized = [];
+                        priceList.forEach(p => {
+                            if (p.category_name) {
+                                if (!grouped[p.category_name]) grouped[p.category_name] = [];
+                                grouped[p.category_name].push(p);
+                            } else {
+                                uncategorized.push(p);
+                            }
+                        });
+
+                        // Render table with category headers
+                        const renderServiceRow = (p) => {
+                            const variance = getVarianceDisplay(p);
+                            return `
+                                <tr style="${variance.status === 'underpriced' ? 'background:#fffbeb;' : ''}">
+                                    <td style="padding-left:2rem;"><strong>${getLocalizedName(p)}</strong></td>
+                                    <td>${formatCurrency(p.total_cost)}</td>
+                                    <td><span class="badge badge-success">${p.profit_percent}%</span></td>
+                                    <td><strong style="color:var(--primary-600);">${formatCurrency(p.rounded_price)}</strong></td>
+                                    <td>${p.current_price ? formatCurrency(p.current_price) : `<span style="color:#94a3b8;font-size:0.8rem;">${t('priceList.notSet')}</span>`}</td>
+                                    <td>${variance.html}</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                ${priceList.map(p => {
-                                    const variance = getVarianceDisplay(p);
-                                    return `
-                                    <tr style="${variance.status === 'underpriced' ? 'background:#fffbeb;' : ''}">
-                                        <td><strong>${p.service_name}</strong></td>
-                                        <td>${formatCurrency(p.total_cost)}</td>
-                                        <td><span class="badge badge-success">${p.profit_percent}%</span></td>
-                                        <td><strong style="color:#667eea;">${formatCurrency(p.rounded_price)}</strong></td>
-                                        <td>${p.current_price ? formatCurrency(p.current_price) : '<span style="color:#94a3b8;font-size:0.8rem;">Not set</span>'}</td>
-                                        <td>${variance.html}</td>
+                            `;
+                        };
+
+                        const categoryNames = Object.keys(grouped);
+                        let tableRows = '';
+
+                        // Render categorized services
+                        categoryNames.forEach(catName => {
+                            tableRows += `
+                                <tr class="category-header" style="background:var(--gray-100);">
+                                    <td colspan="6" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
+                                        📁 ${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${grouped[catName].length} ${t('priceList.services')})</span>
+                                    </td>
+                                </tr>
+                            `;
+                            tableRows += grouped[catName].map(renderServiceRow).join('');
+                        });
+
+                        // Render uncategorized services
+                        if (uncategorized.length > 0) {
+                            tableRows += `
+                                <tr class="category-header" style="background:var(--gray-100);">
+                                    <td colspan="6" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
+                                        📁 ${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length} ${t('priceList.services')})</span>
+                                    </td>
+                                </tr>
+                            `;
+                            tableRows += uncategorized.map(renderServiceRow).join('');
+                        }
+
+                        return `
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>${t('priceList.service')}</th>
+                                        <th>${t('priceList.totalCost')}</th>
+                                        <th>${t('priceList.profit')}</th>
+                                        <th>${t('priceList.calculatedPrice')}</th>
+                                        <th>${t('priceList.currentPrice')}</th>
+                                        <th>${t('priceList.variance')}</th>
                                     </tr>
-                                `}).join('')}
-                            </tbody>
-                        </table>
-                    ` : `
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        `;
+                    })() : `
                         <div class="empty-state">
                             <div class="empty-state-icon">📋</div>
-                            <h3>No Prices</h3>
-                            <p>Add services to generate price list</p>
+                            <h3>${t('priceList.noPrices')}</h3>
+                            <p>${t('priceList.addServicesToGenerate')}</p>
                         </div>
                     `}
                 </div>
@@ -1748,32 +2634,572 @@ const Pages = {
 
             <div class="card" style="margin-top:1.5rem;background:#f0f9ff;border-color:#7dd3fc;">
                 <div class="card-header" style="background:#e0f2fe;">
-                    <h3 class="card-title">📊 Understanding Variance</h3>
+                    <h3 class="card-title">📊 ${t('priceList.understandingVariance')}</h3>
                 </div>
                 <div class="card-body">
                     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
                         <div style="text-align:center;padding:1rem;">
-                            <span style="background:#fef3c7;color:#b45309;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">⚠️ Underpriced</span>
+                            <span style="background:#fef3c7;color:#b45309;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">⚠️ ${t('priceList.underpricedZone')}</span>
                             <p style="margin-top:0.75rem;font-size:0.875rem;color:var(--gray-600);">
-                                Your current price is <strong>below</strong> the calculated cost-plus price. You may be losing money!
+                                ${t('priceList.underpricedDesc')}
                             </p>
                         </div>
                         <div style="text-align:center;padding:1rem;">
-                            <span style="background:#dcfce7;color:#15803d;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">✓ Optimal</span>
+                            <span style="background:#dcfce7;color:#15803d;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">✓ ${t('priceList.optimalZone')}</span>
                             <p style="margin-top:0.75rem;font-size:0.875rem;color:var(--gray-600);">
-                                Your current price is within <strong>5%</strong> of the calculated price. Perfect balance!
+                                ${t('priceList.optimalDesc')}
                             </p>
                         </div>
                         <div style="text-align:center;padding:1rem;">
-                            <span style="background:#dbeafe;color:#1d4ed8;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">💪 Extra Margin</span>
+                            <span style="background:#dbeafe;color:#1d4ed8;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">💪 ${t('priceList.extraMarginZone')}</span>
                             <p style="margin-top:0.75rem;font-size:0.875rem;color:var(--gray-600);">
-                                Your current price is <strong>above</strong> calculated cost. Great margin, but check competitiveness!
+                                ${t('priceList.extraMarginDesc')}
                             </p>
                         </div>
                     </div>
                 </div>
             </div>
         `;
+    },
+
+    // Subscription Status page - Show subscription info for all users
+    async subscription() {
+        const sub = APP.subscription || {};
+        const user = APP.user || {};
+
+        // Status display config
+        const statusConfig = {
+            'active': { icon: '✅', color: '#22c55e', bg: '#dcfce7', label: t('subscription.statusActive'), message: t('subscription.statusActiveMsg') },
+            'trial': { icon: '🎁', color: '#f59e0b', bg: '#fef3c7', label: t('subscription.statusTrial'), message: t('subscription.statusTrialMsg') },
+            'warning': { icon: '⏰', color: '#f59e0b', bg: '#fef3c7', label: t('subscription.statusWarning'), message: t('subscription.statusWarningMsg') },
+            'grace_period': { icon: '⚠️', color: '#ef4444', bg: '#fee2e2', label: t('subscription.statusGrace'), message: t('subscription.statusGraceMsg') },
+            'expired': { icon: '🔒', color: '#ef4444', bg: '#fee2e2', label: t('subscription.statusExpired'), message: t('subscription.statusExpiredMsg') },
+            'suspended': { icon: '⏸️', color: '#6b7280', bg: '#f3f4f6', label: t('subscription.statusSuspended'), message: t('subscription.statusSuspendedMsg') }
+        };
+
+        const status = sub.is_suspended ? 'suspended' : (sub.status || 'trial');
+        const config = statusConfig[status] || statusConfig['trial'];
+        const daysRemaining = sub.days_remaining;
+        const trialDaysLeft = sub.trial_days_remaining || 0;
+        const servicesUsed = sub.services_used || 0;
+        const maxTrialServices = sub.max_trial_services || 2;
+        const isPermanent = sub.is_permanent;
+
+        // Format expiry date
+        let expiryText = '';
+        if (isPermanent) {
+            expiryText = t('subscription.neverExpires');
+        } else if (sub.expires_at) {
+            const expiryDate = new Date(sub.expires_at);
+            expiryText = expiryDate.toLocaleDateString(i18n.currentLang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        } else if (status === 'trial') {
+            expiryText = trialDaysLeft > 0 ? t('subscription.daysOfLeft', {days: trialDaysLeft}) : t('subscription.trialEnded');
+        } else {
+            expiryText = t('subscription.notSet');
+        }
+
+        // Trial progress bar
+        const trialProgressBar = status === 'trial' ? `
+            <div class="subscription-card" style="margin-top:1.5rem;">
+                <h3 style="margin-bottom:1rem;font-size:1rem;color:var(--gray-700);">${t('subscription.trialProgress')}</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+                    <div>
+                        <div style="font-size:0.875rem;color:var(--gray-500);margin-bottom:0.5rem;">${t('subscription.timeRemaining')}</div>
+                        <div style="background:var(--gray-200);border-radius:8px;height:8px;overflow:hidden;">
+                            <div style="background:linear-gradient(90deg,var(--primary-500),var(--primary-400));height:100%;width:${Math.max(0, (trialDaysLeft/7)*100)}%;transition:width 0.3s;"></div>
+                        </div>
+                        <div style="font-size:0.875rem;color:var(--gray-600);margin-top:0.5rem;">${t('subscription.daysOfLeft', {days: trialDaysLeft})}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.875rem;color:var(--gray-500);margin-bottom:0.5rem;">${t('services.servicesUsedOf', {used: servicesUsed, max: maxTrialServices})}</div>
+                        <div style="background:var(--gray-200);border-radius:8px;height:8px;overflow:hidden;">
+                            <div style="background:linear-gradient(90deg,var(--secondary-500),var(--secondary-400));height:100%;width:${(servicesUsed/maxTrialServices)*100}%;transition:width 0.3s;"></div>
+                        </div>
+                        <div style="font-size:0.875rem;color:var(--gray-600);margin-top:0.5rem;">${t('subscription.servicesUsedOf', {used: servicesUsed, max: maxTrialServices})}</div>
+                    </div>
+                </div>
+            </div>
+        ` : '';
+
+        // Days remaining card for active subscriptions
+        const daysCard = (status === 'active' || status === 'warning') && !isPermanent ? `
+            <div style="text-align:center;padding:1.5rem;background:var(--gray-50);border-radius:12px;margin-top:1.5rem;">
+                <div style="font-size:3rem;font-weight:700;color:${status === 'warning' ? '#f59e0b' : 'var(--primary-600)'};">${daysRemaining}</div>
+                <div style="font-size:0.875rem;color:var(--gray-500);">${t('subscription.daysUntilRenewal')}</div>
+            </div>
+        ` : '';
+
+        return `
+            <div class="page-header">
+                <h2 class="page-title">${t('subscription.subscriptionStatus')}</h2>
+                <p class="page-subtitle">${t('subscription.manageSubscription')}</p>
+            </div>
+
+            <!-- Status Card -->
+            <div class="subscription-card" style="background:${config.bg};border:2px solid ${config.color}20;">
+                <div style="display:flex;align-items:center;gap:1rem;">
+                    <div style="font-size:3rem;">${config.icon}</div>
+                    <div style="flex:1;">
+                        <div style="font-size:1.5rem;font-weight:700;color:${config.color};">${config.label}</div>
+                        <div style="color:var(--gray-600);margin-top:0.25rem;">${config.message}</div>
+                    </div>
+                    ${!isPermanent && (status === 'trial' || status === 'expired' || status === 'grace_period') ? `
+                        <button class="btn btn-primary" onclick="APP.loadPage('price-list')" style="background:${config.color};">
+                            ${status === 'trial' ? t('services.upgradeNow') : t('subscription.renewNow')}
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+
+            ${trialProgressBar}
+            ${daysCard}
+
+            <!-- Subscription Details -->
+            <div class="subscription-card" style="margin-top:1.5rem;">
+                <h3 style="margin-bottom:1.25rem;font-size:1.125rem;color:var(--gray-800);">${t('subscription.subscriptionDetails')}</h3>
+                <div class="subscription-details-grid">
+                    <div class="subscription-detail-item">
+                        <span class="detail-label">${t('subscription.clinic')}</span>
+                        <span class="detail-value">${user.clinic_name || 'N/A'}</span>
+                    </div>
+                    <div class="subscription-detail-item">
+                        <span class="detail-label">${t('subscription.plan')}</span>
+                        <span class="detail-value">${isPermanent ? t('subscription.enterprise') : (status === 'trial' ? t('subscription.freeTrial') : t('subscription.dentalPricingPro'))}</span>
+                    </div>
+                    <div class="subscription-detail-item">
+                        <span class="detail-label">${status === 'trial' ? t('subscription.trialEnds') : (isPermanent ? t('subscription.expiry') : t('subscription.renewalDate'))}</span>
+                        <span class="detail-value">${expiryText}</span>
+                    </div>
+                    <div class="subscription-detail-item">
+                        <span class="detail-label">${t('common.status')}</span>
+                        <span class="detail-value" style="color:${config.color};font-weight:600;">${config.label}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- What's Included -->
+            <div class="subscription-card" style="margin-top:1.5rem;">
+                <h3 style="margin-bottom:1.25rem;font-size:1.125rem;color:var(--gray-800);">${t('subscription.whatsIncluded')}</h3>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;">
+                    <div class="feature-item ${status === 'trial' ? 'feature-limited' : ''}">
+                        <span class="feature-icon">${status === 'trial' ? '🔢' : '✅'}</span>
+                        <span>${status === 'trial' ? t('subscription.upToServices', {max: maxTrialServices}) : t('subscription.unlimitedServicesLabel')}</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">✅</span>
+                        <span>${t('subscription.unlimitedConsumables')}</span>
+                    </div>
+                    <div class="feature-item ${status === 'trial' || status === 'expired' ? 'feature-locked' : ''}">
+                        <span class="feature-icon">${status === 'trial' || status === 'expired' ? '🔒' : '✅'}</span>
+                        <span>${t('subscription.priceCalculations')}</span>
+                    </div>
+                    <div class="feature-item ${status === 'trial' || status === 'expired' ? 'feature-locked' : ''}">
+                        <span class="feature-icon">${status === 'trial' || status === 'expired' ? '🔒' : '✅'}</span>
+                        <span>${t('subscription.priceListExportLabel')}</span>
+                    </div>
+                    <div class="feature-item ${status === 'trial' || status === 'expired' ? 'feature-locked' : ''}">
+                        <span class="feature-icon">${status === 'trial' || status === 'expired' ? '🔒' : '✅'}</span>
+                        <span>${t('subscription.varianceAnalysis')}</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">✅</span>
+                        <span>${t('subscription.allClinicSettings')}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Support -->
+            <div class="subscription-card" style="margin-top:1.5rem;background:var(--gray-50);">
+                <div style="display:flex;align-items:center;gap:1rem;">
+                    <div style="font-size:2rem;">💬</div>
+                    <div style="flex:1;">
+                        <h4 style="font-size:1rem;color:var(--gray-800);margin-bottom:0.25rem;">Need Help?</h4>
+                        <p style="font-size:0.875rem;color:var(--gray-600);margin:0;">Contact our team for subscription questions, upgrades, or support.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    // Super Admin page - Manage all clinics
+    async superAdmin() {
+        const stats = await API.get('/api/super-admin/stats');
+        const clinics = await API.get('/api/super-admin/clinics');
+
+        const statusBadge = (status) => {
+            const badges = {
+                'active': `<span class="badge badge-success">${t('superAdmin.active')}</span>`,
+                'trial': `<span class="badge badge-warning">${t('superAdmin.trial')}</span>`,
+                'grace_period': `<span class="badge badge-danger">${t('superAdmin.gracePeriod')}</span>`,
+                'expired': `<span class="badge badge-danger">${t('superAdmin.expired')}</span>`,
+                'unknown': '<span class="badge badge-secondary">Unknown</span>'
+            };
+            return badges[status] || badges['unknown'];
+        };
+
+        const activeBadge = (isActive) => {
+            return isActive ? `<span class="badge badge-success">${t('common.active')}</span>` : `<span class="badge badge-danger">${t('common.inactive')}</span>`;
+        };
+
+        return `
+            <!-- Stats Cards -->
+            <div class="metrics-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:1.5rem;">
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: var(--primary-100); color: var(--primary-600);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 21h18M9 8h1m-1 4h1m-1 4h1M15 8h1m-1 4h1m-1 4h1M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">${t('superAdmin.totalClinics')}</span>
+                    </div>
+                    <div class="metric-value">${stats.total_clinics}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${t('superAdmin.registeredClinics')}</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: #d1fae5; color: var(--success);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">${t('superAdmin.activeClinics')}</span>
+                    </div>
+                    <div class="metric-value" style="color: var(--success);">${stats.active_subscriptions}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${t('superAdmin.payingCustomers')}</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: #fef3c7; color: var(--warning);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">${t('superAdmin.trialClinics')}</span>
+                    </div>
+                    <div class="metric-value">${stats.trial_clinics}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${t('superAdmin.inTrialPeriod')}</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: #fee2e2; color: var(--danger);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">${t('superAdmin.expired')}</span>
+                    </div>
+                    <div class="metric-value" style="color: var(--danger);">${stats.expired_clinics}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${t('superAdmin.needsRenewal')}</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-icon" style="background: #dbeafe; color: var(--primary-600);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                            </svg>
+                        </span>
+                        <span class="metric-label">${t('superAdmin.monthlyRevenue')}</span>
+                    </div>
+                    <div class="metric-value currency">${formatCurrency(stats.monthly_revenue)}</div>
+                    <div class="metric-footer">
+                        <span class="metric-subtext">${t('superAdmin.recurringIncome')}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clinics Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">${t('superAdmin.allClinics')}</h3>
+                </div>
+                <div class="card-body" style="padding:0;">
+                    ${clinics.length > 0 ? `
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Clinic Name</th>
+                                    <th>Status</th>
+                                    <th>Subscription</th>
+                                    <th>Expires</th>
+                                    <th>Days Left</th>
+                                    <th>Users</th>
+                                    <th>Services</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${clinics.filter(c => c.id !== 1).map(c => {
+                                    const sub = c.subscription_info || {};
+                                    const daysClass = sub.days_remaining > 7 ? 'color:#22c55e' :
+                                                      sub.days_remaining > 0 ? 'color:#f59e0b' : 'color:#ef4444';
+                                    return `
+                                        <tr>
+                                            <td>
+                                                <strong>${c.name}</strong>
+                                                <div style="font-size:0.75rem;color:var(--gray-500);">${c.email || 'No email'}</div>
+                                            </td>
+                                            <td>${activeBadge(c.is_active)}</td>
+                                            <td>${statusBadge(sub.status)}</td>
+                                            <td>${sub.expires_at || '-'}</td>
+                                            <td style="${daysClass};font-weight:600;">${sub.days_remaining !== null ? sub.days_remaining : '-'}</td>
+                                            <td>${c.user_count || 0}</td>
+                                            <td>${c.service_count || 0}</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.toggleClinicStatus(${c.id})" title="${c.is_active ? 'Deactivate' : 'Activate'}">
+                                                    ${c.is_active ? '🔒' : '🔓'}
+                                                </button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showEditSubscription(${c.id})" title="Edit Subscription">✏️</button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showPaymentForm(${c.id}, '${c.name}')" title="Record Payment">💳</button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showExtendSubscription(${c.id}, '${c.name}', '${sub.expires_at || ''}')" title="Extend Subscription">📅</button>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    ` : `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🏢</div>
+                            <h3>No Clinics</h3>
+                            <p>No clinics have registered yet</p>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    },
+
+    // Super Admin: Toggle clinic status
+    async toggleClinicStatus(clinicId) {
+        if (!confirm('Are you sure you want to toggle this clinic\'s status?')) return;
+        try {
+            await API.put(`/api/super-admin/clinics/${clinicId}/toggle-status`);
+            showToast('Clinic status updated');
+            APP.loadPage('super-admin');
+        } catch(err) {
+            showToast(err.message, 'error');
+        }
+    },
+
+    // Super Admin: Show payment form
+    showPaymentForm(clinicId, clinicName) {
+        const today = new Date().toISOString().split('T')[0];
+        const content = `
+            <form id="paymentForm">
+                <p style="margin-bottom:1rem;color:var(--gray-600);">Recording payment for <strong>${clinicName}</strong></p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label required">Amount</label>
+                        <input type="number" class="form-input" name="amount" placeholder="e.g., 1000" required step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Months</label>
+                        <input type="number" class="form-input" name="months_paid" value="1" min="1" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label required">Payment Date</label>
+                        <input type="date" class="form-input" name="payment_date" value="${today}" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Payment Method</label>
+                        <select class="form-select" name="payment_method" required>
+                            <option value="cash">Cash</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="check">Check</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Receipt Number</label>
+                    <input type="text" class="form-input" name="receipt_number" placeholder="Optional">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-input" name="payment_notes" rows="2" placeholder="Optional notes"></textarea>
+                </div>
+                <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Record Payment</button>
+                </div>
+            </form>
+        `;
+
+        openModal('Record Payment', content);
+
+        document.getElementById('paymentForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+
+            try {
+                const result = await API.post(`/api/super-admin/clinics/${clinicId}/payments`, data);
+                closeAllModals();
+                showToast(`Payment recorded. New expiry: ${result.new_expiry}`);
+                APP.loadPage('super-admin');
+            } catch(err) {
+                showToast(err.message, 'error');
+            }
+        };
+    },
+
+    // Super Admin: Show extend subscription form
+    showExtendSubscription(clinicId, clinicName, currentExpiry) {
+        const content = `
+            <form id="extendForm">
+                <p style="margin-bottom:1rem;color:var(--gray-600);">Extending subscription for <strong>${clinicName}</strong></p>
+                <p style="margin-bottom:1rem;font-size:0.875rem;">Current expiry: <strong>${currentExpiry || 'Not set'}</strong></p>
+
+                <div class="form-group">
+                    <label class="form-label">Quick Extend</label>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('extendMonths').value='1'">+1 Month</button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('extendMonths').value='3'">+3 Months</button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('extendMonths').value='6'">+6 Months</button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('extendMonths').value='12'">+1 Year</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label required">Months to Add</label>
+                    <input type="number" class="form-input" id="extendMonths" name="extend_months" value="1" min="1" required>
+                </div>
+
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                        <input type="checkbox" name="start_from_today" value="1">
+                        <span>Start from today (ignore current expiry)</span>
+                    </label>
+                </div>
+                <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Extend</button>
+                </div>
+            </form>
+        `;
+
+        openModal('Extend Subscription', content);
+
+        document.getElementById('extendForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const months = parseInt(formData.get('extend_months'));
+            const startFromToday = formData.get('start_from_today') === '1';
+
+            // Calculate new expiry date
+            let baseDate = new Date();
+            if (!startFromToday) {
+                // Get current expiry from API
+                const clinic = await API.get(`/api/super-admin/clinics/${clinicId}`);
+                if (clinic.subscription_expires_at) {
+                    const expiryDate = new Date(clinic.subscription_expires_at);
+                    if (expiryDate > baseDate) {
+                        baseDate = expiryDate;
+                    }
+                }
+            }
+
+            // Add months
+            const newExpiry = new Date(baseDate);
+            newExpiry.setDate(newExpiry.getDate() + (months * 30));
+            const expiryStr = newExpiry.toISOString().split('T')[0];
+
+            try {
+                await API.put(`/api/super-admin/clinics/${clinicId}/subscription`, {
+                    subscription_status: 'active',
+                    subscription_expires_at: expiryStr
+                });
+                closeAllModals();
+                showToast(`Subscription extended to ${expiryStr}`);
+                APP.loadPage('super-admin');
+            } catch(err) {
+                showToast(err.message, 'error');
+            }
+        };
+    },
+
+    // Super Admin: Show edit subscription form with full control
+    async showEditSubscription(clinicId) {
+        try {
+            const clinic = await API.get(`/api/super-admin/clinics/${clinicId}`);
+            const sub = clinic.subscription_info || {};
+
+            const content = `
+                <form id="editSubscriptionForm">
+                    <p style="margin-bottom:1rem;color:var(--gray-600);">Editing subscription for <strong>${clinic.name}</strong></p>
+
+                    <div class="form-group">
+                        <label class="form-label required">Subscription Status</label>
+                        <select class="form-select" name="subscription_status" required>
+                            <option value="trial" ${clinic.subscription_status === 'trial' ? 'selected' : ''}>Trial (7 days, 2 services limit)</option>
+                            <option value="active" ${clinic.subscription_status === 'active' ? 'selected' : ''}>Active (Full access)</option>
+                            <option value="expired" ${clinic.subscription_status === 'expired' ? 'selected' : ''}>Expired (Locked out)</option>
+                        </select>
+                        <span class="form-hint">Trial: limited to 2 services. Active: full access until expiry. Expired: no access.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Subscription Expires At</label>
+                        <input type="date" class="form-input" name="subscription_expires_at" value="${clinic.subscription_expires_at || ''}">
+                        <span class="form-hint">Leave empty for trial accounts (will use 7-day trial from registration).</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Grace Period Start</label>
+                        <input type="date" class="form-input" name="grace_period_start" value="${clinic.grace_period_start || ''}">
+                        <span class="form-hint">When set, clinic enters read-only mode for 3 days before full lockout. Leave empty for no grace period.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                            <input type="checkbox" name="is_active" value="1" ${clinic.is_active ? 'checked' : ''}>
+                            <span>Clinic Active (can be deactivated by admin)</span>
+                        </label>
+                        <span class="form-hint">Unchecking this will suspend the clinic immediately, regardless of subscription status.</span>
+                    </div>
+                    <div class="modal-footer" style="margin:1.5rem -1.5rem -1.5rem;padding:1rem 1.5rem;">
+                        <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            `;
+
+            openModal('Edit Subscription', content);
+
+            document.getElementById('editSubscriptionForm').onsubmit = async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+
+                const data = {
+                    subscription_status: formData.get('subscription_status'),
+                    subscription_expires_at: formData.get('subscription_expires_at') || null,
+                    grace_period_start: formData.get('grace_period_start') || null,
+                    is_active: formData.get('is_active') === '1' ? 1 : 0
+                };
+
+                try {
+                    await API.put(`/api/super-admin/clinics/${clinicId}/subscription`, data);
+                    closeAllModals();
+                    showToast('Subscription updated successfully');
+                    APP.loadPage('super-admin');
+                } catch(err) {
+                    showToast(err.message, 'error');
+                }
+            };
+        } catch(err) {
+            showToast(err.message, 'error');
+        }
     }
 };
 

@@ -3,7 +3,7 @@ Models Module - Data access and business logic for Dental Pricing Calculator
 Multi-tenant SaaS version with clinic isolation
 """
 
-from .database import get_connection, dict_from_row, hash_password, verify_password
+from .database import get_connection, dict_from_row, hash_password, verify_password, create_default_categories
 import secrets
 import re
 from datetime import datetime, timedelta
@@ -29,8 +29,8 @@ def create_clinic(name, email, phone=None, address=None, city=None, country='Egy
         counter += 1
 
     cursor.execute('''
-        INSERT INTO clinics (name, slug, email, phone, address, city, country)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO clinics (name, slug, email, phone, address, city, country, subscription_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'trial')
     ''', (name, slug, email, phone, address, city, country))
     clinic_id = cursor.lastrowid
 
@@ -45,6 +45,9 @@ def create_clinic(name, email, phone=None, address=None, city=None, country='Egy
         INSERT INTO clinic_capacity (clinic_id, chairs, days_per_month, hours_per_day, utilization_percent)
         VALUES (?, 1, 24, 8, 80)
     ''', (clinic_id,))
+
+    # Create default service categories
+    create_default_categories(clinic_id, conn)
 
     conn.commit()
 
@@ -99,11 +102,15 @@ def update_clinic(clinic_id, **kwargs):
 # ============== Authentication ==============
 
 def authenticate_user(username, password):
-    """Authenticate user and return user dict with clinic info or None"""
+    """Authenticate user and return user dict with clinic info or None
+
+    Note: Clinic active status is now handled through subscription system,
+    not authentication. Deactivated clinics can still login but see limited views.
+    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT u.*, c.name as clinic_name, c.slug as clinic_slug
+        SELECT u.*, c.name as clinic_name, c.slug as clinic_slug, c.is_active as clinic_is_active
         FROM users u
         LEFT JOIN clinics c ON u.clinic_id = c.id
         WHERE u.username = ? AND u.is_active = 1
@@ -113,11 +120,6 @@ def authenticate_user(username, password):
 
     if row and verify_password(password, row['password_hash']):
         user = dict_from_row(row)
-        # Check if clinic is active
-        if user.get('clinic_id'):
-            clinic = get_clinic_by_id(user['clinic_id'])
-            if not clinic or not clinic.get('is_active'):
-                return None
         return user
     return None
 
@@ -465,14 +467,14 @@ def get_all_consumables(clinic_id):
     return [dict_from_row(r) for r in rows]
 
 
-def create_consumable(clinic_id, item_name, pack_cost, cases_per_pack, units_per_case=1):
+def create_consumable(clinic_id, item_name, pack_cost, cases_per_pack, units_per_case=1, name_ar=None):
     """Create new consumable for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO consumables (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case))
+        INSERT INTO consumables (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case, name_ar)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case, name_ar))
     consumable_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -510,18 +512,95 @@ def delete_consumable(consumable_id, clinic_id):
     return True
 
 
+# ============== Service Categories ==============
+
+def get_all_categories(clinic_id):
+    """Get all service categories for a clinic"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM service_categories WHERE clinic_id = ? AND is_active = 1 ORDER BY display_order, name', (clinic_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict_from_row(r) for r in rows]
+
+
+def get_category_by_id(category_id, clinic_id):
+    """Get a category by ID (must belong to clinic)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM service_categories WHERE id = ? AND clinic_id = ?', (category_id, clinic_id))
+    row = cursor.fetchone()
+    conn.close()
+    return dict_from_row(row)
+
+
+def create_category(clinic_id, name, display_order=None):
+    """Create new service category for a clinic"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if display_order is None:
+        cursor.execute('SELECT MAX(display_order) FROM service_categories WHERE clinic_id = ?', (clinic_id,))
+        max_order = cursor.fetchone()[0]
+        display_order = (max_order or 0) + 1
+
+    cursor.execute('''
+        INSERT INTO service_categories (clinic_id, name, display_order)
+        VALUES (?, ?, ?)
+    ''', (clinic_id, name, display_order))
+    category_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return category_id
+
+
+def update_category(category_id, clinic_id, **kwargs):
+    """Update category (must belong to clinic)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    fields = []
+    values = []
+    for key, value in kwargs.items():
+        if key not in ['id', 'created_at', 'clinic_id']:
+            fields.append(f'{key} = ?')
+            values.append(value)
+
+    if fields:
+        values.extend([category_id, clinic_id])
+        cursor.execute(f"UPDATE service_categories SET {', '.join(fields)} WHERE id = ? AND clinic_id = ?", values)
+        conn.commit()
+
+    conn.close()
+    return True
+
+
+def delete_category(category_id, clinic_id):
+    """Soft delete category (set is_active = 0) and unlink services"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Soft delete the category
+    cursor.execute('UPDATE service_categories SET is_active = 0 WHERE id = ? AND clinic_id = ?', (category_id, clinic_id))
+    # Unlink services from this category
+    cursor.execute('UPDATE services SET category_id = NULL WHERE category_id = ? AND clinic_id = ?', (category_id, clinic_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
 # ============== Services ==============
 
 def get_all_services(clinic_id):
-    """Get all services for a clinic"""
+    """Get all services for a clinic with category info"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT s.*, e.asset_name as equipment_name
+        SELECT s.*, e.asset_name as equipment_name, sc.name as category_name
         FROM services s
         LEFT JOIN equipment e ON s.equipment_id = e.id
+        LEFT JOIN service_categories sc ON s.category_id = sc.id
         WHERE s.clinic_id = ?
-        ORDER BY s.name
+        ORDER BY sc.display_order, sc.name, s.name
     ''', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
@@ -529,7 +608,7 @@ def get_all_services(clinic_id):
 
 
 def get_service_by_id(service_id, clinic_id):
-    """Get service by ID with consumables (must belong to clinic)"""
+    """Get service by ID with consumables and equipment (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM services WHERE id = ? AND clinic_id = ?', (service_id, clinic_id))
@@ -538,12 +617,21 @@ def get_service_by_id(service_id, clinic_id):
     if service:
         # Get consumables for this service
         cursor.execute('''
-            SELECT sc.*, c.item_name, c.pack_cost, c.cases_per_pack, c.units_per_case
+            SELECT sc.*, c.item_name, c.pack_cost, c.cases_per_pack, c.units_per_case, c.name_ar
             FROM service_consumables sc
             JOIN consumables c ON sc.consumable_id = c.id
             WHERE sc.service_id = ?
         ''', (service_id,))
         service['consumables'] = [dict_from_row(r) for r in cursor.fetchall()]
+
+        # Get equipment for this service (from service_equipment table)
+        cursor.execute('''
+            SELECT se.*, e.asset_name, e.purchase_cost, e.life_years, e.allocation_type, e.monthly_usage_hours
+            FROM service_equipment se
+            JOIN equipment e ON se.equipment_id = e.id
+            WHERE se.service_id = ?
+        ''', (service_id,))
+        service['equipment_list'] = [dict_from_row(r) for r in cursor.fetchall()]
 
     conn.close()
     return service
@@ -551,18 +639,18 @@ def get_service_by_id(service_id, clinic_id):
 
 def create_service(clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit=1,
                    custom_profit_percent=None, equipment_id=None, equipment_hours_used=None, current_price=None,
-                   doctor_fee_type='hourly', doctor_fixed_fee=0, doctor_percentage=0):
+                   doctor_fee_type='hourly', doctor_fixed_fee=0, doctor_percentage=0, category_id=None, name_ar=None):
     """Create new service for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO services (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit,
                              custom_profit_percent, equipment_id, equipment_hours_used, current_price,
-                             doctor_fee_type, doctor_fixed_fee, doctor_percentage)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             doctor_fee_type, doctor_fixed_fee, doctor_percentage, category_id, name_ar)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit,
           custom_profit_percent, equipment_id, equipment_hours_used, current_price,
-          doctor_fee_type, doctor_fixed_fee, doctor_percentage))
+          doctor_fee_type, doctor_fixed_fee, doctor_percentage, category_id, name_ar))
     service_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -627,7 +715,7 @@ def remove_service_consumable(service_id, consumable_id):
 
 
 def update_service_consumables(service_id, consumables):
-    """Update all consumables for a service"""
+    """Update all consumables for a service (with optional custom unit price)"""
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -636,10 +724,31 @@ def update_service_consumables(service_id, consumables):
 
     # Insert new
     for c in consumables:
+        custom_price = c.get('custom_unit_price')
         cursor.execute('''
-            INSERT INTO service_consumables (service_id, consumable_id, quantity)
+            INSERT INTO service_consumables (service_id, consumable_id, quantity, custom_unit_price)
+            VALUES (?, ?, ?, ?)
+        ''', (service_id, c['consumable_id'], c['quantity'], custom_price))
+
+    conn.commit()
+    conn.close()
+    return True
+
+
+def update_service_equipment(service_id, equipment_list):
+    """Update all equipment for a service"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Delete existing
+    cursor.execute('DELETE FROM service_equipment WHERE service_id = ?', (service_id,))
+
+    # Insert new
+    for eq in equipment_list:
+        cursor.execute('''
+            INSERT INTO service_equipment (service_id, equipment_id, hours_used)
             VALUES (?, ?, ?)
-        ''', (service_id, c['consumable_id'], c['quantity']))
+        ''', (service_id, eq['equipment_id'], eq['hours_used']))
 
     conn.commit()
     conn.close()
@@ -693,22 +802,39 @@ def calculate_service_price(service_id, clinic_id):
     else:  # percentage - will be calculated after final price
         doctor_fee = 0
 
-    # Equipment cost (per-hour equipment)
+    # Equipment cost (per-hour equipment) - supports multiple equipment from service_equipment table
     equipment_cost = 0
-    if service['equipment_id'] and service['equipment_hours_used']:
+    service_equipment = service.get('equipment_list', [])
+
+    # Also check legacy single equipment field for backward compatibility
+    if not service_equipment and service.get('equipment_id') and service.get('equipment_hours_used'):
         for eq in equipment_list:
             if eq['id'] == service['equipment_id'] and eq['allocation_type'] == 'per-hour':
                 monthly_depreciation = eq['purchase_cost'] / (eq['life_years'] * 12)
                 if eq['monthly_usage_hours'] and eq['monthly_usage_hours'] > 0:
                     hourly_rate = monthly_depreciation / eq['monthly_usage_hours']
                     equipment_cost = hourly_rate * service['equipment_hours_used']
+    else:
+        # Calculate cost for each equipment in the service_equipment list
+        for se in service_equipment:
+            # Find the equipment details
+            eq = next((e for e in equipment_list if e['id'] == se['equipment_id']), None)
+            if eq and eq['allocation_type'] == 'per-hour':
+                monthly_depreciation = eq['purchase_cost'] / (eq['life_years'] * 12)
+                if eq['monthly_usage_hours'] and eq['monthly_usage_hours'] > 0:
+                    hourly_rate = monthly_depreciation / eq['monthly_usage_hours']
+                    equipment_cost += hourly_rate * se['hours_used']
 
-    # Direct materials (consumables)
+    # Direct materials (consumables) - supports custom unit price per service
     consumables = service.get('consumables', [])
     materials_cost = 0
     for c in consumables:
-        per_case_cost = (c['pack_cost'] / c['cases_per_pack'] / c['units_per_case'])
-        materials_cost += per_case_cost * c['quantity']
+        # Use custom unit price if set, otherwise calculate from pack cost
+        if c.get('custom_unit_price') is not None:
+            unit_cost = c['custom_unit_price']
+        else:
+            unit_cost = c['pack_cost'] / c['cases_per_pack'] / c['units_per_case']
+        materials_cost += unit_cost * c['quantity']
 
     # Total cost (initial calculation)
     total_cost = chair_time_cost + doctor_fee + equipment_cost + materials_cost
@@ -757,6 +883,7 @@ def calculate_service_price(service_id, clinic_id):
 
     return {
         'service_name': service['name'],
+        'name_ar': service.get('name_ar', ''),
         'chair_time_cost': round(chair_time_cost, 2),
         'doctor_fee': round(doctor_fee, 2),
         'equipment_cost': round(equipment_cost, 2),
@@ -791,7 +918,345 @@ def calculate_all_services(clinic_id):
         if price_data:
             results.append({
                 'id': service['id'],
+                'category_id': service.get('category_id'),
+                'category_name': service.get('category_name'),
                 **price_data
             })
 
     return results
+
+
+# ============== Super Admin & Subscription ==============
+
+def is_super_admin(user_id):
+    """Check if user is a super admin"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT is_super_admin FROM users WHERE id = ?', (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row and row['is_super_admin'] == 1
+
+
+def get_all_clinics_admin():
+    """Get all clinics with stats (super admin only)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT c.*,
+               (SELECT COUNT(*) FROM users WHERE clinic_id = c.id AND is_active = 1) as user_count,
+               (SELECT COUNT(*) FROM services WHERE clinic_id = c.id) as service_count
+        FROM clinics c
+        ORDER BY c.created_at DESC
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict_from_row(r) for r in rows]
+
+
+def get_clinic_payments(clinic_id):
+    """Get payment history for a clinic"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT sp.*, u.first_name || ' ' || u.last_name as recorded_by_name
+        FROM subscription_payments sp
+        LEFT JOIN users u ON sp.recorded_by = u.id
+        WHERE sp.clinic_id = ?
+        ORDER BY sp.payment_date DESC, sp.created_at DESC
+    ''', (clinic_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict_from_row(r) for r in rows]
+
+
+def record_payment(clinic_id, amount, payment_date, payment_method, months_paid, recorded_by,
+                   receipt_number=None, payment_notes=None, currency='EGP'):
+    """Record a subscription payment and update clinic subscription"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Insert payment record
+    cursor.execute('''
+        INSERT INTO subscription_payments (clinic_id, amount, currency, payment_date, payment_method,
+                                          months_paid, receipt_number, payment_notes, recorded_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (clinic_id, amount, currency, payment_date, payment_method, months_paid,
+          receipt_number, payment_notes, recorded_by))
+    payment_id = cursor.lastrowid
+
+    # Calculate new expiry date
+    cursor.execute('SELECT subscription_expires_at FROM clinics WHERE id = ?', (clinic_id,))
+    row = cursor.fetchone()
+    current_expiry = row['subscription_expires_at'] if row else None
+
+    # Start from current expiry or today, whichever is later
+    if current_expiry:
+        from datetime import datetime
+        try:
+            expiry_date = datetime.strptime(current_expiry, '%Y-%m-%d').date()
+            if expiry_date < datetime.now().date():
+                expiry_date = datetime.now().date()
+        except:
+            expiry_date = datetime.now().date()
+    else:
+        expiry_date = datetime.now().date()
+
+    # Add months (30 days per month)
+    new_expiry = expiry_date + timedelta(days=30 * months_paid)
+
+    # Update clinic subscription
+    cursor.execute('''
+        UPDATE clinics SET
+            subscription_status = 'active',
+            subscription_expires_at = ?,
+            last_payment_date = ?,
+            last_payment_amount = ?,
+            grace_period_start = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (new_expiry.strftime('%Y-%m-%d'), payment_date, amount, clinic_id))
+
+    conn.commit()
+    conn.close()
+    return {'payment_id': payment_id, 'new_expiry': new_expiry.strftime('%Y-%m-%d')}
+
+
+def update_clinic_subscription(clinic_id, **kwargs):
+    """Update clinic subscription fields"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    fields = []
+    values = []
+    for key, value in kwargs.items():
+        if key in ['subscription_status', 'subscription_expires_at', 'subscription_plan', 'is_active', 'grace_period_start']:
+            fields.append(f'{key} = ?')
+            values.append(value)
+
+    if fields:
+        values.append(clinic_id)
+        cursor.execute(f"UPDATE clinics SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        conn.commit()
+
+    conn.close()
+    return True
+
+
+def update_clinic_language(clinic_id, language):
+    """Update clinic language preference"""
+    if language not in ['en', 'ar']:
+        return False
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE clinics SET language = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (language, clinic_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_clinic_language(clinic_id):
+    """Get clinic language preference"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT language FROM clinics WHERE id = ?', (clinic_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row['language'] if row and row['language'] else 'en'
+
+
+def toggle_clinic_status(clinic_id):
+    """Toggle clinic active status"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE clinics SET is_active = 1 - is_active, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (clinic_id,))
+    conn.commit()
+
+    # Get new status
+    cursor.execute('SELECT is_active FROM clinics WHERE id = ?', (clinic_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row['is_active'] if row else None
+
+
+def get_subscription_status(clinic_id):
+    """Get detailed subscription status for a clinic"""
+    # Trial configuration
+    TRIAL_DAYS = 7
+    MAX_TRIAL_SERVICES = 2
+
+    # Super admin clinic (id=1) always has permanent/infinite subscription
+    if clinic_id == 1:
+        return {
+            'status': 'active',
+            'days_remaining': 9999,
+            'restriction_level': 'none',
+            'expires_at': None,
+            'is_permanent': True,
+            'trial_days_remaining': 0,
+            'services_used': 0,
+            'max_trial_services': MAX_TRIAL_SERVICES
+        }
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT subscription_status, subscription_expires_at, subscription_plan, grace_period_start, is_active, created_at
+        FROM clinics WHERE id = ?
+    ''', (clinic_id,))
+    row = cursor.fetchone()
+
+    if not row:
+        conn.close()
+        return {'status': 'unknown', 'days_remaining': 0, 'restriction_level': 'lockout'}
+
+    clinic = dict_from_row(row)
+
+    # Get service count for this clinic
+    cursor.execute('SELECT COUNT(*) as count FROM services WHERE clinic_id = ?', (clinic_id,))
+    services_used = cursor.fetchone()['count']
+    conn.close()
+
+    # Calculate trial days remaining
+    trial_days_remaining = 0
+    if clinic.get('created_at'):
+        try:
+            # Handle different datetime formats
+            created_str = clinic['created_at']
+            if ' ' in created_str:
+                created_date = datetime.strptime(created_str.split('.')[0], '%Y-%m-%d %H:%M:%S').date()
+            else:
+                created_date = datetime.strptime(created_str, '%Y-%m-%d').date()
+            trial_end_date = created_date + timedelta(days=TRIAL_DAYS)
+            trial_days_remaining = (trial_end_date - datetime.now().date()).days
+            trial_days_remaining = max(0, trial_days_remaining)
+        except Exception as e:
+            trial_days_remaining = 0
+
+    # If clinic is deactivated by admin, treat as suspended/lockout
+    if not clinic.get('is_active', 1):
+        return {
+            'status': 'suspended',
+            'days_remaining': 0,
+            'restriction_level': 'lockout',
+            'expires_at': clinic['subscription_expires_at'],
+            'is_suspended': True,
+            'trial_days_remaining': trial_days_remaining,
+            'services_used': services_used,
+            'max_trial_services': MAX_TRIAL_SERVICES
+        }
+
+    status = clinic['subscription_status']
+    expires_at = clinic['subscription_expires_at']
+    grace_start = clinic['grace_period_start']
+
+    # For trial status
+    if status == 'trial':
+        # Check if trial has expired (7 days) or service limit reached
+        trial_expired = trial_days_remaining <= 0
+        service_limit_reached = services_used >= MAX_TRIAL_SERVICES
+
+        # If trial expired, treat as lockout
+        if trial_expired:
+            return {
+                'status': 'expired',
+                'days_remaining': 0,
+                'restriction_level': 'lockout',
+                'expires_at': expires_at,
+                'trial_days_remaining': 0,
+                'services_used': services_used,
+                'max_trial_services': MAX_TRIAL_SERVICES,
+                'trial_ended': True
+            }
+
+        return {
+            'status': 'trial',
+            'days_remaining': None,
+            'restriction_level': 'trial',  # Price list restricted
+            'expires_at': expires_at,
+            'trial_days_remaining': trial_days_remaining,
+            'services_used': services_used,
+            'max_trial_services': MAX_TRIAL_SERVICES,
+            'can_add_services': services_used < MAX_TRIAL_SERVICES
+        }
+
+    # Calculate days remaining for active subscriptions
+    days_remaining = 0
+    if expires_at:
+        try:
+            expiry_date = datetime.strptime(expires_at, '%Y-%m-%d').date()
+            days_remaining = (expiry_date - datetime.now().date()).days
+        except:
+            pass
+
+    # Determine restriction level
+    if days_remaining > 7:
+        restriction_level = 'none'
+        status = 'active'
+    elif days_remaining > 0:
+        restriction_level = 'warning'
+        status = 'active'
+    elif days_remaining > -3:
+        restriction_level = 'readonly'
+        status = 'grace_period'
+    else:
+        restriction_level = 'lockout'
+        status = 'expired'
+
+    return {
+        'status': status,
+        'days_remaining': days_remaining,
+        'restriction_level': restriction_level,
+        'expires_at': expires_at,
+        'trial_days_remaining': trial_days_remaining,
+        'services_used': services_used,
+        'max_trial_services': MAX_TRIAL_SERVICES
+    }
+
+
+def get_super_admin_stats():
+    """Get summary statistics for super admin dashboard"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Total clinics (excluding super admin clinic id=1)
+    cursor.execute('SELECT COUNT(*) as total FROM clinics WHERE id > 1')
+    total = cursor.fetchone()['total']
+
+    # Active subscriptions
+    cursor.execute('''
+        SELECT COUNT(*) as active FROM clinics
+        WHERE id > 1 AND subscription_status = 'active' AND is_active = 1
+    ''')
+    active = cursor.fetchone()['active']
+
+    # Trial
+    cursor.execute('''
+        SELECT COUNT(*) as trial FROM clinics
+        WHERE id > 1 AND subscription_status = 'trial'
+    ''')
+    trial = cursor.fetchone()['trial']
+
+    # Expired/Grace period
+    cursor.execute('''
+        SELECT COUNT(*) as expired FROM clinics
+        WHERE id > 1 AND subscription_status IN ('expired', 'grace_period')
+    ''')
+    expired = cursor.fetchone()['expired']
+
+    # Recent payments (last 30 days)
+    cursor.execute('''
+        SELECT COALESCE(SUM(amount), 0) as revenue
+        FROM subscription_payments
+        WHERE payment_date >= date('now', '-30 days')
+    ''')
+    revenue = cursor.fetchone()['revenue']
+
+    conn.close()
+    return {
+        'total_clinics': total,
+        'active_subscriptions': active,
+        'trial_clinics': trial,
+        'expired_clinics': expired,
+        'monthly_revenue': revenue
+    }

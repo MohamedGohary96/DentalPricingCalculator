@@ -28,9 +28,17 @@ from modules.models import (
     get_all_equipment, create_equipment, update_equipment, delete_equipment,
     get_clinic_capacity, update_clinic_capacity,
     get_all_consumables, create_consumable, update_consumable, delete_consumable,
+    # Categories
+    get_all_categories, get_category_by_id, create_category, update_category, delete_category,
+    # Services
     get_all_services, get_service_by_id, create_service, update_service, delete_service,
-    update_service_consumables,
-    calculate_service_price, calculate_all_services
+    update_service_consumables, update_service_equipment,
+    calculate_service_price, calculate_all_services,
+    # Super Admin & Subscription
+    is_super_admin, get_all_clinics_admin, get_clinic_payments, record_payment,
+    update_clinic_subscription, toggle_clinic_status, get_subscription_status, get_super_admin_stats,
+    # Language
+    update_clinic_language, get_clinic_language
 )
 
 # Initialize Flask app
@@ -85,6 +93,18 @@ def owner_required(f):
     return decorated_function
 
 
+def super_admin_required(f):
+    """Decorator to require super admin access"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Authentication required'}), 401
+        if not session.get('is_super_admin'):
+            return jsonify({'error': 'Super admin access required'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 # ============== Routes ==============
 
 @app.route('/')
@@ -110,14 +130,22 @@ def login():
         session['clinic_id'] = user['clinic_id']
         session['clinic_name'] = user.get('clinic_name', '')
         session['role'] = user.get('role', 'staff')
+        # Super admin is the user with username 'admin'
+        session['is_super_admin'] = user['username'] == 'admin'
         session.permanent = True
+
+        # Get subscription status for frontend
+        subscription = get_subscription_status(user['clinic_id'])
+
         return jsonify({'success': True, 'user': {
             'id': user['id'],
             'username': user['username'],
             'first_name': user['first_name'],
             'last_name': user['last_name'],
             'role': user.get('role', 'staff'),
-            'clinic_name': user.get('clinic_name', '')
+            'clinic_name': user.get('clinic_name', ''),
+            'is_super_admin': user['username'] == 'admin',
+            'subscription': subscription
         }})
 
     return jsonify({'error': 'Invalid credentials'}), 401
@@ -134,13 +162,19 @@ def logout():
 @login_required
 def get_current_user():
     """Get current logged-in user info"""
+    clinic_id = session.get('clinic_id')
+    subscription = get_subscription_status(clinic_id) if clinic_id else None
+    language = get_clinic_language(clinic_id) if clinic_id else 'en'
     return jsonify({
         'id': session.get('user_id'),
         'username': session.get('username'),
         'name': session.get('user_name'),
-        'clinic_id': session.get('clinic_id'),
+        'clinic_id': clinic_id,
         'clinic_name': session.get('clinic_name'),
-        'role': session.get('role')
+        'role': session.get('role'),
+        'is_super_admin': session.get('is_super_admin', False),
+        'subscription': subscription,
+        'language': language
     })
 
 
@@ -204,6 +238,30 @@ def api_update_global_settings():
     clinic_id = get_clinic_id()
     data = request.get_json()
     update_global_settings(clinic_id, **data)
+    return jsonify({'success': True})
+
+
+# ============== Language Settings ==============
+
+@app.route('/api/settings/language')
+@login_required
+def api_get_language():
+    """Get clinic language preference"""
+    clinic_id = get_clinic_id()
+    language = get_clinic_language(clinic_id)
+    return jsonify({'language': language})
+
+
+@app.route('/api/settings/language', methods=['PUT'])
+@login_required
+def api_update_language():
+    """Update clinic language preference"""
+    clinic_id = get_clinic_id()
+    data = request.get_json()
+    language = data.get('language', 'en')
+    if language not in ['en', 'ar']:
+        return jsonify({'error': 'Invalid language. Supported: en, ar'}), 400
+    update_clinic_language(clinic_id, language)
     return jsonify({'success': True})
 
 
@@ -383,6 +441,56 @@ def api_delete_consumable(consumable_id):
     return jsonify({'success': True})
 
 
+# ============== Service Categories ==============
+
+@app.route('/api/categories')
+@login_required
+def api_get_categories():
+    """Get all service categories"""
+    clinic_id = get_clinic_id()
+    return jsonify(get_all_categories(clinic_id))
+
+
+@app.route('/api/categories/<int:category_id>')
+@login_required
+def api_get_category(category_id):
+    """Get category by ID"""
+    clinic_id = get_clinic_id()
+    category = get_category_by_id(category_id, clinic_id)
+    if category:
+        return jsonify(category)
+    return jsonify({'error': 'Category not found'}), 404
+
+
+@app.route('/api/categories', methods=['POST'])
+@login_required
+def api_create_category():
+    """Create new category"""
+    clinic_id = get_clinic_id()
+    data = request.get_json()
+    category_id = create_category(clinic_id, data['name'], data.get('display_order'))
+    return jsonify({'success': True, 'id': category_id})
+
+
+@app.route('/api/categories/<int:category_id>', methods=['PUT'])
+@login_required
+def api_update_category(category_id):
+    """Update category"""
+    clinic_id = get_clinic_id()
+    data = request.get_json()
+    update_category(category_id, clinic_id, **data)
+    return jsonify({'success': True})
+
+
+@app.route('/api/categories/<int:category_id>', methods=['DELETE'])
+@login_required
+def api_delete_category(category_id):
+    """Delete category (soft delete)"""
+    clinic_id = get_clinic_id()
+    delete_category(category_id, clinic_id)
+    return jsonify({'success': True})
+
+
 # ============== Services ==============
 
 @app.route('/api/services')
@@ -411,11 +519,15 @@ def api_create_service():
     clinic_id = get_clinic_id()
     data = request.get_json()
     consumables = data.pop('consumables', [])
+    equipment_list = data.pop('equipment_list', [])
 
     service_id = create_service(clinic_id, **data)
 
     if consumables:
         update_service_consumables(service_id, consumables)
+
+    if equipment_list:
+        update_service_equipment(service_id, equipment_list)
 
     return jsonify({'success': True, 'id': service_id})
 
@@ -427,11 +539,15 @@ def api_update_service(service_id):
     clinic_id = get_clinic_id()
     data = request.get_json()
     consumables = data.pop('consumables', None)
+    equipment_list = data.pop('equipment_list', None)
 
     update_service(service_id, clinic_id, **data)
 
     if consumables is not None:
         update_service_consumables(service_id, consumables)
+
+    if equipment_list is not None:
+        update_service_equipment(service_id, equipment_list)
 
     return jsonify({'success': True})
 
@@ -466,6 +582,98 @@ def api_get_price_list():
     return jsonify(calculate_all_services(clinic_id))
 
 
+# ============== Subscription Status ==============
+
+@app.route('/api/subscription/status')
+@login_required
+def api_get_subscription_status():
+    """Get current clinic's subscription status"""
+    clinic_id = get_clinic_id()
+    return jsonify(get_subscription_status(clinic_id))
+
+
+# ============== Super Admin ==============
+
+@app.route('/api/super-admin/stats')
+@super_admin_required
+def api_super_admin_stats():
+    """Get super admin dashboard statistics"""
+    return jsonify(get_super_admin_stats())
+
+
+@app.route('/api/super-admin/clinics')
+@super_admin_required
+def api_super_admin_clinics():
+    """Get all clinics (super admin only)"""
+    clinics = get_all_clinics_admin()
+    # Add subscription status to each clinic
+    for clinic in clinics:
+        clinic['subscription_info'] = get_subscription_status(clinic['id'])
+    return jsonify(clinics)
+
+
+@app.route('/api/super-admin/clinics/<int:clinic_id>')
+@super_admin_required
+def api_super_admin_clinic(clinic_id):
+    """Get clinic details (super admin only)"""
+    clinic = get_clinic_by_id(clinic_id)
+    if clinic:
+        clinic['subscription_info'] = get_subscription_status(clinic_id)
+        clinic['payments'] = get_clinic_payments(clinic_id)
+        return jsonify(clinic)
+    return jsonify({'error': 'Clinic not found'}), 404
+
+
+@app.route('/api/super-admin/clinics/<int:clinic_id>/toggle-status', methods=['PUT'])
+@super_admin_required
+def api_super_admin_toggle_clinic(clinic_id):
+    """Toggle clinic active status (super admin only)"""
+    # Don't allow toggling the super admin clinic (id=1)
+    if clinic_id == 1:
+        return jsonify({'error': 'Cannot modify super admin clinic'}), 400
+    new_status = toggle_clinic_status(clinic_id)
+    return jsonify({'success': True, 'is_active': new_status})
+
+
+@app.route('/api/super-admin/clinics/<int:clinic_id>/subscription', methods=['PUT'])
+@super_admin_required
+def api_super_admin_update_subscription(clinic_id):
+    """Update clinic subscription (super admin only)"""
+    if clinic_id == 1:
+        return jsonify({'error': 'Cannot modify super admin clinic'}), 400
+    data = request.get_json()
+    update_clinic_subscription(clinic_id, **data)
+    return jsonify({'success': True})
+
+
+@app.route('/api/super-admin/clinics/<int:clinic_id>/payments', methods=['GET'])
+@super_admin_required
+def api_super_admin_clinic_payments(clinic_id):
+    """Get clinic payment history (super admin only)"""
+    return jsonify(get_clinic_payments(clinic_id))
+
+
+@app.route('/api/super-admin/clinics/<int:clinic_id>/payments', methods=['POST'])
+@super_admin_required
+def api_super_admin_record_payment(clinic_id):
+    """Record payment for clinic (super admin only)"""
+    if clinic_id == 1:
+        return jsonify({'error': 'Cannot modify super admin clinic'}), 400
+    data = request.get_json()
+    result = record_payment(
+        clinic_id=clinic_id,
+        amount=data['amount'],
+        payment_date=data['payment_date'],
+        payment_method=data['payment_method'],
+        months_paid=data['months_paid'],
+        recorded_by=session.get('user_id'),
+        receipt_number=data.get('receipt_number'),
+        payment_notes=data.get('payment_notes'),
+        currency=data.get('currency', 'EGP')
+    )
+    return jsonify({'success': True, **result})
+
+
 # ============== Clinic Registration ==============
 
 @app.route('/register')
@@ -482,7 +690,7 @@ def api_register_clinic():
     data = request.get_json()
 
     # Validate required fields
-    required_fields = ['clinic_name', 'clinic_email', 'owner_username', 'owner_password',
+    required_fields = ['clinic_name', 'owner_username', 'owner_password',
                        'owner_first_name', 'owner_last_name', 'owner_email']
     for field in required_fields:
         if not data.get(field):
@@ -501,7 +709,7 @@ def api_register_clinic():
     try:
         result = register_clinic_with_owner(
             clinic_name=data['clinic_name'],
-            clinic_email=data['clinic_email'],
+            clinic_email=data.get('clinic_email'),
             clinic_phone=data.get('clinic_phone'),
             clinic_address=data.get('clinic_address'),
             clinic_city=data.get('clinic_city'),
