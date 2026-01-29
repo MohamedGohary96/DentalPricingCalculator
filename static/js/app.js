@@ -682,7 +682,7 @@ const APP = {
         }
     },
 
-    async loadPage(page) {
+    async loadPage(page, scrollToSection = null) {
         this.currentPage = page;
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         document.querySelector(`[onclick="APP.loadPage('${page}')"]`)?.classList.add('active');
@@ -697,6 +697,16 @@ const APP = {
 
         // Re-update navigation text (in case language changed)
         this.updateNavigationText();
+
+        // Scroll to section if specified
+        if (scrollToSection) {
+            setTimeout(() => {
+                const section = document.getElementById(scrollToSection);
+                if (section) {
+                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 100);
+        }
     }
 };
 
@@ -1065,7 +1075,7 @@ const Pages = {
                 </div>
             </div>
 
-            <div class="card" style="margin-top:1.5rem;">
+            <div class="card" style="margin-top:1.5rem;" id="section-fixed-costs">
                 <div class="card-header">
                     <h3 class="card-title">${t('settings.fixedMonthlyCosts')}</h3>
                     <button class="btn btn-sm btn-primary" onclick="Pages.showFixedCostForm()">+ ${t('settings.addCost')}</button>
@@ -1099,7 +1109,7 @@ const Pages = {
                 </div>
             </div>
 
-            <div class="card" style="margin-top:1.5rem;">
+            <div class="card" style="margin-top:1.5rem;" id="section-salaries">
                 <div class="card-header">
                     <h3 class="card-title">${t('settings.salaries')}</h3>
                     <button class="btn btn-sm btn-primary" onclick="Pages.showSalaryForm()">+ ${t('settings.addSalary')}</button>
@@ -1133,7 +1143,7 @@ const Pages = {
                 </div>
             </div>
 
-            <div class="card" style="margin-top:1.5rem;">
+            <div class="card" style="margin-top:1.5rem;" id="section-depreciation">
                 <div class="card-header">
                     <h3 class="card-title">${t('settings.depreciation')}</h3>
                     <button class="btn btn-sm btn-primary" onclick="Pages.showEquipmentForm()">+ ${t('settings.addEquipment')}</button>
@@ -1257,7 +1267,7 @@ const Pages = {
                 }
                 showToast(t('toast.fixedCostSaved'));
                 closeAllModals();
-                APP.loadPage('settings');
+                APP.loadPage('settings', 'section-fixed-costs');
             } catch(err) {
                 showToast(err.message, 'error');
             }
@@ -1269,7 +1279,7 @@ const Pages = {
             try {
                 await API.delete(`/api/fixed-costs/${id}`);
                 showToast(t('toast.fixedCostDeleted'));
-                APP.loadPage('settings');
+                APP.loadPage('settings', 'section-fixed-costs');
             } catch(err) {
                 showToast(err.message, 'error');
             }
@@ -1330,7 +1340,7 @@ const Pages = {
                 }
                 showToast(t('toast.salarySaved'));
                 closeAllModals();
-                APP.loadPage('settings');
+                APP.loadPage('settings', 'section-salaries');
             } catch(err) {
                 showToast(err.message, 'error');
             }
@@ -1342,7 +1352,7 @@ const Pages = {
             try {
                 await API.delete(`/api/salaries/${id}`);
                 showToast(t('toast.salaryDeleted'));
-                APP.loadPage('settings');
+                APP.loadPage('settings', 'section-salaries');
             } catch(err) {
                 showToast(err.message, 'error');
             }
@@ -1422,7 +1432,7 @@ const Pages = {
                 }
                 showToast(t('toast.equipmentSaved'));
                 closeAllModals();
-                APP.loadPage('settings');
+                APP.loadPage('settings', 'section-depreciation');
             } catch(err) {
                 showToast(err.message, 'error');
             }
@@ -1434,7 +1444,7 @@ const Pages = {
             try {
                 await API.delete(`/api/equipment/${id}`);
                 showToast(t('toast.equipmentDeleted'));
-                APP.loadPage('settings');
+                APP.loadPage('settings', 'section-depreciation');
             } catch(err) {
                 showToast(err.message, 'error');
             }
