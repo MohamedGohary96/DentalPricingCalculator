@@ -2393,7 +2393,7 @@ const Pages = {
                 window.allServices = ${JSON.stringify(services)};
 
                 // Render services table/cards
-                function renderServicesTable(servicesToRender) {
+                window.renderServicesTable = function(servicesToRender) {
                     const container = document.getElementById('servicesTableContainer');
                     if (!container) return;
 
@@ -2564,7 +2564,7 @@ const Pages = {
                     }
 
                     // Re-render table and cards
-                    renderServicesTable(filtered);
+                    window.renderServicesTable(filtered);
                 };
 
                 // Debounced version for search input
