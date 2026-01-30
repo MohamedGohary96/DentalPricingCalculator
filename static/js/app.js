@@ -2397,6 +2397,11 @@ const Pages = {
                     const container = document.getElementById('servicesTableContainer');
                     if (!container) return;
 
+                    // Local references to global functions
+                    const t = window.t;
+                    const getLocalizedName = window.getLocalizedName;
+                    const formatCurrency = window.formatCurrency;
+
                     if (servicesToRender.length === 0) {
                         container.innerHTML = \`
                             <div class="empty-state">
