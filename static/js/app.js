@@ -456,192 +456,6 @@ window.debounce = function(func, wait) {
     };
 };
 
-// Setup services filter (called after services page renders)
-window.setupServicesFilter = function() {
-    if (!window._servicesData) return;
-
-    // Store services for filtering
-    window.allServices = window._servicesData;
-
-    // Render services table/cards
-    window.renderServicesTable = function(servicesToRender) {
-        const container = document.getElementById('servicesTableContainer');
-        if (!container) return;
-
-        // Local references to global functions
-        const t = window.t;
-        const getLocalizedName = window.getLocalizedName;
-        const formatCurrency = window.formatCurrency;
-
-        if (servicesToRender.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">🔍</div>
-                    <h3>${t('common.noResults') || 'No results found'}</h3>
-                    <p>${t('common.tryDifferentSearch') || 'Try adjusting your search or filters'}</p>
-                </div>
-            `;
-            return;
-        }
-
-        // Helper functions
-        const formatDoctorFee = (s) => {
-            const feeType = s.doctor_fee_type || 'hourly';
-            if (feeType === 'hourly') return `${formatCurrency(s.doctor_hourly_fee)}${t('services.perHour')}`;
-            if (feeType === 'fixed') return `${formatCurrency(s.doctor_fixed_fee)} (${t('services.fixed')})`;
-            if (feeType === 'percentage') return `${s.doctor_percentage}% ${t('services.ofFinal')}`;
-            return '-';
-        };
-
-        const renderServiceRow = (s) => `
-            <tr data-service-id="${s.id}">
-                <td style="padding-left:2rem;"><strong>${getLocalizedName(s)}</strong></td>
-                <td>${s.chair_time_hours}</td>
-                <td>${formatDoctorFee(s)}</td>
-                <td>${s.equipment_name||'-'}</td>
-                <td>
-                    <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
-                    <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
-                    <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
-                </td>
-            </tr>
-        `;
-
-        const renderServiceCard = (s) => `
-            <div class="mobile-card" data-service-id="${s.id}">
-                <div class="mobile-card-header">
-                    <div class="mobile-card-title">${getLocalizedName(s)}</div>
-                    <div class="mobile-card-actions">
-                        <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
-                        <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
-                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
-                    </div>
-                </div>
-                <div class="mobile-card-body">
-                    ${s.category_name ? `
-                        <div class="mobile-card-row">
-                            <span class="mobile-card-label">${t('common.category') || 'Category'}</span>
-                            <span class="mobile-card-value">📁 ${s.category_name}</span>
-                        </div>
-                    ` : ''}
-                    <div class="mobile-card-row">
-                        <span class="mobile-card-label">${t('services.chairTimeHrs')}</span>
-                        <span class="mobile-card-value">${s.chair_time_hours}h</span>
-                    </div>
-                    <div class="mobile-card-row">
-                        <span class="mobile-card-label">${t('services.doctorFee')}</span>
-                        <span class="mobile-card-value">${formatDoctorFee(s)}</span>
-                    </div>
-                    ${s.equipment_name ? `
-                        <div class="mobile-card-row">
-                            <span class="mobile-card-label">${t('services.equipment')}</span>
-                            <span class="mobile-card-value">${s.equipment_name}</span>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-
-        // Group by category
-        const grouped = {};
-        const uncategorized = [];
-        servicesToRender.forEach(s => {
-            if (s.category_name) {
-                if (!grouped[s.category_name]) grouped[s.category_name] = [];
-                grouped[s.category_name].push(s);
-            } else {
-                uncategorized.push(s);
-            }
-        });
-
-        let tableRows = '';
-        let mobileCards = '';
-
-        // Render categories
-        Object.keys(grouped).forEach(catName => {
-            const categoryServices = grouped[catName];
-            tableRows += `
-                <tr class="category-header" style="background:var(--gray-100);">
-                    <td colspan="5" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
-                        📁 ${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${categoryServices.length})</span>
-                    </td>
-                </tr>
-            `;
-            tableRows += categoryServices.map(renderServiceRow).join('');
-            mobileCards += categoryServices.map(renderServiceCard).join('');
-        });
-
-        // Render uncategorized
-        if (uncategorized.length > 0) {
-            tableRows += `
-                <tr class="category-header" style="background:var(--gray-100);">
-                    <td colspan="5" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
-                        📁 ${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length})</span>
-                    </td>
-                </tr>
-            `;
-            tableRows += uncategorized.map(renderServiceRow).join('');
-            mobileCards += uncategorized.map(renderServiceCard).join('');
-        }
-
-        container.innerHTML = `
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>${t('services.serviceName')}</th>
-                        <th>${t('services.chairTimeHrs')}</th>
-                        <th>${t('services.doctorFee')}</th>
-                        <th>${t('services.equipment')}</th>
-                        <th>${t('common.actions')}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${tableRows}
-                </tbody>
-            </table>
-            <div class="mobile-card-list">
-                ${mobileCards}
-            </div>
-        `;
-    };
-
-    // Filter services function
-    window.filterServices = function() {
-        const searchValue = document.getElementById('servicesSearch')?.value || '';
-        const categoryValue = document.getElementById('servicesCategory')?.value || 'all';
-
-        let filtered = window.allServices;
-
-        // Apply search filter
-        if (searchValue) {
-            const search = searchValue.toLowerCase();
-            filtered = filtered.filter(s => {
-                const name = (s.name || s.service_name || '').toLowerCase();
-                const nameAr = (s.name_ar || '').toLowerCase();
-                const category = (s.category_name || '').toLowerCase();
-                const equipment = (s.equipment_name || '').toLowerCase();
-                return name.includes(search) || nameAr.includes(search) ||
-                       category.includes(search) || equipment.includes(search);
-            });
-        }
-
-        // Apply category filter
-        if (categoryValue && categoryValue !== 'all') {
-            if (categoryValue === 'uncategorized') {
-                filtered = filtered.filter(s => !s.category_name);
-            } else {
-                filtered = filtered.filter(s => s.category_name === categoryValue);
-            }
-        }
-
-        // Re-render table and cards
-        window.renderServicesTable(filtered);
-    };
-
-    // Debounced version for search input
-    window.filterServicesDebounced = window.debounce(window.filterServices, 300);
-};
-
 // Global storage for consumables (populated when service form opens)
 window.serviceFormConsumables = [];
 
@@ -1236,11 +1050,6 @@ const APP = {
         const pageKey = page.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
         const html = await Pages[pageKey]();
         content.innerHTML = html;
-
-        // Setup page-specific functionality after HTML is inserted
-        if (page === 'services' && typeof window.setupServicesFilter === 'function') {
-            window.setupServicesFilter();
-        }
 
         // Re-update navigation text (in case language changed)
         this.updateNavigationText();
@@ -2400,169 +2209,47 @@ const Pages = {
                     }
                 </div>
 
-                ${services.length > 0 ? `
-                    <!-- Search & Filter Controls -->
-                    <div class="table-controls">
-                        <div class="search-wrapper">
-                            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-                            </svg>
-                            <input
-                                type="search"
-                                class="search-input"
-                                id="servicesSearch"
-                                placeholder="${t('common.search') || 'Search services...'}"
-                                oninput="window.filterServicesDebounced()"
-                            />
-                        </div>
-                        <div class="filter-group">
-                            <select class="filter-select" id="servicesCategory" onchange="window.filterServices()">
-                                <option value="all">${t('common.allCategories') || 'All Categories'}</option>
-                                ${[...new Set(services.map(s => s.category_name).filter(Boolean))].map(cat =>
-                                    `<option value="${cat}">${cat}</option>`
-                                ).join('')}
-                                ${services.some(s => !s.category_name) ? `<option value="uncategorized">${t('priceList.uncategorized')}</option>` : ''}
-                            </select>
-                        </div>
-                    </div>
-                ` : ''}
-
-                <div class="card-body" style="padding:0;" id="servicesTableContainer">
-                    ${services.length > 0 ? (() => {
-                        // Group services by category
-                        const grouped = {};
-                        const uncategorized = [];
-                        services.forEach(s => {
-                            if (s.category_name) {
-                                if (!grouped[s.category_name]) grouped[s.category_name] = [];
-                                grouped[s.category_name].push(s);
-                            } else {
-                                uncategorized.push(s);
-                            }
-                        });
-
-                        // Helper to format doctor fee display
-                        const formatDoctorFee = (s) => {
-                            const feeType = s.doctor_fee_type || 'hourly';
-                            if (feeType === 'hourly') {
-                                return `${formatCurrency(s.doctor_hourly_fee)}${t('services.perHour')}`;
-                            } else if (feeType === 'fixed') {
-                                return `${formatCurrency(s.doctor_fixed_fee)} (${t('services.fixed')})`;
-                            } else if (feeType === 'percentage') {
-                                return `${s.doctor_percentage}% ${t('services.ofFinal')}`;
-                            }
-                            return '-';
-                        };
-
-                        // Render service row
-                        const renderServiceRow = (s) => {
-                            return `
-                                <tr data-service-id="${s.id}">
-                                    <td style="padding-left:2rem;"><strong>${getLocalizedName(s)}</strong></td>
-                                    <td>${s.chair_time_hours}</td>
-                                    <td>${formatDoctorFee(s)}</td>
-                                    <td>${s.equipment_name||'-'}</td>
-                                    <td>
-                                        <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
-                                    </td>
+                <div class="card-body" style="padding:0;">
+                    ${services.length > 0 ? `
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>${t('services.serviceName')}</th>
+                                    <th>${t('services.chairTimeHrs')}</th>
+                                    <th>${t('services.doctorFee')}</th>
+                                    <th>${t('services.equipment')}</th>
+                                    <th>${t('common.actions')}</th>
                                 </tr>
-                            `;
-                        };
+                            </thead>
+                            <tbody>
+                                ${services.map(s => {
+                                    const feeType = s.doctor_fee_type || 'hourly';
+                                    let doctorFee = '-';
+                                    if (feeType === 'hourly') {
+                                        doctorFee = `${formatCurrency(s.doctor_hourly_fee)}${t('services.perHour')}`;
+                                    } else if (feeType === 'fixed') {
+                                        doctorFee = `${formatCurrency(s.doctor_fixed_fee)} (${t('services.fixed')})`;
+                                    } else if (feeType === 'percentage') {
+                                        doctorFee = `${s.doctor_percentage}% ${t('services.ofFinal')}`;
+                                    }
 
-                        // Render mobile card for service
-                        const renderServiceCard = (s) => {
-                            return `
-                                <div class="mobile-card" data-service-id="${s.id}">
-                                    <div class="mobile-card-header">
-                                        <div class="mobile-card-title">${getLocalizedName(s)}</div>
-                                        <div class="mobile-card-actions">
-                                            <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
-                                            <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
-                                            <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
-                                        </div>
-                                    </div>
-                                    <div class="mobile-card-body">
-                                        ${s.category_name ? `
-                                            <div class="mobile-card-row">
-                                                <span class="mobile-card-label">${t('common.category') || 'Category'}</span>
-                                                <span class="mobile-card-value">📁 ${s.category_name}</span>
-                                            </div>
-                                        ` : ''}
-                                        <div class="mobile-card-row">
-                                            <span class="mobile-card-label">${t('services.chairTimeHrs')}</span>
-                                            <span class="mobile-card-value">${s.chair_time_hours}h</span>
-                                        </div>
-                                        <div class="mobile-card-row">
-                                            <span class="mobile-card-label">${t('services.doctorFee')}</span>
-                                            <span class="mobile-card-value">${formatDoctorFee(s)}</span>
-                                        </div>
-                                        ${s.equipment_name ? `
-                                            <div class="mobile-card-row">
-                                                <span class="mobile-card-label">${t('services.equipment')}</span>
-                                                <span class="mobile-card-value">${s.equipment_name}</span>
-                                            </div>
-                                        ` : ''}
-                                    </div>
-                                </div>
-                            `;
-                        };
-
-                        const categoryNames = Object.keys(grouped);
-                        let tableRows = '';
-                        let mobileCards = '';
-
-                        // Render categorized services
-                        categoryNames.forEach(catName => {
-                            const categoryServices = grouped[catName];
-                            tableRows += `
-                                <tr class="category-header" style="background:var(--gray-100);">
-                                    <td colspan="5" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
-                                        📁 ${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${categoryServices.length} ${categoryServices.length === 1 ? t('services.service') : t('services.services')})</span>
-                                    </td>
-                                </tr>
-                            `;
-                            tableRows += categoryServices.map(renderServiceRow).join('');
-                            mobileCards += categoryServices.map(renderServiceCard).join('');
-                        });
-
-                        // Render uncategorized services
-                        if (uncategorized.length > 0) {
-                            tableRows += `
-                                <tr class="category-header" style="background:var(--gray-100);">
-                                    <td colspan="5" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
-                                        📁 ${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length} ${uncategorized.length === 1 ? t('services.service') : t('services.services')})</span>
-                                    </td>
-                                </tr>
-                            `;
-                            tableRows += uncategorized.map(renderServiceRow).join('');
-                            mobileCards += uncategorized.map(renderServiceCard).join('');
-                        }
-
-                        return `
-                            <!-- Desktop Table View -->
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>${t('services.serviceName')}</th>
-                                        <th>${t('services.chairTimeHrs')}</th>
-                                        <th>${t('services.doctorFee')}</th>
-                                        <th>${t('services.equipment')}</th>
-                                        <th>${t('common.actions')}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${tableRows}
-                                </tbody>
-                            </table>
-
-                            <!-- Mobile Card View -->
-                            <div class="mobile-card-list">
-                                ${mobileCards}
-                            </div>
-                        `;
-                    })() : `
+                                    return `
+                                        <tr data-service-id="${s.id}">
+                                            <td><strong>${getLocalizedName(s)}</strong></td>
+                                            <td>${s.chair_time_hours}</td>
+                                            <td>${doctorFee}</td>
+                                            <td>${s.equipment_name||'-'}</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    ` : `
                         <div class="empty-state">
                             <div class="empty-state-icon">🦷</div>
                             <h3>${t('services.noServices')}</h3>
@@ -2579,9 +2266,6 @@ const Pages = {
                 </div>
             </div>
         `;
-
-        // Store services data for filtering (will be used by setupServicesFilter)
-        window._servicesData = services;
     },
 
     async showServiceForm(id=null) {
