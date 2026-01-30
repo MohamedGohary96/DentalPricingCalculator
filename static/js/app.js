@@ -2210,46 +2210,90 @@ const Pages = {
                 </div>
 
                 <div class="card-body" style="padding:0;">
-                    ${services.length > 0 ? `
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>${t('services.serviceName')}</th>
-                                    <th>${t('services.chairTimeHrs')}</th>
-                                    <th>${t('services.doctorFee')}</th>
-                                    <th>${t('services.equipment')}</th>
-                                    <th>${t('common.actions')}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${services.map(s => {
-                                    const feeType = s.doctor_fee_type || 'hourly';
-                                    let doctorFee = '-';
-                                    if (feeType === 'hourly') {
-                                        doctorFee = `${formatCurrency(s.doctor_hourly_fee)}${t('services.perHour')}`;
-                                    } else if (feeType === 'fixed') {
-                                        doctorFee = `${formatCurrency(s.doctor_fixed_fee)} (${t('services.fixed')})`;
-                                    } else if (feeType === 'percentage') {
-                                        doctorFee = `${s.doctor_percentage}% ${t('services.ofFinal')}`;
-                                    }
+                    ${services.length > 0 ? (() => {
+                        // Group services by category
+                        const grouped = {};
+                        const uncategorized = [];
+                        services.forEach(s => {
+                            if (s.category_name) {
+                                if (!grouped[s.category_name]) grouped[s.category_name] = [];
+                                grouped[s.category_name].push(s);
+                            } else {
+                                uncategorized.push(s);
+                            }
+                        });
 
-                                    return `
-                                        <tr data-service-id="${s.id}">
-                                            <td><strong>${getLocalizedName(s)}</strong></td>
-                                            <td>${s.chair_time_hours}</td>
-                                            <td>${doctorFee}</td>
-                                            <td>${s.equipment_name||'-'}</td>
-                                            <td>
-                                                <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
-                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
-                                                <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
-                                            </td>
-                                        </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    ` : `
+                        // Render service row
+                        const renderServiceRow = (s) => {
+                            const feeType = s.doctor_fee_type || 'hourly';
+                            let doctorFee = '-';
+                            if (feeType === 'hourly') {
+                                doctorFee = `${formatCurrency(s.doctor_hourly_fee)}${t('services.perHour')}`;
+                            } else if (feeType === 'fixed') {
+                                doctorFee = `${formatCurrency(s.doctor_fixed_fee)} (${t('services.fixed')})`;
+                            } else if (feeType === 'percentage') {
+                                doctorFee = `${s.doctor_percentage}% ${t('services.ofFinal')}`;
+                            }
+
+                            return `
+                                <tr data-service-id="${s.id}">
+                                    <td style="padding-left:2rem;"><strong>${getLocalizedName(s)}</strong></td>
+                                    <td>${s.chair_time_hours}</td>
+                                    <td>${doctorFee}</td>
+                                    <td>${s.equipment_name||'-'}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
+                                    </td>
+                                </tr>
+                            `;
+                        };
+
+                        const categoryNames = Object.keys(grouped);
+                        let tableRows = '';
+
+                        // Render categorized services
+                        categoryNames.forEach(catName => {
+                            tableRows += `
+                                <tr class="category-header" style="background:var(--gray-100);">
+                                    <td colspan="5" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
+                                        📁 ${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${grouped[catName].length} ${grouped[catName].length === 1 ? t('services.service') : t('services.services')})</span>
+                                    </td>
+                                </tr>
+                            `;
+                            tableRows += grouped[catName].map(renderServiceRow).join('');
+                        });
+
+                        // Render uncategorized services
+                        if (uncategorized.length > 0) {
+                            tableRows += `
+                                <tr class="category-header" style="background:var(--gray-100);">
+                                    <td colspan="5" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
+                                        📁 ${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length} ${uncategorized.length === 1 ? t('services.service') : t('services.services')})</span>
+                                    </td>
+                                </tr>
+                            `;
+                            tableRows += uncategorized.map(renderServiceRow).join('');
+                        }
+
+                        return `
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>${t('services.serviceName')}</th>
+                                        <th>${t('services.chairTimeHrs')}</th>
+                                        <th>${t('services.doctorFee')}</th>
+                                        <th>${t('services.equipment')}</th>
+                                        <th>${t('common.actions')}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        `;
+                    })() : `
                         <div class="empty-state">
                             <div class="empty-state-icon">🦷</div>
                             <h3>${t('services.noServices')}</h3>
