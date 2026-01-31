@@ -2297,13 +2297,11 @@ const Pages = {
                             <div class="empty-state-icon">🦷</div>
                             <h3>${t('services.noServices')}</h3>
                             <p>${t('services.addFirst')}</p>
-                            ${canAddService ? `
-                                <div class="empty-state-actions">
-                                    <button class="btn btn-primary" onclick="Pages.showServiceForm()">
-                                        + ${t('services.addService')}
-                                    </button>
-                                </div>
-                            ` : ''}
+                            <div class="empty-state-actions">
+                                <button class="btn btn-primary" onclick="Pages.showServiceForm()">
+                                    + ${t('services.addService')}
+                                </button>
+                            </div>
                         </div>
                     `}
                 </div>
