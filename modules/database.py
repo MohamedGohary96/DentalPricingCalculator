@@ -354,6 +354,24 @@ def init_database():
     if 'email_verified' not in user_columns:
         cursor.execute('ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 1')  # Default 1 for existing users
 
+    # Migration: Update password_reset_tokens table to use token_hash instead of token
+    cursor.execute("PRAGMA table_info(password_reset_tokens)")
+    prt_columns = [column[1] for column in cursor.fetchall()]
+    if 'token' in prt_columns and 'token_hash' not in prt_columns:
+        # Drop old table and recreate with new schema
+        cursor.execute('DROP TABLE IF EXISTS password_reset_tokens')
+        cursor.execute('''
+            CREATE TABLE password_reset_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                token_hash TEXT UNIQUE NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                used INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ''')
+
     # Migration: Add subscription fields to clinics if they don't exist
     cursor.execute("PRAGMA table_info(clinics)")
     clinic_columns = [column[1] for column in cursor.fetchall()]
