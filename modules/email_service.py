@@ -1,11 +1,21 @@
 """
 Email Service Module for Dental Pricing Calculator
 Handles email verification and password reset functionality
+
+Configuration (in .env):
+- MAIL_ENABLED: True/False - whether to actually send emails
+- MAIL_SERVER: SMTP server (default: smtp.gmail.com)
+- MAIL_PORT: SMTP port (default: 587)
+- MAIL_USE_TLS: Use TLS (default: True)
+- MAIL_USERNAME: SMTP username
+- MAIL_PASSWORD: SMTP password
+- MAIL_DEFAULT_SENDER: Default sender email
+- FRONTEND_URL: URL for email links
 """
 import secrets
 import hashlib
 from datetime import datetime, timedelta
-from flask import current_app, url_for
+from flask import current_app
 from flask_mail import Mail, Message
 
 mail = Mail()
@@ -26,10 +36,53 @@ def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _is_mail_enabled():
+    """Check if email sending is enabled"""
+    return current_app.config.get('MAIL_ENABLED', True)
+
+
+def _log_email(email_type, recipient, subject, link=None):
+    """Log email details to console (used when MAIL_ENABLED=False)"""
+    print("\n" + "=" * 60)
+    print(f"  EMAIL [{email_type}] - NOT SENT (MAIL_ENABLED=False)")
+    print("=" * 60)
+    print(f"  To: {recipient}")
+    print(f"  Subject: {subject}")
+    if link:
+        print(f"  Link: {link}")
+    print("=" * 60 + "\n")
+
+
+def _send_email(subject, recipient, html_body, text_body, email_type="EMAIL", link=None):
+    """
+    Internal helper to send email or log it based on MAIL_ENABLED setting.
+
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    if not _is_mail_enabled():
+        _log_email(email_type, recipient, subject, link)
+        return True, f"{email_type} logged to console (email disabled)"
+
+    try:
+        msg = Message(
+            subject=subject,
+            recipients=[recipient],
+            html=html_body,
+            body=text_body
+        )
+        mail.send(msg)
+        return True, f"{email_type} sent successfully"
+    except Exception as e:
+        current_app.logger.error(f"Failed to send {email_type}: {str(e)}")
+        return False, str(e)
+
+
 def send_verification_email(user_email, user_name, token):
     """Send email verification link to user"""
     frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5002')
     verification_link = f"{frontend_url}/verify-email?token={token}"
+    expiry_hours = current_app.config.get('EMAIL_VERIFICATION_EXPIRY_HOURS', 24)
 
     subject = "Verify Your Email - Dental Pricing Calculator"
 
@@ -59,7 +112,7 @@ def send_verification_email(user_email, user_name, token):
                 </p>
                 <p>Or copy and paste this link into your browser:</p>
                 <p style="word-break: break-all; color: #667eea;">{verification_link}</p>
-                <p>This link will expire in 24 hours.</p>
+                <p>This link will expire in {expiry_hours} hours.</p>
                 <p>If you didn't create an account, you can safely ignore this email.</p>
             </div>
             <div class="footer">
@@ -79,31 +132,28 @@ def send_verification_email(user_email, user_name, token):
 
     {verification_link}
 
-    This link will expire in 24 hours.
+    This link will expire in {expiry_hours} hours.
 
     If you didn't create an account, you can safely ignore this email.
 
     - Dental Pricing Calculator Team
     """
 
-    try:
-        msg = Message(
-            subject=subject,
-            recipients=[user_email],
-            html=html_body,
-            body=text_body
-        )
-        mail.send(msg)
-        return True, "Verification email sent successfully"
-    except Exception as e:
-        current_app.logger.error(f"Failed to send verification email: {str(e)}")
-        return False, str(e)
+    return _send_email(
+        subject=subject,
+        recipient=user_email,
+        html_body=html_body,
+        text_body=text_body,
+        email_type="VERIFICATION",
+        link=verification_link
+    )
 
 
 def send_password_reset_email(user_email, user_name, token):
     """Send password reset link to user"""
     frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5002')
     reset_link = f"{frontend_url}/reset-password?token={token}"
+    expiry_hours = current_app.config.get('PASSWORD_RESET_EXPIRY_HOURS', 1)
 
     subject = "Reset Your Password - Dental Pricing Calculator"
 
@@ -135,7 +185,7 @@ def send_password_reset_email(user_email, user_name, token):
                 <p>Or copy and paste this link into your browser:</p>
                 <p style="word-break: break-all; color: #667eea;">{reset_link}</p>
                 <div class="warning">
-                    <strong>Important:</strong> This link will expire in 1 hour for security reasons.
+                    <strong>Important:</strong> This link will expire in {expiry_hours} hour(s) for security reasons.
                 </div>
                 <p>If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
             </div>
@@ -156,25 +206,21 @@ def send_password_reset_email(user_email, user_name, token):
 
     {reset_link}
 
-    Important: This link will expire in 1 hour for security reasons.
+    Important: This link will expire in {expiry_hours} hour(s) for security reasons.
 
     If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
 
     - Dental Pricing Calculator Team
     """
 
-    try:
-        msg = Message(
-            subject=subject,
-            recipients=[user_email],
-            html=html_body,
-            body=text_body
-        )
-        mail.send(msg)
-        return True, "Password reset email sent successfully"
-    except Exception as e:
-        current_app.logger.error(f"Failed to send password reset email: {str(e)}")
-        return False, str(e)
+    return _send_email(
+        subject=subject,
+        recipient=user_email,
+        html_body=html_body,
+        text_body=text_body,
+        email_type="PASSWORD_RESET",
+        link=reset_link
+    )
 
 
 def send_password_changed_notification(user_email, user_name):
@@ -229,15 +275,10 @@ def send_password_changed_notification(user_email, user_name):
     - Dental Pricing Calculator Team
     """
 
-    try:
-        msg = Message(
-            subject=subject,
-            recipients=[user_email],
-            html=html_body,
-            body=text_body
-        )
-        mail.send(msg)
-        return True, "Password change notification sent"
-    except Exception as e:
-        current_app.logger.error(f"Failed to send password change notification: {str(e)}")
-        return False, str(e)
+    return _send_email(
+        subject=subject,
+        recipient=user_email,
+        html_body=html_body,
+        text_body=text_body,
+        email_type="PASSWORD_CHANGED"
+    )

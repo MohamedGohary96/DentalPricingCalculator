@@ -42,6 +42,7 @@ class Config:
     PERMANENT_SESSION_LIFETIME = 28800  # 8 hours
 
     # Email configuration (Flask-Mail)
+    MAIL_ENABLED = os.environ.get('MAIL_ENABLED', 'True') == 'True'
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
     MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'True') == 'True'
@@ -49,25 +50,31 @@ class Config:
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER')
+    MAIL_DEBUG = os.environ.get('MAIL_DEBUG', 'False') == 'True'
 
     # Frontend URL for email links
     FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5002')
 
-    # Token expiration times (in seconds)
-    EMAIL_VERIFICATION_EXPIRY = 24 * 60 * 60  # 24 hours
-    PASSWORD_RESET_EXPIRY = 60 * 60  # 1 hour
+    # Token expiration times (in hours, converted to seconds)
+    EMAIL_VERIFICATION_EXPIRY_HOURS = int(os.environ.get('EMAIL_VERIFICATION_EXPIRY_HOURS', 24))
+    PASSWORD_RESET_EXPIRY_HOURS = int(os.environ.get('PASSWORD_RESET_EXPIRY_HOURS', 1))
 
 
 class DevelopmentConfig(Config):
     """Development configuration"""
     DEBUG = True
     SESSION_COOKIE_SECURE = False
+    # In development, emails are logged to console unless MAIL_ENABLED=True
+    MAIL_ENABLED = os.environ.get('MAIL_ENABLED', 'False') == 'True'
+    MAIL_DEBUG = os.environ.get('MAIL_DEBUG', 'True') == 'True'
 
 
 class ProductionConfig(Config):
     """Production configuration"""
     DEBUG = False
     SESSION_COOKIE_SECURE = False  # Set to True if using HTTPS
+    # In production, emails are sent by default
+    MAIL_ENABLED = os.environ.get('MAIL_ENABLED', 'True') == 'True'
 
 
 config = {
