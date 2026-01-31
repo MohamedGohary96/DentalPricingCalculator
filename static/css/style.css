@@ -61,6 +61,7 @@ body.app-scaled { zoom: 0.67; }
     padding: 0 32px;
     z-index: 1001;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    direction: ltr !important; /* Always LTR - logo left, title right */
 }
 
 .top-header-content {
@@ -68,7 +69,6 @@ body.app-scaled { zoom: 0.67; }
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    flex-direction: row !important; /* Always LTR layout for header */
 }
 
 .top-header-logo {
