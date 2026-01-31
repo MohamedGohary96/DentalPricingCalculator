@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email - Dental Pricing Calculator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-800), var(--primary-900));
+            padding: 2rem;
+        }
+
+        .auth-box {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .auth-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .auth-box h1 {
+            color: var(--primary);
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-box p {
+            color: var(--gray-600);
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-box {
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin: 1.5rem 0;
+        }
+
+        .status-box.loading {
+            background: #f0f4ff;
+            color: #667eea;
+        }
+
+        .status-box.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-box.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .btn-primary {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: transform 0.2s;
+            margin-top: 1rem;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .resend-section {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--gray-700);
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--gray-100);
+            color: var(--gray-700);
+            border: 2px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-200);
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-box">
+            <div class="auth-icon">📧</div>
+            <h1>Email Verification</h1>
+
+            <div id="verifyingSection">
+                <div class="status-box loading">
+                    <p style="margin: 0;">Verifying your email address...</p>
+                </div>
+            </div>
+
+            <div id="successSection" class="hidden">
+                <div class="status-box success">
+                    <p style="margin: 0; font-weight: 600;">Email verified successfully!</p>
+                    <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">Your account is now active.</p>
+                </div>
+                <a href="/" class="btn-primary">Go to Login</a>
+            </div>
+
+            <div id="errorSection" class="hidden">
+                <div class="status-box error">
+                    <p style="margin: 0; font-weight: 600;">Verification Failed</p>
+                    <p id="errorMessage" style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">The verification link is invalid or has expired.</p>
+                </div>
+
+                <div class="resend-section">
+                    <p style="color: var(--gray-600); margin-bottom: 1rem;">Need a new verification link?</p>
+                    <form id="resendForm">
+                        <div class="form-group">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" class="form-input" id="email" name="email" required placeholder="Enter your registered email">
+                        </div>
+                        <button type="submit" class="btn-secondary">Resend Verification Email</button>
+                    </form>
+                    <div id="resendStatus" class="hidden" style="margin-top: 1rem;"></div>
+                </div>
+            </div>
+
+            <div id="noTokenSection" class="hidden">
+                <p>No verification token found. Please check your email for the verification link.</p>
+                <div class="resend-section">
+                    <p style="color: var(--gray-600); margin-bottom: 1rem;">Need a new verification link?</p>
+                    <form id="resendFormNoToken">
+                        <div class="form-group">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" class="form-input" name="email" required placeholder="Enter your registered email">
+                        </div>
+                        <button type="submit" class="btn-secondary">Resend Verification Email</button>
+                    </form>
+                    <div id="resendStatusNoToken" class="hidden" style="margin-top: 1rem;"></div>
+                </div>
+                <a href="/" class="btn-primary" style="margin-top: 1.5rem;">Back to Login</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+
+            const verifyingSection = document.getElementById('verifyingSection');
+            const successSection = document.getElementById('successSection');
+            const errorSection = document.getElementById('errorSection');
+            const noTokenSection = document.getElementById('noTokenSection');
+
+            if (!token) {
+                verifyingSection.classList.add('hidden');
+                noTokenSection.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/verify-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+
+                const data = await response.json();
+
+                verifyingSection.classList.add('hidden');
+
+                if (response.ok && data.success) {
+                    successSection.classList.remove('hidden');
+                } else {
+                    document.getElementById('errorMessage').textContent = data.error || 'Verification failed';
+                    errorSection.classList.remove('hidden');
+                }
+            } catch (error) {
+                verifyingSection.classList.add('hidden');
+                document.getElementById('errorMessage').textContent = 'Network error. Please try again.';
+                errorSection.classList.remove('hidden');
+            }
+        });
+
+        // Handle resend form submissions
+        async function handleResend(form, statusDiv) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = form.querySelector('input[name="email"]').value;
+                const btn = form.querySelector('button');
+                const originalText = btn.textContent;
+
+                btn.disabled = true;
+                btn.textContent = 'Sending...';
+                statusDiv.classList.add('hidden');
+
+                try {
+                    const response = await fetch('/api/resend-verification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    });
+
+                    const data = await response.json();
+
+                    statusDiv.classList.remove('hidden');
+                    if (response.ok) {
+                        statusDiv.innerHTML = '<div class="status-box success" style="padding: 1rem;">' + data.message + '</div>';
+                    } else {
+                        statusDiv.innerHTML = '<div class="status-box error" style="padding: 1rem;">' + (data.error || 'Failed to send') + '</div>';
+                    }
+                } catch (error) {
+                    statusDiv.classList.remove('hidden');
+                    statusDiv.innerHTML = '<div class="status-box error" style="padding: 1rem;">Network error. Please try again.</div>';
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            });
+        }
+
+        handleResend(document.getElementById('resendForm'), document.getElementById('resendStatus'));
+        handleResend(document.getElementById('resendFormNoToken'), document.getElementById('resendStatusNoToken'));
+    </script>
+</body>
+</html>

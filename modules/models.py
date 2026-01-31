@@ -5,6 +5,7 @@ Multi-tenant SaaS version with clinic isolation
 
 from .database import get_connection, dict_from_row, hash_password, verify_password, create_default_categories
 import secrets
+import hashlib
 import re
 from datetime import datetime, timedelta
 
@@ -1271,3 +1272,222 @@ def get_super_admin_stats():
         'expired_clinics': expired,
         'monthly_revenue': revenue
     }
+
+
+# ============== Email Verification & Password Reset ==============
+
+def _hash_token(token):
+    """Hash a token for secure storage"""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def get_user_by_email(email):
+    """Get user by email address"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT u.*, c.name as clinic_name, c.slug as clinic_slug
+        FROM users u
+        LEFT JOIN clinics c ON u.clinic_id = c.id
+        WHERE u.email = ? AND u.is_active = 1
+    ''', (email,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict_from_row(row)
+
+
+def get_user_by_id(user_id):
+    """Get user by ID"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT u.*, c.name as clinic_name, c.slug as clinic_slug
+        FROM users u
+        LEFT JOIN clinics c ON u.clinic_id = c.id
+        WHERE u.id = ?
+    ''', (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict_from_row(row)
+
+
+def create_email_verification_token(user_id, expiry_hours=24):
+    """Create email verification token for a user"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Invalidate any existing tokens for this user
+    cursor.execute('DELETE FROM email_verification_tokens WHERE user_id = ?', (user_id,))
+
+    # Generate new token
+    token = secrets.token_urlsafe(32)
+    token_hash = _hash_token(token)
+    expires_at = datetime.now() + timedelta(hours=expiry_hours)
+
+    cursor.execute('''
+        INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+        VALUES (?, ?, ?)
+    ''', (user_id, token_hash, expires_at.strftime('%Y-%m-%d %H:%M:%S')))
+
+    conn.commit()
+    conn.close()
+
+    return token  # Return unhashed token for email
+
+
+def verify_email_token(token):
+    """Verify email verification token and mark user as verified"""
+    token_hash = _hash_token(token)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Find valid token
+    cursor.execute('''
+        SELECT * FROM email_verification_tokens
+        WHERE token_hash = ? AND used = 0 AND expires_at > datetime('now')
+    ''', (token_hash,))
+    token_row = cursor.fetchone()
+
+    if not token_row:
+        conn.close()
+        return False, "Invalid or expired verification token"
+
+    user_id = token_row['user_id']
+
+    # Mark token as used
+    cursor.execute('UPDATE email_verification_tokens SET used = 1 WHERE id = ?', (token_row['id'],))
+
+    # Mark user as email verified
+    cursor.execute('UPDATE users SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (user_id,))
+
+    conn.commit()
+    conn.close()
+
+    return True, "Email verified successfully"
+
+
+def is_email_verified(user_id):
+    """Check if user's email is verified"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT email_verified FROM users WHERE id = ?', (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row and row['email_verified'] == 1
+
+
+def create_password_reset_token(user_id, expiry_hours=1):
+    """Create password reset token for a user"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Invalidate any existing tokens for this user
+    cursor.execute('DELETE FROM password_reset_tokens WHERE user_id = ?', (user_id,))
+
+    # Generate new token
+    token = secrets.token_urlsafe(32)
+    token_hash = _hash_token(token)
+    expires_at = datetime.now() + timedelta(hours=expiry_hours)
+
+    cursor.execute('''
+        INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+        VALUES (?, ?, ?)
+    ''', (user_id, token_hash, expires_at.strftime('%Y-%m-%d %H:%M:%S')))
+
+    conn.commit()
+    conn.close()
+
+    return token  # Return unhashed token for email
+
+
+def verify_password_reset_token(token):
+    """Verify password reset token and return user_id if valid"""
+    token_hash = _hash_token(token)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Find valid token
+    cursor.execute('''
+        SELECT * FROM password_reset_tokens
+        WHERE token_hash = ? AND used = 0 AND expires_at > datetime('now')
+    ''', (token_hash,))
+    token_row = cursor.fetchone()
+
+    conn.close()
+
+    if not token_row:
+        return None, "Invalid or expired reset token"
+
+    return token_row['user_id'], "Token valid"
+
+
+def reset_password_with_token(token, new_password):
+    """Reset user password using token"""
+    token_hash = _hash_token(token)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Find valid token
+    cursor.execute('''
+        SELECT * FROM password_reset_tokens
+        WHERE token_hash = ? AND used = 0 AND expires_at > datetime('now')
+    ''', (token_hash,))
+    token_row = cursor.fetchone()
+
+    if not token_row:
+        conn.close()
+        return False, "Invalid or expired reset token"
+
+    user_id = token_row['user_id']
+
+    # Mark token as used
+    cursor.execute('UPDATE password_reset_tokens SET used = 1 WHERE id = ?', (token_row['id'],))
+
+    # Update password
+    password_hash = hash_password(new_password)
+    cursor.execute('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                   (password_hash, user_id))
+
+    conn.commit()
+    conn.close()
+
+    return True, user_id
+
+
+def create_user_unverified(clinic_id, username, password, first_name, last_name, email, role='staff'):
+    """Create a new user with email_verified = 0"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    password_hash = hash_password(password)
+    cursor.execute('''
+        INSERT INTO users (clinic_id, username, password_hash, first_name, last_name, email, role, email_verified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    ''', (clinic_id, username, password_hash, first_name, last_name, email, role))
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return user_id
+
+
+def resend_verification_email(user_id):
+    """Check if user can resend verification email (rate limiting)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Check for recent token (within last 2 minutes)
+    cursor.execute('''
+        SELECT created_at FROM email_verification_tokens
+        WHERE user_id = ? AND created_at > datetime('now', '-2 minutes')
+        ORDER BY created_at DESC LIMIT 1
+    ''', (user_id,))
+    recent = cursor.fetchone()
+    conn.close()
+
+    if recent:
+        return False, "Please wait before requesting another verification email"
+
+    return True, "Can resend"

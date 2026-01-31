@@ -284,16 +284,29 @@ def init_database():
         )
     ''')
 
+    # Email verification tokens table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS email_verification_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token_hash TEXT UNIQUE NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            used INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    ''')
+
     # Password reset tokens table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS password_reset_tokens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            token TEXT UNIQUE NOT NULL,
+            token_hash TEXT UNIQUE NOT NULL,
             expires_at TIMESTAMP NOT NULL,
             used INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     ''')
 
@@ -336,6 +349,10 @@ def init_database():
     user_columns = [column[1] for column in cursor.fetchall()]
     if 'is_super_admin' not in user_columns:
         cursor.execute('ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0')
+
+    # Migration: Add email_verified to users if it doesn't exist
+    if 'email_verified' not in user_columns:
+        cursor.execute('ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 1')  # Default 1 for existing users
 
     # Migration: Add subscription fields to clinics if they don't exist
     cursor.execute("PRAGMA table_info(clinics)")

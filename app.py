@@ -38,8 +38,15 @@ from modules.models import (
     is_super_admin, get_all_clinics_admin, get_clinic_payments, record_payment,
     update_clinic_subscription, toggle_clinic_status, get_subscription_status, get_super_admin_stats,
     # Language
-    update_clinic_language, get_clinic_language
+    update_clinic_language, get_clinic_language,
+    # Email verification & Password reset
+    get_user_by_email, get_user_by_id, create_email_verification_token, verify_email_token,
+    is_email_verified, create_password_reset_token, verify_password_reset_token,
+    reset_password_with_token, create_user_unverified, resend_verification_email
 )
+
+# Import email service
+from modules.email_service import init_mail, send_verification_email, send_password_reset_email, send_password_changed_notification
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -47,6 +54,9 @@ app = Flask(__name__)
 # Load configuration
 env = os.environ.get('FLASK_ENV', 'production')
 app.config.from_object(config[env])
+
+# Initialize Flask-Mail
+init_mail(app)
 
 # Ensure required folders exist
 os.makedirs(app.config['USER_DATA_DIR'], exist_ok=True)
@@ -704,6 +714,12 @@ def api_register_clinic():
     if cursor.fetchone():
         conn.close()
         return jsonify({'error': 'Username already exists'}), 400
+
+    # Check if email already exists
+    cursor.execute('SELECT id FROM users WHERE email = ?', (data['owner_email'],))
+    if cursor.fetchone():
+        conn.close()
+        return jsonify({'error': 'Email already registered'}), 400
     conn.close()
 
     try:
@@ -719,13 +735,161 @@ def api_register_clinic():
             owner_last_name=data['owner_last_name'],
             owner_email=data['owner_email']
         )
+
+        # Create email verification token and send email
+        user_id = result['user_id']
+        token = create_email_verification_token(user_id)
+        user_name = f"{data['owner_first_name']} {data['owner_last_name']}"
+
+        # Try to send verification email (don't fail registration if email fails)
+        email_sent, email_message = send_verification_email(
+            data['owner_email'], user_name, token
+        )
+
         return jsonify({
             'success': True,
             'clinic': result['clinic'],
-            'message': 'Clinic registered successfully! You can now login.'
+            'message': 'Clinic registered successfully! Please check your email to verify your account.',
+            'email_sent': email_sent
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ============== Email Verification ==============
+
+@app.route('/verify-email')
+def verify_email_page():
+    """Email verification page"""
+    return render_template('verify_email.html')
+
+
+@app.route('/api/verify-email', methods=['POST'])
+def api_verify_email():
+    """Verify email with token"""
+    data = request.get_json()
+    token = data.get('token')
+
+    if not token:
+        return jsonify({'error': 'Verification token is required'}), 400
+
+    success, message = verify_email_token(token)
+    if success:
+        return jsonify({'success': True, 'message': message})
+    return jsonify({'error': message}), 400
+
+
+@app.route('/api/resend-verification', methods=['POST'])
+def api_resend_verification():
+    """Resend verification email"""
+    data = request.get_json()
+    email = data.get('email')
+
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+
+    user = get_user_by_email(email)
+    if not user:
+        # Don't reveal if email exists
+        return jsonify({'success': True, 'message': 'If your email is registered, you will receive a verification link.'})
+
+    if is_email_verified(user['id']):
+        return jsonify({'error': 'Email is already verified'}), 400
+
+    # Check rate limiting
+    can_resend, rate_message = resend_verification_email(user['id'])
+    if not can_resend:
+        return jsonify({'error': rate_message}), 429
+
+    # Create new token and send email
+    token = create_email_verification_token(user['id'])
+    user_name = f"{user['first_name']} {user['last_name']}"
+
+    email_sent, email_message = send_verification_email(email, user_name, token)
+    if email_sent:
+        return jsonify({'success': True, 'message': 'Verification email sent!'})
+    return jsonify({'error': 'Failed to send email. Please try again later.'}), 500
+
+
+# ============== Password Reset ==============
+
+@app.route('/forgot-password')
+def forgot_password_page():
+    """Forgot password page"""
+    return render_template('forgot_password.html')
+
+
+@app.route('/reset-password')
+def reset_password_page():
+    """Password reset page"""
+    return render_template('reset_password.html')
+
+
+@app.route('/api/forgot-password', methods=['POST'])
+def api_forgot_password():
+    """Request password reset email"""
+    data = request.get_json()
+    email = data.get('email')
+
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+
+    user = get_user_by_email(email)
+    if not user:
+        # Don't reveal if email exists - always return success message
+        return jsonify({
+            'success': True,
+            'message': 'If your email is registered, you will receive a password reset link.'
+        })
+
+    # Create reset token and send email
+    token = create_password_reset_token(user['id'])
+    user_name = f"{user['first_name']} {user['last_name']}"
+
+    email_sent, email_message = send_password_reset_email(email, user_name, token)
+    return jsonify({
+        'success': True,
+        'message': 'If your email is registered, you will receive a password reset link.'
+    })
+
+
+@app.route('/api/verify-reset-token', methods=['POST'])
+def api_verify_reset_token():
+    """Verify if reset token is valid"""
+    data = request.get_json()
+    token = data.get('token')
+
+    if not token:
+        return jsonify({'error': 'Token is required'}), 400
+
+    user_id, message = verify_password_reset_token(token)
+    if user_id:
+        return jsonify({'valid': True})
+    return jsonify({'valid': False, 'error': message}), 400
+
+
+@app.route('/api/reset-password', methods=['POST'])
+def api_reset_password():
+    """Reset password with token"""
+    data = request.get_json()
+    token = data.get('token')
+    new_password = data.get('password')
+
+    if not token:
+        return jsonify({'error': 'Reset token is required'}), 400
+    if not new_password:
+        return jsonify({'error': 'New password is required'}), 400
+    if len(new_password) < 5:
+        return jsonify({'error': 'Password must be at least 5 characters'}), 400
+
+    success, result = reset_password_with_token(token, new_password)
+    if success:
+        # Get user to send notification
+        user = get_user_by_id(result)
+        if user:
+            send_password_changed_notification(user['email'], f"{user['first_name']} {user['last_name']}")
+        return jsonify({'success': True, 'message': 'Password reset successfully! You can now login.'})
+    return jsonify({'error': result}), 400
 
 
 # ============== Clinic Profile Management ==============
@@ -808,17 +972,24 @@ def api_update_clinic_user(user_id):
 @app.route('/<path:path>')
 def catch_all(path):
     """Catch-all route for SPA - serves index.html for all app routes"""
-    # List of valid SPA routes
+    # List of valid SPA routes (authenticated)
     spa_routes = [
         'dashboard', 'settings', 'consumables', 'services',
         'price-list', 'subscription', 'super-admin'
     ]
+
+    # Public auth routes (handled by dedicated templates)
+    auth_routes = ['verify-email', 'forgot-password', 'reset-password']
 
     # If it's a valid SPA route, serve index.html
     if path in spa_routes:
         if 'user_id' not in session:
             return render_template('login.html')
         return render_template('index.html')
+
+    # Auth routes are handled by their own route handlers
+    if path in auth_routes:
+        return redirect(url_for(path.replace('-', '_') + '_page'))
 
     # Otherwise, return 404
     return jsonify({'error': 'Not found'}), 404
