@@ -47,7 +47,9 @@
     "category": "Category",
     "allCategories": "All Categories",
     "noResults": "No results found",
-    "tryDifferentSearch": "Try adjusting your search or filters"
+    "tryDifferentSearch": "Try adjusting your search or filters",
+    "callUs": "Call us",
+    "whatsapp": "WhatsApp"
   },
   "auth": {
     "login": "Sign In",
@@ -112,7 +114,10 @@
     "service": "Service",
     "cost": "Cost",
     "finalPrice": "Final Price",
-    "margin": "Margin"
+    "margin": "Margin",
+    "trialModeActive": "Trial Mode - Prices Hidden",
+    "trialPricesBlurred": "Prices are blurred in trial mode. Upgrade to see full pricing details!",
+    "youHaveUnderpriced": "You have {count} underpriced service(s)."
   },
   "subscription": {
     "welcomeTrial": "Welcome to Your Free Trial!",
@@ -164,6 +169,7 @@
     "trialProgress": "Trial Progress",
     "timeRemaining": "Time Remaining",
     "daysOfLeft": "{days} of 7 days left",
+    "servicesUsed": "Services Used",
     "servicesUsedOf": "{used} of {max} services",
     "daysUntilRenewal": "days until renewal",
     "neverExpires": "Never expires",
@@ -184,7 +190,9 @@
     "varianceAnalysis": "Variance analysis",
     "allClinicSettings": "All clinic settings",
     "needHelp": "Need help?",
-    "needHelpMsg": "Our support team is here to help with any questions about your subscription or the platform."
+    "needHelpMsg": "Our support team is here to help with any questions about your subscription or the platform.",
+    "readyToUpgradeQuestion": "Ready to Upgrade?",
+    "contactUsToUpgrade": "Contact us to upgrade your plan and unlock all features!"
   },
   "settings": {
     "title": "Settings",
@@ -411,7 +419,14 @@
     "customProfitMarginLabel": "Custom Profit Margin %",
     "customProfitHelp": "Override the global profit setting for this service only",
     "service": "service",
-    "services": "services"
+    "services": "services",
+    "trialMode": "Trial Mode",
+    "trialPricesBlurred": "Prices are hidden in trial mode. Upgrade to see full pricing details!",
+    "upgradeToSeePrices": "Upgrade to See Prices",
+    "priceCalculationLocked": "Price Calculation Locked",
+    "upgradeToSeeBreakdown": "Upgrade to Pro to see the full cost breakdown and pricing details for your services.",
+    "recommendedPrice": "Recommended Price",
+    "pricePreviewLocked": "Price Preview (Locked)"
   },
   "priceList": {
     "title": "Price List",
@@ -483,7 +498,12 @@
     "trialBannerTitle": "Free Trial - Limited Preview",
     "trialBannerMsg": "You can view pricing for up to {maxServices} services during your {daysLeft}-day trial. Subscribe to see all services!",
     "showingOfServices": "Showing {shown} of {total} services",
-    "upgradeNow": "Upgrade Now"
+    "upgradeNow": "Upgrade Now",
+    "trialPricesHidden": "Prices Hidden in Trial Mode",
+    "trialUpgradeToSee": "Upgrade to Pro to see all calculated prices and cost breakdowns.",
+    "underpricedServices": "Underpriced Services",
+    "totalServicesCount": "Total Services",
+    "upgradeToPro": "Upgrade to Pro"
   },
   "superAdmin": {
     "title": "Manage Clinics",

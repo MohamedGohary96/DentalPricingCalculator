@@ -25,7 +25,12 @@ def get_user_data_dir():
 
 class Config:
     """Base configuration"""
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dental-calculator-secret-key-2026'
+    # IMPORTANT: Set SECRET_KEY environment variable in production!
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        import warnings
+        warnings.warn("SECRET_KEY not set! Using default key. Set SECRET_KEY env var in production!")
+        SECRET_KEY = 'dental-calculator-dev-key-change-in-production'
     DEBUG = False
     TESTING = False
 
@@ -72,9 +77,15 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     """Production configuration"""
     DEBUG = False
-    SESSION_COOKIE_SECURE = False  # Set to True if using HTTPS
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True') == 'True'  # Enable for HTTPS
     # In production, emails are sent by default
     MAIL_ENABLED = os.environ.get('MAIL_ENABLED', 'True') == 'True'
+
+    def __init__(self):
+        # Warn if SECRET_KEY is not properly set in production
+        if not os.environ.get('SECRET_KEY'):
+            import warnings
+            warnings.warn("PRODUCTION WARNING: SECRET_KEY environment variable not set!")
 
 
 config = {

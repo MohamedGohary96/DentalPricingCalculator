@@ -1095,7 +1095,7 @@ def get_subscription_status(clinic_id):
     """Get detailed subscription status for a clinic"""
     # Trial configuration
     TRIAL_DAYS = 7
-    MAX_TRIAL_SERVICES = 2
+    MAX_TRIAL_SERVICES = 999999  # Unlimited services for trial users
 
     # Super admin clinic (id=1) always has permanent/infinite subscription
     if clinic_id == 1:

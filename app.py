@@ -63,12 +63,14 @@ os.makedirs(app.config['USER_DATA_DIR'], exist_ok=True)
 os.makedirs(os.path.join(app.config['USER_DATA_DIR'], 'data'), exist_ok=True)
 os.makedirs(os.path.join(app.config['USER_DATA_DIR'], 'backups'), exist_ok=True)
 
-# Initialize database
+# Initialize database (safe for production - uses CREATE TABLE IF NOT EXISTS)
 init_database()
-create_initial_admin()
+create_initial_admin()  # Only creates admin if no clinics exist
 
-# Create sample data if environment variable is set
-if os.environ.get('CREATE_SAMPLE_DATA', 'False') == 'True':
+# Create sample data ONLY in development mode AND if explicitly requested
+# NEVER runs in production to protect real data
+is_production = os.environ.get('FLASK_ENV') == 'production' or os.environ.get('ENVIRONMENT') == 'production'
+if not is_production and os.environ.get('CREATE_SAMPLE_DATA', 'False') == 'True':
     create_sample_data()
 
 

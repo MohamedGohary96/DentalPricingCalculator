@@ -47,7 +47,9 @@
     "category": "الفئة",
     "allCategories": "كل الفئات",
     "noResults": "لا توجد نتائج",
-    "tryDifferentSearch": "جرّب تعديل البحث أو الفلاتر"
+    "tryDifferentSearch": "جرّب تعديل البحث أو الفلاتر",
+    "callUs": "اتصل بنا",
+    "whatsapp": "واتساب"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -112,7 +114,10 @@
     "service": "الخدمة",
     "cost": "التكلفة",
     "finalPrice": "السعر النهائي",
-    "margin": "هامش الربح"
+    "margin": "هامش الربح",
+    "trialModeActive": "الوضع التجريبي - الأسعار مخفية",
+    "trialPricesBlurred": "الأسعار مموهة في الوضع التجريبي. قم بالترقية لرؤية تفاصيل الأسعار كاملة!",
+    "youHaveUnderpriced": "لديك {count} خدمة بسعر منخفض."
   },
   "subscription": {
     "welcomeTrial": "مرحباً بك في الفترة التجريبية المجانية!",
@@ -165,6 +170,7 @@
     "timeRemaining": "الوقت المتبقي",
     "daysOfLeft": "{days} من 7 أيام متبقية",
     "servicesUsedOf": "{used} من {max} خدمات",
+    "servicesUsed": "الخدمات المستخدمة",
     "daysUntilRenewal": "أيام حتى التجديد",
     "neverExpires": "لا تنتهي أبداً",
     "trialEnds": "تنتهي التجربة",
@@ -184,7 +190,9 @@
     "varianceAnalysis": "تحليل الفروقات",
     "allClinicSettings": "جميع إعدادات العيادة",
     "needHelp": "تحتاج مساعدة؟",
-    "needHelpMsg": "فريق الدعم لدينا هنا للمساعدة في أي أسئلة حول اشتراكك أو المنصة."
+    "needHelpMsg": "فريق الدعم لدينا هنا للمساعدة في أي أسئلة حول اشتراكك أو المنصة.",
+    "readyToUpgradeQuestion": "جاهز للترقية؟",
+    "contactUsToUpgrade": "تواصل معنا لترقية باقتك وفتح جميع الميزات!"
   },
   "settings": {
     "title": "الإعدادات",
@@ -409,7 +417,14 @@
     "optional": "اختياري",
     "useDefaultProfitMargin": "استخدام هامش الربح الافتراضي",
     "customProfitMarginLabel": "هامش ربح مخصص %",
-    "customProfitHelp": "تجاوز إعداد الربح العام لهذه الخدمة فقط"
+    "customProfitHelp": "تجاوز إعداد الربح العام لهذه الخدمة فقط",
+    "trialMode": "الوضع التجريبي",
+    "trialPricesBlurred": "الأسعار مخفية في الوضع التجريبي. قم بالترقية لرؤية تفاصيل الأسعار كاملة!",
+    "upgradeToSeePrices": "ترقية لرؤية الأسعار",
+    "priceCalculationLocked": "حساب السعر مقفل",
+    "upgradeToSeeBreakdown": "قم بالترقية إلى النسخة الاحترافية لرؤية التفاصيل الكاملة للتكلفة والأسعار.",
+    "recommendedPrice": "السعر الموصى به",
+    "pricePreviewLocked": "معاينة السعر (مقفل)"
   },
   "priceList": {
     "title": "قائمة الأسعار",
@@ -481,7 +496,12 @@
     "trialBannerTitle": "تجربة مجانية - معاينة محدودة",
     "trialBannerMsg": "يمكنك عرض أسعار حتى {maxServices} خدمات خلال فترة التجربة ({daysLeft} يوم). اشترك لرؤية جميع الخدمات!",
     "showingOfServices": "عرض {shown} من {total} خدمة",
-    "upgradeNow": "ترقية الآن"
+    "upgradeNow": "ترقية الآن",
+    "trialPricesHidden": "الأسعار مخفية في الوضع التجريبي",
+    "trialUpgradeToSee": "قم بالترقية إلى النسخة الاحترافية لرؤية جميع الأسعار المحسوبة وتفاصيل التكلفة.",
+    "underpricedServices": "خدمات بسعر منخفض",
+    "totalServicesCount": "إجمالي الخدمات",
+    "upgradeToPro": "ترقية للنسخة الاحترافية"
   },
   "superAdmin": {
     "title": "إدارة العيادات",

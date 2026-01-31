@@ -1070,12 +1070,12 @@ const Pages = {
     async dashboard() {
         const stats = await API.get('/api/dashboard/stats');
 
-        // Check subscription status - show limited dashboard for trial/expired/suspended users
-        const restrictedLevels = ['trial', 'lockout', 'readonly'];
-        const isRestricted = APP.subscription && restrictedLevels.includes(APP.subscription.restriction_level);
+        // Check subscription status
         const isSuspended = APP.subscription && APP.subscription.is_suspended;
         const isExpired = APP.subscription && (APP.subscription.restriction_level === 'lockout' || APP.subscription.restriction_level === 'readonly');
         const isTrial = APP.subscription && APP.subscription.restriction_level === 'trial';
+        // For expired/suspended - fully restricted; for trial - show with blur
+        const isFullyRestricted = isSuspended || isExpired;
 
         let priceList = [];
         let underpriced = 0;
@@ -1083,7 +1083,8 @@ const Pages = {
         let potentialRevenue = 0;
         let topServices = [];
 
-        if (!isRestricted) {
+        // Fetch price list for both active AND trial users (trial sees blurred prices)
+        if (!isFullyRestricted) {
             priceList = await API.get('/api/price-list');
             topServices = priceList.slice(0, 5);
 
@@ -1098,8 +1099,7 @@ const Pages = {
             }, 0);
         }
 
-        // Subscription banner for restricted users (trial, expired, or suspended)
-        const trialDaysLeft = APP.subscription ? APP.subscription.trial_days_remaining : 0;
+        // Subscription banner for trial/expired/suspended users
         let bannerTitle, bannerMessage, bannerButtonText, bannerIcon;
 
         if (isSuspended) {
@@ -1112,15 +1112,21 @@ const Pages = {
             bannerMessage = t('subscription.renewMessage');
             bannerButtonText = t('subscription.renewNow');
             bannerIcon = '🔄';
+        } else if (isTrial) {
+            bannerTitle = t('dashboard.trialModeActive');
+            bannerMessage = `${t('dashboard.trialPricesBlurred')} ${underpriced > 0 ? t('dashboard.youHaveUnderpriced', {count: underpriced}) : ''}`;
+            bannerButtonText = t('subscription.seePlans');
+            bannerIcon = '🔒';
         } else {
-            const trialText = trialDaysLeft > 0 ? ` ${t('subscription.trialDaysLeft', {days: trialDaysLeft})}` : '';
             bannerTitle = t('subscription.welcomeTrial');
-            bannerMessage = `${t('subscription.trialMessage')}${trialText} ${t('subscription.upgradeAnytime')}`;
+            bannerMessage = `${t('subscription.trialMessage')} ${t('subscription.upgradeAnytime')}`;
             bannerButtonText = t('subscription.seePlans');
             bannerIcon = '✨';
         }
 
-        const subscriptionBanner = isRestricted ? `
+        // Show banner for trial, expired, or suspended users
+        const showBanner = isTrial || isExpired || isSuspended;
+        const subscriptionBanner = showBanner ? `
             <div class="subscription-banner ${(isExpired || isSuspended) ? 'subscription-banner-expired' : ''}">
                 <div class="subscription-banner-icon">
                     <span style="font-size: 1.5rem;">${bannerIcon}</span>
@@ -1152,7 +1158,7 @@ const Pages = {
                     </div>
                 </div>
 
-                ${isRestricted ? `
+                ${isFullyRestricted ? `
                 <div class="metric-card metric-locked">
                     <div class="metric-header">
                         <span class="metric-icon" style="background: var(--gray-100); color: var(--gray-400);">
@@ -1210,7 +1216,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('dashboard.chairHourlyRate')}</span>
                     </div>
-                    <div class="metric-value currency">${formatCurrency(stats.chair_hourly_rate)}</div>
+                    <div class="metric-value currency ${isTrial ? 'trial-blur' : ''}">${formatCurrency(stats.chair_hourly_rate)}</div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('dashboard.effectiveHoursMonth', {hours: stats.effective_hours.toFixed(0)})}</span>
                     </div>
@@ -1226,8 +1232,8 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('dashboard.monthlyFixedCosts')}</span>
                     </div>
-                    <div class="metric-value currency">${formatCurrency(stats.total_fixed_monthly)}</div>
-                    <div class="metric-breakdown">
+                    <div class="metric-value currency ${isTrial ? 'trial-blur' : ''}">${formatCurrency(stats.total_fixed_monthly)}</div>
+                    <div class="metric-breakdown ${isTrial ? 'trial-blur' : ''}">
                         <div class="breakdown-item">
                             <span class="breakdown-label">${t('dashboard.fixedCosts')}</span>
                             <span class="breakdown-value">${formatCurrency(stats.fixed_costs)}</span>
@@ -1322,9 +1328,9 @@ const Pages = {
                             ${topServices.map(s => `
                                 <tr>
                                     <td><strong>${getLocalizedName(s, 'service_name', 'service_name_ar')}</strong></td>
-                                    <td>${formatCurrency(s.total_cost)}</td>
-                                    <td><strong>${formatCurrency(s.rounded_price)}</strong></td>
-                                    <td><span class="badge badge-success">${s.profit_percent}%</span></td>
+                                    <td class="${isTrial ? 'trial-blur' : ''}">${formatCurrency(s.total_cost)}</td>
+                                    <td class="${isTrial ? 'trial-blur' : ''}"><strong>${formatCurrency(s.rounded_price)}</strong></td>
+                                    <td class="${isTrial ? 'trial-blur' : ''}"><span class="badge badge-success">${s.profit_percent}%</span></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -2069,7 +2075,6 @@ const Pages = {
         const sub = APP.subscription || {};
         const isSuspended = sub.is_suspended === true;
         const isTrial = sub.restriction_level === 'trial';
-        const trialDaysLeft = sub.trial_days_remaining || 0;
         const trialEnded = sub.trial_ended === true;
         const isExpiredOrGracePeriod = sub.restriction_level === 'lockout' || sub.restriction_level === 'readonly';
 
@@ -2149,36 +2154,33 @@ const Pages = {
 
         // Not locked out - fetch services and show the page
         const services = await API.get('/api/services');
-        const servicesUsed = sub.services_used || services.length;
-        const maxTrialServices = sub.max_trial_services || 2;
-
-        // Trial limit reached (can still view, but can't add more)
-        const trialLimitReached = isTrial && servicesUsed >= maxTrialServices;
-
-        // Can add services only if not in trial OR trial limit not reached
-        const canAddService = !trialLimitReached;
 
         // Determine which banner to show (only for active trial)
         let bannerHtml = '';
 
         if (isTrial) {
-            // Active trial
+            // Active trial - prices are blurred
             bannerHtml = `
-                <div class="restriction-banner ${trialLimitReached ? 'restriction-banner-warning' : 'restriction-banner-info'}">
-                    <div class="restriction-banner-icon">${trialLimitReached ? '⚠️' : '🎁'}</div>
+                <div class="restriction-banner restriction-banner-info">
+                    <div class="restriction-banner-icon">🔒</div>
                     <div class="restriction-banner-content">
-                        <h4>${t('services.trialFree')}${trialLimitReached ? ' - ' + t('services.trialLimitReached') : ''}</h4>
-                        <p>${trialLimitReached
-                            ? t('services.trialUsedAll', {max: maxTrialServices})
-                            : t('services.trialRemaining', {max: maxTrialServices, days: trialDaysLeft, used: servicesUsed})}</p>
+                        <h4>${t('services.trialMode')}</h4>
+                        <p>${t('services.trialPricesBlurred')}</p>
                     </div>
-                    ${trialLimitReached ? `<button class="btn btn-primary" onclick="APP.loadPage('subscription')">${t('services.upgradeNow')}</button>` : ''}
+                    <div class="restriction-banner-actions">
+                        <div class="banner-contact-links">
+                            <a href="tel:+201015755890" class="contact-link contact-phone" title="${t('common.callUs')}">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                            </a>
+                            <a href="https://wa.me/201015755890" target="_blank" class="contact-link contact-whatsapp" title="${t('common.whatsapp')}">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                            </a>
+                        </div>
+                        <button class="btn btn-primary" onclick="APP.loadPage('subscription')">${t('services.upgradeToSeePrices')}</button>
+                    </div>
                 </div>
             `;
         }
-
-        // Determine disabled button tooltip
-        const disabledReason = trialLimitReached ? t('services.trialLimitDisabled') : '';
 
         return `
             ${bannerHtml}
@@ -2203,10 +2205,7 @@ const Pages = {
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
                     <h3 class="card-title">${t('services.servicesConfig')}</h3>
-                    ${canAddService
-                        ? `<button class="btn btn-primary" onclick="Pages.showServiceForm()">+ ${t('services.addService')}</button>`
-                        : `<button class="btn btn-primary" disabled style="opacity:0.5;cursor:not-allowed;" title="${disabledReason}">+ ${t('services.addService')}</button>`
-                    }
+                    <button class="btn btn-primary" onclick="Pages.showServiceForm()">+ ${t('services.addService')}</button>
                 </div>
 
                 <div class="card-body" style="padding:0;">
@@ -2333,18 +2332,23 @@ const Pages = {
         // Store equipment globally for addEquipmentRow
         window.serviceFormEquipment = equipment.filter(e => e.allocation_type === 'per-hour');
 
+        // Check if trial mode - blur live price preview
+        const isTrial = APP.subscription && APP.subscription.restriction_level === 'trial';
+        const blurClass = isTrial ? 'trial-blur' : '';
+
         const content = `
             <form id="serviceForm">
                 <!-- Live Price Preview Card -->
-                <div id="livePricePreview" class="price-preview-card" style="display:none;">
+                <div id="livePricePreview" class="price-preview-card ${isTrial ? 'trial-preview-locked' : ''}" style="display:none;">
                     <div class="price-preview-header">
-                        <span class="price-preview-label">${t('services.calculatedPrice') || 'Calculated Price'}</span>
+                        <span class="price-preview-label">${isTrial ? t('services.pricePreviewLocked') : (t('services.calculatedPrice') || 'Calculated Price')}</span>
+                        ${isTrial ? '<span class="trial-lock-icon">🔒</span>' : ''}
                     </div>
-                    <div class="price-preview-amount">
+                    <div class="price-preview-amount ${blurClass}">
                         <span id="previewAmount">0.00</span>
                         <span class="price-preview-currency">${APP.settings?.currency || 'EGP'}</span>
                     </div>
-                    <div class="price-preview-breakdown">
+                    <div class="price-preview-breakdown ${blurClass}">
                         <div class="price-preview-item">
                             <span class="price-preview-item-label">${t('dashboard.cost') || 'Cost'}</span>
                             <span class="price-preview-item-value" id="previewCost">0.00</span>
@@ -2354,6 +2358,17 @@ const Pages = {
                             <span class="price-preview-item-value" id="previewProfit">0%</span>
                         </div>
                     </div>
+                    ${isTrial ? `<div class="trial-preview-cta">
+                        <div class="preview-contact-links">
+                            <a href="tel:+201015755890" class="contact-link-sm contact-phone" title="${t('common.callUs')}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                            </a>
+                            <a href="https://wa.me/201015755890" target="_blank" class="contact-link-sm contact-whatsapp" title="${t('common.whatsapp')}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                            </a>
+                        </div>
+                        <a href="#" onclick="event.preventDefault();closeAllModals();APP.loadPage('subscription');">${t('services.upgradeToSeePrices')}</a>
+                    </div>` : ''}
                 </div>
 
                 <!-- Essential Fields Section -->
@@ -2733,6 +2748,51 @@ const Pages = {
         const price = await API.get(`/api/services/${serviceId}/price`);
         const service = await API.get(`/api/services/${serviceId}`);
 
+        // Check if trial mode - show simplified view with blurred prices
+        const isTrial = APP.subscription && APP.subscription.restriction_level === 'trial';
+
+        // For trial users, show upgrade prompt instead of detailed pricing
+        if (isTrial) {
+            const content = `
+                <div class="modal-content-wrapper">
+                <div style="text-align:center;padding:2rem;">
+                    <div style="font-size:4rem;margin-bottom:1rem;">🔒</div>
+                    <h2 style="margin:0 0 1rem;color:#667eea;">🦷 ${price.service_name}</h2>
+                    <div style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border-radius:12px;padding:2rem;margin:1.5rem 0;">
+                        <h3 style="color:#0369a1;margin-bottom:0.5rem;">${t('services.priceCalculationLocked')}</h3>
+                        <p style="color:#0c4a6e;margin-bottom:1.5rem;">${t('services.upgradeToSeeBreakdown')}</p>
+                        <div style="display:flex;justify-content:center;gap:1rem;flex-wrap:wrap;">
+                            <div style="background:white;border-radius:8px;padding:1rem 1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                                <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;">${t('services.costBreakdown')}</div>
+                                <div class="trial-blur" style="font-size:1.5rem;font-weight:bold;color:#0369a1;">${formatCurrency(price.total_cost)}</div>
+                            </div>
+                            <div style="background:white;border-radius:8px;padding:1rem 1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                                <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;">${t('services.recommendedPrice')}</div>
+                                <div class="trial-blur" style="font-size:1.5rem;font-weight:bold;color:#667eea;">${formatCurrency(price.rounded_price)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap;">
+                        <div class="modal-contact-links" style="display:flex;gap:0.75rem;">
+                            <a href="tel:+201015755890" class="contact-link contact-phone" title="${t('common.callUs')}" style="width:44px;height:44px;border-radius:50%;background:#e0f2fe;display:flex;align-items:center;justify-content:center;color:#0369a1;text-decoration:none;transition:all 0.2s;">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                            </a>
+                            <a href="https://wa.me/201015755890" target="_blank" class="contact-link contact-whatsapp" title="${t('common.whatsapp')}" style="width:44px;height:44px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;color:#16a34a;text-decoration:none;transition:all 0.2s;">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                            </a>
+                        </div>
+                        <button class="btn btn-primary btn-lg" onclick="closeAllModals();APP.loadPage('subscription');">${t('services.upgradeToSeePrices')}</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">Close</button>
+                </div>
+                </div>
+            `;
+            openModal(t('modal.priceCalculation'), content, 'modal-lg');
+            return;
+        }
+
         let varianceSection = '';
         if (service.current_price) {
             const variance = price.rounded_price - service.current_price;
@@ -2841,16 +2901,14 @@ const Pages = {
         const sub = APP.subscription || {};
         const isSuspended = sub.is_suspended === true;
         const isTrial = sub.restriction_level === 'trial';
-        const trialDaysLeft = sub.trial_days_remaining || 0;
         const trialEnded = sub.trial_ended === true;
         const isExpiredOrGracePeriod = sub.restriction_level === 'lockout' || sub.restriction_level === 'readonly';
-        const maxTrialServices = sub.max_trial_services || 2;
 
-        // LOCKOUT RULES (same logic as services page):
+        // LOCKOUT RULES:
         // 1. Suspended (inactive) = show subscription wall
         // 2. Trial ended (7 days passed) = show subscription wall
         // 3. Subscription expired/grace period = show subscription wall
-        // Trial users CAN see the price list (limited to 2 services)
+        // Trial users CAN see the price list but with prices BLURRED
         const isFullLockout = isSuspended || trialEnded || isExpiredOrGracePeriod;
 
         if (isFullLockout) {
@@ -2921,12 +2979,7 @@ const Pages = {
         }
 
         let priceList = await API.get('/api/price-list');
-
-        // For trial users, limit to first 2 services
         const totalServices = priceList.length;
-        if (isTrial && priceList.length > maxTrialServices) {
-            priceList = priceList.slice(0, maxTrialServices);
-        }
         const settings = await API.get('/api/settings/global');
 
         // Calculate summary statistics
@@ -3004,8 +3057,8 @@ const Pages = {
             }
         };
 
-        // Summary cards HTML
-        const summaryHtml = servicesWithPrice.length > 0 ? `
+        // Summary cards HTML - hidden for trial users (they see stats in trial banner instead)
+        const summaryHtml = servicesWithPrice.length > 0 && !isTrial ? `
             <div class="metrics-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.5rem;">
                 <div class="metric-card">
                     <div class="metric-header">
@@ -3088,15 +3141,37 @@ const Pages = {
             `}
         ` : '';
 
-        // Trial banner for limited access
+        // Trial banner - prices are blurred, show underpriced count
         const trialBannerHtml = isTrial ? `
-            <div class="restriction-banner restriction-banner-info">
-                <div class="restriction-banner-icon">🎁</div>
-                <div class="restriction-banner-content">
-                    <h4>${t('priceList.trialBannerTitle')}</h4>
-                    <p>${t('priceList.trialBannerMsg', { maxServices: maxTrialServices, daysLeft: trialDaysLeft })}${totalServices > maxTrialServices ? ` (${t('priceList.showingOfServices', { shown: maxTrialServices, total: totalServices })})` : ''}</p>
+            <div class="trial-upgrade-banner">
+                <div class="trial-upgrade-content">
+                    <div class="trial-upgrade-icon">🔒</div>
+                    <div class="trial-upgrade-text">
+                        <h4>${t('priceList.trialPricesHidden')}</h4>
+                        <p>${t('priceList.trialUpgradeToSee')}</p>
+                    </div>
                 </div>
-                <button class="btn btn-primary" onclick="APP.loadPage('subscription')">${t('priceList.upgradeNow')}</button>
+                <div class="trial-upgrade-stats">
+                    <div class="trial-stat ${underpriced.length > 0 ? 'trial-stat-warning' : 'trial-stat-success'}">
+                        <span class="trial-stat-number">${underpriced.length}</span>
+                        <span class="trial-stat-label">${t('priceList.underpricedServices')}</span>
+                    </div>
+                    <div class="trial-stat">
+                        <span class="trial-stat-number">${totalServices}</span>
+                        <span class="trial-stat-label">${t('priceList.totalServicesCount')}</span>
+                    </div>
+                </div>
+                <div class="trial-upgrade-actions">
+                    <div class="trial-contact-links">
+                        <a href="tel:+201015755890" class="contact-link contact-phone" title="${t('common.callUs')}">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        </a>
+                        <a href="https://wa.me/201015755890" target="_blank" class="contact-link contact-whatsapp" title="${t('common.whatsapp')}">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                        </a>
+                    </div>
+                    <button class="btn btn-primary btn-lg" onclick="APP.loadPage('subscription')">${t('priceList.upgradeToPro')}</button>
+                </div>
             </div>
         ` : '';
 
@@ -3137,16 +3212,17 @@ const Pages = {
                         });
 
                         // Render table with category headers
+                        const blurClass = isTrial ? 'trial-blur' : '';
                         const renderServiceRow = (p) => {
                             const variance = getVarianceDisplay(p);
                             return `
                                 <tr style="${variance.status === 'underpriced' ? 'background:#fffbeb;' : ''}">
                                     <td style="padding-left:2rem;"><strong>${getLocalizedName(p)}</strong></td>
-                                    <td>${formatCurrency(p.total_cost)}</td>
-                                    <td><span class="badge badge-success">${p.profit_percent}%</span></td>
-                                    <td><strong style="color:var(--primary-600);">${formatCurrency(p.rounded_price)}</strong></td>
-                                    <td>${p.current_price ? formatCurrency(p.current_price) : `<span style="color:#94a3b8;font-size:0.8rem;">${t('priceList.notSet')}</span>`}</td>
-                                    <td>${variance.html}</td>
+                                    <td class="${blurClass}">${formatCurrency(p.total_cost)}</td>
+                                    <td class="${blurClass}"><span class="badge badge-success">${p.profit_percent}%</span></td>
+                                    <td class="${blurClass}"><strong style="color:var(--primary-600);">${formatCurrency(p.rounded_price)}</strong></td>
+                                    <td class="${blurClass}">${p.current_price ? formatCurrency(p.current_price) : `<span style="color:#94a3b8;font-size:0.8rem;">${t('priceList.notSet')}</span>`}</td>
+                                    <td class="${blurClass}">${variance.html}</td>
                                 </tr>
                             `;
                         };
@@ -3284,7 +3360,7 @@ const Pages = {
                         <div style="font-size:0.875rem;color:var(--gray-600);margin-top:0.5rem;">${t('subscription.daysOfLeft', {days: trialDaysLeft})}</div>
                     </div>
                     <div>
-                        <div style="font-size:0.875rem;color:var(--gray-500);margin-bottom:0.5rem;">${t('services.servicesUsedOf', {used: servicesUsed, max: maxTrialServices})}</div>
+                        <div style="font-size:0.875rem;color:var(--gray-500);margin-bottom:0.5rem;">${t('subscription.servicesUsed')}</div>
                         <div style="background:var(--gray-200);border-radius:8px;height:8px;overflow:hidden;">
                             <div style="background:linear-gradient(90deg,var(--secondary-500),var(--secondary-400));height:100%;width:${(servicesUsed/maxTrialServices)*100}%;transition:width 0.3s;"></div>
                         </div>
@@ -3321,6 +3397,30 @@ const Pages = {
                             ${status === 'trial' ? t('services.upgradeNow') : t('subscription.renewNow')}
                         </button>
                     ` : ''}
+                </div>
+            </div>
+
+            <!-- Contact Support -->
+            <div class="subscription-card subscription-contact-card" style="margin-top:1.5rem;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;">
+                <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+                    <div style="font-size:2.5rem;">📞</div>
+                    <div style="flex:1;min-width:200px;">
+                        <h4 style="font-size:1.125rem;color:white;margin-bottom:0.25rem;">${t('subscription.readyToUpgradeQuestion')}</h4>
+                        <p style="font-size:0.9375rem;color:rgba(255,255,255,0.9);margin:0;">${t('subscription.contactUsToUpgrade')}</p>
+                    </div>
+                    <div class="subscription-contact-actions">
+                        <a href="tel:+201015755890" class="subscription-contact-btn contact-phone-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                            <span>${t('common.callUs')}</span>
+                        </a>
+                        <a href="https://wa.me/201015755890" target="_blank" class="subscription-contact-btn contact-whatsapp-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                            <span>${t('common.whatsapp')}</span>
+                        </a>
+                    </div>
+                </div>
+                <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.2);text-align:center;">
+                    <span dir="ltr" style="font-family:var(--font-mono);font-size:1.125rem;letter-spacing:0.05em;display:inline-block;">+20 101 575 5890</span>
                 </div>
             </div>
 
@@ -3377,17 +3477,6 @@ const Pages = {
                     <div class="feature-item">
                         <span class="feature-icon">✅</span>
                         <span>${t('subscription.allClinicSettings')}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Contact Support -->
-            <div class="subscription-card" style="margin-top:1.5rem;background:var(--gray-50);">
-                <div style="display:flex;align-items:center;gap:1rem;">
-                    <div style="font-size:2rem;">💬</div>
-                    <div style="flex:1;">
-                        <h4 style="font-size:1rem;color:var(--gray-800);margin-bottom:0.25rem;">Need Help?</h4>
-                        <p style="font-size:0.875rem;color:var(--gray-600);margin:0;">Contact our team for subscription questions, upgrades, or support.</p>
                     </div>
                 </div>
             </div>
