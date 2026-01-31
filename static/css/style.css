@@ -54,11 +54,11 @@ body.app-scaled .main-content { zoom: 0.67; }
     top: 0;
     left: 0;
     right: 0;
-    height: 52px;
+    height: 64px;
     background: #142d63;
     display: flex;
     align-items: center;
-    padding: 0 20px;
+    padding: 0 24px;
     z-index: 1001;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
     direction: ltr !important; /* Always LTR - logo left, title right */
@@ -72,14 +72,14 @@ body.app-scaled .main-content { zoom: 0.67; }
 }
 
 .top-header-logo {
-    height: 36px;
+    height: 48px;
     width: auto;
     object-fit: contain;
 }
 
 .top-header-title {
     font-family: var(--font-heading);
-    font-size: 1.125rem;
+    font-size: 1.375rem;
     font-weight: 600;
     color: #ffffff;
     letter-spacing: 0.01em;
@@ -87,7 +87,7 @@ body.app-scaled .main-content { zoom: 0.67; }
 
 /* Adjust app container for fixed header */
 .app-container {
-    padding-top: 52px;
+    padding-top: 64px;
 }
 
 /* Typography utilities for numbers/currency */
@@ -210,7 +210,7 @@ body.app-scaled .main-content { zoom: 0.67; }
 
 /* App Layout */
 .app-layout, .app-container { display: flex; min-height: 100vh; }
-.sidebar { width: var(--sidebar-width); flex-shrink: 0; background: linear-gradient(180deg, #1a1a1a, var(--gray-900)); display: flex; flex-direction: column; height: calc(100vh - 52px); position: sticky; top: 52px; z-index: 100; box-shadow: 1px 0 4px rgba(0,0,0,0.08); }
+.sidebar { width: var(--sidebar-width); flex-shrink: 0; background: linear-gradient(180deg, #142d63, #0d1f45); display: flex; flex-direction: column; height: calc(100vh - 64px); position: sticky; top: 64px; z-index: 100; box-shadow: 1px 0 4px rgba(0,0,0,0.08); }
 .sidebar-header { padding: 0.75rem 0.875rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
 .sidebar-logo, .logo { display: flex; align-items: center; gap: 0.5rem; color: white; text-decoration: none; }
 .sidebar-logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg, var(--primary-400), var(--primary-600)); border-radius: 6px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(59, 130, 246, 0.2); }
@@ -1597,7 +1597,7 @@ html[dir="rtl"] .equipment-row {
 #menuToggle {
     display: none;
     position: fixed;
-    top: 60px;
+    top: 72px;
     left: 0.75rem;
     z-index: 1001;
     background: white;
@@ -1632,8 +1632,8 @@ html[dir="rtl"] .equipment-row {
     .sidebar {
         transform: translateX(-100%);
         position: fixed;
-        top: 52px;
-        height: calc(100vh - 52px);
+        top: 64px;
+        height: calc(100vh - 64px);
         z-index: 1000;
         box-shadow: var(--shadow-lg);
         transition: transform 0.3s ease;
@@ -1645,7 +1645,7 @@ html[dir="rtl"] .equipment-row {
     /* Mobile overlay backdrop */
     .sidebar-overlay {
         position: fixed;
-        top: 52px;
+        top: 64px;
         left: 0;
         right: 0;
         bottom: 0;
