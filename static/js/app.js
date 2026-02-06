@@ -113,7 +113,7 @@ function getLocalizedName(item) {
     if (i18n.currentLang === 'ar' && item.name_ar) {
         return item.name_ar;
     }
-    return item.name || item.service_name || '';
+    return item.name || item.item_name || item.material_name || item.service_name || '';
 }
 window.getLocalizedName = getLocalizedName; // Expose for embedded scripts
 
@@ -125,6 +125,347 @@ const API = {
     async post(url, data) { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed'); } return r.json(); },
     async put(url, data) { const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed'); } return r.json(); },
     async delete(url) { const r = await fetch(url, { method: 'DELETE' }); if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed'); } return r.json(); }
+};
+
+// ============================================
+// Profit Simulator Module
+// ============================================
+const ProfitSimulator = {
+    originalData: [],
+
+    init(priceData) {
+        this.originalData = JSON.parse(JSON.stringify(priceData));
+    },
+
+    recalculatePrice(service, newProfitPercent) {
+        const totalCost = service.total_cost || 0;
+        const vatPercent = APP.settings?.vat_percent || 0;
+        const rounding = APP.settings?.rounding_nearest || 5;
+
+        const profitAmount = totalCost * (newProfitPercent / 100);
+        const priceBeforeVat = totalCost + profitAmount;
+        const vatAmount = priceBeforeVat * (vatPercent / 100);
+        const finalPrice = priceBeforeVat + vatAmount;
+        const roundedPrice = Math.round(finalPrice / rounding) * rounding;
+
+        return {
+            profit_percent: newProfitPercent,
+            profit_amount: profitAmount,
+            price_before_vat: priceBeforeVat,
+            vat_amount: vatAmount,
+            final_price: finalPrice,
+            rounded_price: roundedPrice
+        };
+    },
+
+    formatCurrency(amount) {
+        const currency = APP.settings?.currency || 'EGP';
+        return `${currency} ${parseFloat(amount || 0).toFixed(2)}`;
+    }
+};
+
+window.ProfitSimulator = ProfitSimulator;
+
+// ============================================
+// Profit Simulator Global Helper Functions
+// ============================================
+window.modifiedServices = new Map();
+
+window.toggleSimulator = function() {
+    const sim = document.getElementById('profitSimulator');
+    if (sim) sim.classList.toggle('collapsed');
+};
+
+window.adjustMargin = function(serviceId, delta) {
+    console.log('adjustMargin called:', serviceId, delta);
+    const row = document.querySelector(`tr[data-service-id="${serviceId}"]`);
+    if (!row) {
+        console.error('Row not found for service ID:', serviceId);
+        return;
+    }
+
+    const input = row.querySelector('.margin-input');
+    const slider = row.querySelector('.margin-slider');
+    if (!input || !slider) {
+        console.error('Input or slider not found');
+        return;
+    }
+
+    const currentValue = parseFloat(input.value) || 0;
+    const newValue = Math.max(0, Math.min(100, currentValue + delta));
+    console.log('Changing margin from', currentValue, 'to', newValue);
+
+    input.value = newValue;
+    slider.value = newValue;
+    window.updateServiceMargin(serviceId, newValue);
+};
+
+window.updateServiceMargin = function(serviceId, newMargin) {
+    console.log('updateServiceMargin called:', serviceId, newMargin);
+    const margin = parseFloat(newMargin);
+    if (isNaN(margin) || margin < 0 || margin > 100) {
+        console.error('Invalid margin:', newMargin);
+        return;
+    }
+
+    // Find service in original data
+    const service = ProfitSimulator.originalData.find(s => s.id === serviceId);
+    if (!service) {
+        console.error('Service not found:', serviceId);
+        return;
+    }
+
+    // Recalculate price
+    console.log('Recalculating price for service:', service.name_en || service.name_ar, 'with margin:', margin);
+    const newPricing = ProfitSimulator.recalculatePrice(service, margin);
+    console.log('New pricing:', newPricing);
+
+    // Track modification
+    window.modifiedServices.set(serviceId, {
+        service,
+        oldMargin: service.profit_percent,
+        newMargin: margin,
+        oldPrice: service.rounded_price,
+        newPrice: newPricing.rounded_price,
+        newPricing
+    });
+
+    // Update UI
+    window.updateServiceRow(serviceId, newPricing, margin, service);
+    window.updateSimulatorMetrics();
+
+    // Show save button and add modified class
+    const row = document.querySelector(`tr[data-service-id="${serviceId}"]`);
+    const saveBtn = document.getElementById(`saveBtn-${serviceId}`);
+    if (row) row.classList.add('row-modified');
+    if (saveBtn) saveBtn.style.display = 'inline-flex';
+};
+
+window.updateServiceRow = function(serviceId, pricing, margin, service) {
+    const row = document.querySelector(`tr[data-service-id="${serviceId}"]`);
+    if (!row) return;
+
+    const currentPrice = service?.current_price;
+    const priceCell = row.querySelector('.simulated-price');
+    const varianceCell = row.querySelectorAll('td')[5]; // 6th column
+    const newPrice = pricing.rounded_price;
+
+    // Update price
+    if (priceCell) {
+        priceCell.textContent = ProfitSimulator.formatCurrency(newPrice);
+        priceCell.classList.add('price-row-updated');
+        setTimeout(() => priceCell.classList.remove('price-row-updated'), 1000);
+    }
+
+    // Update variance display with full health bar
+    if (varianceCell && currentPrice) {
+        const variance = newPrice - currentPrice;
+        const variancePercent = (variance / currentPrice) * 100;
+        const absVariance = Math.abs(variance);
+
+        // Calculate position on the health bar (same as getVarianceDisplay)
+        let position = 50 + variancePercent;
+        position = Math.max(8, Math.min(92, position));
+
+        let varianceHtml;
+        if (Math.abs(variancePercent) <= 5) {
+            // Optimal range
+            varianceHtml = `<div class="price-health optimal">
+                <div class="health-bar">
+                    <div class="health-zone zone-under"></div>
+                    <div class="health-zone zone-optimal"></div>
+                    <div class="health-zone zone-over"></div>
+                    <div class="health-indicator" style="left:${position}%"></div>
+                </div>
+                <span class="health-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg>
+                    Perfect ${variancePercent > 0 ? '+' : ''}${variancePercent.toFixed(0)}%
+                </span>
+            </div>`;
+        } else if (variance > 0) {
+            // Underpriced
+            varianceHtml = `<div class="price-health underpriced">
+                <div class="health-bar">
+                    <div class="health-zone zone-under"></div>
+                    <div class="health-zone zone-optimal"></div>
+                    <div class="health-zone zone-over"></div>
+                    <div class="health-indicator" style="left:${position}%"></div>
+                </div>
+                <span class="health-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                    Raise by ${ProfitSimulator.formatCurrency(absVariance)}
+                </span>
+            </div>`;
+        } else {
+            // Overpriced (has buffer)
+            varianceHtml = `<div class="price-health overpriced">
+                <div class="health-bar">
+                    <div class="health-zone zone-under"></div>
+                    <div class="health-zone zone-optimal"></div>
+                    <div class="health-zone zone-over"></div>
+                    <div class="health-indicator" style="left:${position}%"></div>
+                </div>
+                <span class="health-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+                    +${ProfitSimulator.formatCurrency(absVariance)} buffer
+                </span>
+            </div>`;
+        }
+        varianceCell.innerHTML = varianceHtml;
+    }
+
+    // Highlight row
+    row.classList.add('price-row-updated');
+    setTimeout(() => row.classList.remove('price-row-updated'), 1000);
+};
+
+window.updateSimulatorMetrics = function() {
+    const count = window.modifiedServices.size;
+    const modCountEl = document.getElementById('modifiedCount');
+    if (modCountEl) modCountEl.textContent = count;
+
+    // Show/hide buttons
+    const resetBtn = document.getElementById('resetAllBtn');
+    const applyBtn = document.getElementById('applyAllBtn');
+    if (resetBtn) resetBtn.style.display = count > 0 ? 'block' : 'none';
+    if (applyBtn) applyBtn.style.display = count > 0 ? 'block' : 'none';
+
+    // Calculate revenue impact
+    let revenueChange = 0;
+    window.modifiedServices.forEach(mod => {
+        revenueChange += (mod.newPrice - mod.oldPrice);
+    });
+
+    const revenueValue = document.getElementById('revenueImpactValue');
+    if (revenueValue) {
+        revenueValue.textContent = (revenueChange >= 0 ? '+' : '') + ProfitSimulator.formatCurrency(revenueChange);
+        revenueValue.className = 'metric-value ' + (revenueChange > 0 ? 'positive' : revenueChange < 0 ? 'negative' : '');
+    }
+};
+
+window.resetAllMargins = function() {
+    if (!confirm('Reset all changes?')) return;
+
+    window.modifiedServices.forEach((mod, serviceId) => {
+        const row = document.querySelector(`tr[data-service-id="${serviceId}"]`);
+        if (row) {
+            const input = row.querySelector('.margin-input');
+            const slider = row.querySelector('.margin-slider');
+            const priceCell = row.querySelector('.simulated-price');
+
+            if (input) input.value = mod.oldMargin;
+            if (slider) slider.value = mod.oldMargin;
+            if (priceCell) priceCell.textContent = ProfitSimulator.formatCurrency(mod.oldPrice);
+        }
+    });
+
+    window.modifiedServices.clear();
+    window.updateSimulatorMetrics();
+    APP.loadPage('price-list');
+};
+
+window.applyAllChanges = async function() {
+    if (window.modifiedServices.size === 0) return;
+
+    const confirmed = confirm(`Save changes for ${window.modifiedServices.size} service(s)?`);
+    if (!confirmed) return;
+
+    let updated = 0;
+    for (const [serviceId, mod] of window.modifiedServices) {
+        try {
+            const service = mod.service;
+            // Only send valid service table columns (not joined fields like category_name)
+            const serviceData = {
+                name: service.name,
+                name_ar: service.name_ar,
+                category_id: service.category_id,
+                chair_time_hours: service.chair_time_hours,
+                doctor_fee_type: service.doctor_fee_type,
+                doctor_hourly_fee: service.doctor_hourly_fee,
+                doctor_fixed_fee: service.doctor_fixed_fee,
+                doctor_percentage: service.doctor_percentage,
+                equipment_id: service.equipment_id,
+                current_price: service.current_price,
+                use_default_profit: 0,
+                custom_profit_percent: mod.newMargin
+            };
+            await API.put(`/api/services/${serviceId}`, serviceData);
+            updated++;
+        } catch (err) {
+            console.error(`Failed to update service ${serviceId}:`, err);
+        }
+    }
+
+    showToast(`Updated ${updated} service(s) successfully!`, 'success');
+    APP.loadPage('price-list');
+};
+
+// Save individual service margin
+window.saveServiceMargin = async function(serviceId) {
+    const mod = window.modifiedServices.get(serviceId);
+    if (!mod) return;
+
+    const saveBtn = document.getElementById(`saveBtn-${serviceId}`);
+    const row = document.querySelector(`tr[data-service-id="${serviceId}"]`);
+
+    // Show loading state
+    if (saveBtn) {
+        saveBtn.innerHTML = '⏳';
+        saveBtn.disabled = true;
+    }
+
+    try {
+        // Only send the fields that exist in the services table
+        // (category_name is a joined field, not a column)
+        const serviceData = {
+            name: mod.service.name,
+            name_ar: mod.service.name_ar,
+            category_id: mod.service.category_id,
+            chair_time_hours: mod.service.chair_time_hours,
+            doctor_fee_type: mod.service.doctor_fee_type,
+            doctor_hourly_fee: mod.service.doctor_hourly_fee,
+            doctor_fixed_fee: mod.service.doctor_fixed_fee,
+            doctor_percentage: mod.service.doctor_percentage,
+            equipment_id: mod.service.equipment_id,
+            current_price: mod.service.current_price,
+            use_default_profit: 0,
+            custom_profit_percent: mod.newMargin
+        };
+        await API.put(`/api/services/${serviceId}`, serviceData);
+
+        // Success state
+        if (saveBtn) saveBtn.innerHTML = '✓';
+        if (row) {
+            row.classList.remove('row-modified');
+            row.classList.add('row-saved');
+        }
+
+        // Remove from modified list
+        window.modifiedServices.delete(serviceId);
+        window.updateSimulatorMetrics();
+
+        // Hide button after delay
+        setTimeout(() => {
+            if (saveBtn) {
+                saveBtn.style.display = 'none';
+                saveBtn.innerHTML = '💾';
+                saveBtn.disabled = false;
+            }
+            if (row) row.classList.remove('row-saved');
+        }, 1500);
+
+        showToast(t('priceList.simulator.marginSaved') || 'Margin saved!', 'success');
+    } catch (err) {
+        console.error('Failed to save margin:', err);
+        if (saveBtn) {
+            saveBtn.innerHTML = '❌';
+            setTimeout(() => {
+                saveBtn.innerHTML = '💾';
+                saveBtn.disabled = false;
+            }, 1500);
+        }
+        showToast(t('priceList.simulator.saveFailed') || 'Failed to save', 'error');
+    }
 };
 
 function showToast(msg, type='success', options = {}) {
@@ -172,6 +513,36 @@ function formatCurrency(amount, currency = 'EGP') {
     return `${currency} ${parseFloat(amount || 0).toFixed(2)}`;
 }
 window.formatCurrency = formatCurrency; // Expose for embedded scripts
+
+// ============================================
+// Tab Switching Helper
+// ============================================
+window.switchTab = function(event, tabId) {
+    // Get all tabs and tab contents (support both .tabs and .card-tabs)
+    const tabsContainer = event.target.closest('.tabs') || event.target.closest('.card-tabs');
+    const tabs = tabsContainer.querySelectorAll('.tab, .card-tab');
+    const tabContents = event.target.closest('.tabs-container').querySelectorAll('.tab-content');
+
+    // Remove active class from all tabs and hide all tab contents
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+        tab.setAttribute('aria-selected', 'false');
+    });
+    tabContents.forEach(content => {
+        content.classList.remove('active');
+        content.hidden = true;
+    });
+
+    // Add active class to clicked tab and show corresponding content
+    const clickedTab = event.target.closest('.tab') || event.target.closest('.card-tab');
+    clickedTab.classList.add('active');
+    clickedTab.setAttribute('aria-selected', 'true');
+    const targetContent = document.getElementById(tabId);
+    if (targetContent) {
+        targetContent.classList.add('active');
+        targetContent.hidden = false;
+    }
+};
 
 // ============================================
 // Form Validation Helpers
@@ -597,7 +968,7 @@ window.addConsumableRow = function(preselectedId = null, preselectedQty = 1, pre
         <input type="number" class="form-input" style="width:70px;" placeholder="${t('services.qty')}" value="${preselectedQty}" data-consumable-quantity min="0.1" step="0.1" required>
         <input type="number" class="form-input" style="width:90px;" placeholder="${t('services.unitPrice')}" value="${displayUnitPrice}" data-consumable-unit-price step="0.01" min="0">
         <span data-consumable-cost style="width:80px;text-align:right;font-weight:500;color:var(--gray-600);">-</span>
-        <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="${t('common.delete')}">✕</button>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove(); window.updateLivePricePreview();" title="${t('common.delete')}">✕</button>
     `;
 
     // Set up searchable dropdown - create dropdown in body for proper positioning
@@ -830,6 +1201,242 @@ window.addConsumableRow = function(preselectedId = null, preselectedQty = 1, pre
     }
 };
 
+// Global function to add material row (lab materials)
+window.addMaterialRow = function(preselectedId = null, preselectedQty = 1, preselectedCustomPrice = null) {
+    const container = document.getElementById('materialsContainer');
+    if (!container) {
+        console.error('materialsContainer not found');
+        return;
+    }
+
+    // Remove "no materials" message if it exists
+    const emptyMsg = container.querySelector('.empty-materials');
+    if (emptyMsg) {
+        emptyMsg.remove();
+    }
+
+    const materials = window.serviceFormMaterials;
+    console.log('Materials available:', materials);
+    if (!materials || materials.length === 0) {
+        alert('Please add lab materials to your library first before adding them to services.');
+        return;
+    }
+
+    const preselected = preselectedId ? materials.find(m => m.id == preselectedId) : null;
+    const defaultUnitPrice = preselected ? preselected.unit_cost : null;
+    const rowId = 'material-row-' + Date.now();
+
+    const row = document.createElement('div');
+    row.className = 'material-row';
+    row.id = rowId;
+    row.style.cssText = 'display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;';
+
+    // Get localized name for preselected material
+    const preselectedName = preselected ? (i18n.currentLang === 'ar' && preselected.name_ar ? preselected.name_ar : preselected.material_name) : '';
+
+    // Use custom price if set, otherwise show default
+    const displayUnitPrice = preselectedCustomPrice !== null ? preselectedCustomPrice : (defaultUnitPrice ? defaultUnitPrice.toFixed(2) : '');
+
+    row.innerHTML = `
+        <div class="material-search-wrapper" style="flex:2;position:relative;">
+            <input type="text" class="form-input material-search"
+                   placeholder="${t('services.selectMaterial')}" autocomplete="off"
+                   value="${preselectedName}"
+                   data-material-search readonly style="cursor:pointer;">
+            <input type="hidden" data-material-select value="${preselectedId || ''}">
+            <input type="hidden" data-material-default-price value="${defaultUnitPrice || ''}">
+            <svg class="dropdown-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--gray-400);">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
+        </div>
+        <input type="number" class="form-input" style="width:70px;" placeholder="${t('services.qty')}" value="${preselectedQty}" data-material-quantity min="0.1" step="0.1" required>
+        <input type="number" class="form-input" style="width:90px;" placeholder="${t('services.unitPrice')}" value="${displayUnitPrice}" data-material-unit-price step="0.01" min="0">
+        <span data-material-cost style="width:80px;text-align:right;font-weight:500;color:var(--gray-600);">-</span>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove(); window.updateLivePricePreview();" title="${t('common.delete')}">✕</button>
+    `;
+
+    // Set up searchable dropdown
+    const searchInput = row.querySelector('[data-material-search]');
+    const hiddenInput = row.querySelector('[data-material-select]');
+    const qtyInput = row.querySelector('[data-material-quantity]');
+
+    // Create dropdown element in document body
+    const dropdown = document.createElement('div');
+    dropdown.className = 'material-dropdown';
+    dropdown.style.display = 'none';
+    document.body.appendChild(dropdown);
+    let highlightedIndex = -1;
+
+    dropdown.innerHTML = `
+        <div class="dropdown-search-container" style="padding:0.5rem;border-bottom:1px solid var(--gray-200);position:sticky;top:0;background:white;z-index:1;">
+            <input type="text" class="dropdown-search-input form-input" placeholder="${t('common.search')}"
+                   style="width:100%;padding:0.5rem 0.75rem;font-size:0.875rem;">
+        </div>
+        <div class="dropdown-options-container"></div>
+    `;
+
+    const dropdownSearchInput = dropdown.querySelector('.dropdown-search-input');
+    const optionsContainer = dropdown.querySelector('.dropdown-options-container');
+
+    dropdownSearchInput.addEventListener('input', (e) => {
+        e.stopPropagation();
+        renderOptions(e.target.value);
+    });
+    dropdownSearchInput.addEventListener('click', (e) => e.stopPropagation());
+
+    const renderOptions = (filter = '') => {
+        const filterLower = filter.toLowerCase();
+        const filtered = materials.filter(m => {
+            const materialName = (m.material_name || '').toLowerCase();
+            const nameAr = (m.name_ar || '').toLowerCase();
+            return materialName.includes(filterLower) || nameAr.includes(filterLower);
+        });
+
+        if (filtered.length === 0) {
+            optionsContainer.innerHTML = `<div style="padding:0.75rem 1rem;color:var(--gray-500);text-align:center;">${t('common.noData')}</div>`;
+        } else {
+            optionsContainer.innerHTML = filtered.map((m, idx) => {
+                const displayName = i18n.currentLang === 'ar' && m.name_ar ? m.name_ar : m.material_name;
+                return `<div class="material-option ${idx === highlightedIndex ? 'highlighted' : ''}"
+                            data-id="${m.id}" data-name="${displayName}" data-index="${idx}">
+                    <span>${displayName}</span>
+                    <span style="font-size:0.75rem;color:var(--gray-500);">${formatCurrency(m.unit_cost)}/${t('services.unit')}</span>
+                </div>`;
+            }).join('');
+        }
+        highlightedIndex = filtered.length > 0 ? 0 : -1;
+        updateHighlight();
+    };
+
+    const updateHighlight = () => {
+        dropdown.querySelectorAll('.material-option').forEach((opt, idx) => {
+            opt.style.background = idx === highlightedIndex ? 'var(--primary-50)' : '';
+        });
+    };
+
+    const selectOption = (id, name) => {
+        hiddenInput.value = id;
+        searchInput.value = name;
+        dropdown.style.display = 'none';
+
+        // Set default unit price when selecting a material
+        const selectedMaterial = materials.find(m => m.id == id);
+        if (selectedMaterial) {
+            const defaultPrice = selectedMaterial.unit_cost;
+            const defaultPriceInput = row.querySelector('[data-material-default-price]');
+            const unitPriceInput = row.querySelector('[data-material-unit-price]');
+            if (defaultPriceInput) defaultPriceInput.value = defaultPrice;
+            if (unitPriceInput) unitPriceInput.value = defaultPrice.toFixed(2);
+        }
+
+        window.updateMaterialCost(row);
+    };
+
+    const positionDropdown = () => {
+        const rect = searchInput.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const dropdownHeight = 200;
+        const spaceBelow = viewportHeight - rect.bottom;
+        const spaceAbove = rect.top;
+
+        dropdown.style.position = 'fixed';
+        dropdown.style.left = `${rect.left}px`;
+        dropdown.style.width = `${rect.width}px`;
+
+        if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+            dropdown.style.bottom = `${viewportHeight - rect.top + 2}px`;
+            dropdown.style.top = 'auto';
+        } else {
+            dropdown.style.top = `${rect.bottom + 2}px`;
+            dropdown.style.bottom = 'auto';
+        }
+    };
+
+    // Click to open dropdown
+    searchInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+        renderOptions('');
+        positionDropdown();
+        dropdown.style.display = 'block';
+        setTimeout(() => dropdownSearchInput.focus(), 10);
+    });
+
+    // Click on option to select
+    dropdown.addEventListener('click', (e) => {
+        const option = e.target.closest('.material-option');
+        if (option) {
+            const id = option.getAttribute('data-id');
+            const name = option.getAttribute('data-name');
+            selectOption(id, name);
+        }
+    });
+
+    // Keyboard navigation
+    dropdownSearchInput.addEventListener('keydown', (e) => {
+        const options = dropdown.querySelectorAll('.material-option');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlightedIndex = Math.min(highlightedIndex + 1, options.length - 1);
+            updateHighlight();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightedIndex = Math.max(highlightedIndex - 1, 0);
+            updateHighlight();
+        } else if (e.key === 'Enter' && highlightedIndex >= 0 && options[highlightedIndex]) {
+            e.preventDefault();
+            const id = options[highlightedIndex].getAttribute('data-id');
+            const name = options[highlightedIndex].getAttribute('data-name');
+            selectOption(id, name);
+        } else if (e.key === 'Escape') {
+            dropdown.style.display = 'none';
+        }
+    });
+
+    // Close dropdown when clicking outside
+    const closeHandler = (e) => {
+        if (!dropdown.contains(e.target) && e.target !== searchInput) {
+            dropdown.style.display = 'none';
+        }
+    };
+    document.addEventListener('click', closeHandler);
+
+    // Clean up dropdown when row is removed
+    const originalRemove = row.remove.bind(row);
+    row.remove = function() {
+        dropdown.remove();
+        document.removeEventListener('click', closeHandler);
+        originalRemove();
+    };
+
+    // Update cost when quantity or unit price changes
+    qtyInput.addEventListener('input', () => window.updateMaterialCost(row));
+    row.querySelector('[data-material-unit-price]').addEventListener('input', () => window.updateMaterialCost(row));
+
+    container.appendChild(row);
+
+    // Update cost if preselected
+    if (preselectedId) {
+        window.updateMaterialCost(row);
+    }
+};
+
+// Global function to update material cost
+window.updateMaterialCost = function(row) {
+    const qty = parseFloat(row.querySelector('[data-material-quantity]')?.value) || 0;
+    const unitPrice = parseFloat(row.querySelector('[data-material-unit-price]')?.value) || 0;
+    const costDisplay = row.querySelector('[data-material-cost]');
+
+    if (costDisplay) {
+        const totalCost = qty * unitPrice;
+        costDisplay.textContent = formatCurrency(totalCost);
+    }
+
+    // Trigger live price preview update
+    if (typeof window.updateLivePricePreview === 'function') {
+        window.updateLivePricePreview();
+    }
+};
+
 // Global function to add equipment row
 window.addEquipmentRow = function(preselectedId = null, preselectedHours = 0.25) {
     const container = document.getElementById('equipmentContainer');
@@ -869,7 +1476,7 @@ window.addEquipmentRow = function(preselectedId = null, preselectedHours = 0.25)
             <input type="number" class="form-input" style="width:100%;" data-equipment-hours value="${preselectedHours}" step="0.1" min="0.1" placeholder="0.25">
             <span class="input-unit">${t('services.hours')}</span>
         </div>
-        <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()" title="${t('common.delete')}">✕</button>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove(); window.updateLivePricePreview();" title="${t('common.delete')}">✕</button>
     `;
 
     // Insert at top
@@ -1853,6 +2460,7 @@ const Pages = {
 
     async consumables() {
         const consumables = await API.get('/api/consumables');
+        const materials = await API.get('/api/materials');
 
         return `
             <div class="card" style="background:#fef3c7;border-color:#fbbf24;">
@@ -1868,12 +2476,44 @@ const Pages = {
                 </div>
             </div>
 
-            <div class="card" style="margin-top:1.5rem;">
-                <div class="card-header">
-                    <h3 class="card-title">${t('consumables.library')}</h3>
-                    <button class="btn btn-primary" onclick="Pages.showConsumableForm()">+ ${t('consumables.addConsumable')}</button>
-                </div>
-                <div class="card-body" style="padding:0;">
+            <!-- Card-style Tabs for Consumables and Materials -->
+            <div style="margin-top:1.5rem;">
+                <div class="tabs-container">
+                    <div class="card-tabs" role="tablist" style="display:flex;gap:1rem;margin-bottom:1.5rem;">
+                        <button class="card-tab active" role="tab" aria-selected="true" onclick="switchTab(event, 'consumables-tab')" style="flex:1;display:flex;align-items:center;gap:1rem;padding:1.5rem;background:white;border:2px solid var(--primary-500);border-radius:12px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                            <div style="width:48px;height:48px;background:var(--primary-50);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary-600)" stroke-width="2">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                </svg>
+                            </div>
+                            <div style="flex:1;text-align:${i18n.currentLang === 'ar' ? 'right' : 'left'};">
+                                <div style="font-weight:600;font-size:1rem;color:var(--gray-900);">${t('consumables.consumablesTab')}</div>
+                                <div style="font-size:0.875rem;color:var(--gray-500);margin-top:0.25rem;">${t('consumables.tabSubtitle')}</div>
+                            </div>
+                            <div style="background:var(--primary-500);color:white;padding:0.25rem 0.75rem;border-radius:20px;font-weight:600;font-size:0.875rem;flex-shrink:0;">${consumables.length}</div>
+                        </button>
+                        <button class="card-tab" role="tab" aria-selected="false" onclick="switchTab(event, 'materials-tab')" style="flex:1;display:flex;align-items:center;gap:1rem;padding:1.5rem;background:var(--gray-50);border:2px solid var(--gray-200);border-radius:12px;cursor:pointer;transition:all 0.2s;">
+                            <div style="width:48px;height:48px;background:var(--gray-100);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--gray-600)" stroke-width="2">
+                                    <path d="M12 2C8 2 6 5 6 8c0 2.5 1 4 2 5.5S10 16 10 18c0 1.5-.5 3-1.5 4h7c-1-1-1.5-2.5-1.5-4 0-2 1-3.5 2-5.5s2-3 2-5.5c0-3-2-6-6-6z"/>
+                                </svg>
+                            </div>
+                            <div style="flex:1;text-align:${i18n.currentLang === 'ar' ? 'right' : 'left'};">
+                                <div style="font-weight:600;font-size:1rem;color:var(--gray-900);">${t('materials.materialsTab')}</div>
+                                <div style="font-size:0.875rem;color:var(--gray-500);margin-top:0.25rem;">${t('materials.tabSubtitle')}</div>
+                            </div>
+                            <div style="background:var(--gray-400);color:white;padding:0.25rem 0.75rem;border-radius:20px;font-weight:600;font-size:0.875rem;flex-shrink:0;">${materials.length}</div>
+                        </button>
+                    </div>
+
+                    <!-- Consumables Tab Content -->
+                    <div id="consumables-tab" class="tab-content active" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">${t('consumables.consumablesSection')}</h3>
+                                <button class="btn btn-primary" onclick="Pages.showConsumableForm()">+ ${t('consumables.addConsumable')}</button>
+                            </div>
+                            <div class="card-body" style="padding:0;">
                     ${consumables.length > 0 ? `
                         <table class="data-table">
                             <thead>
@@ -1891,7 +2531,7 @@ const Pages = {
                                     const perUnitCost = c.pack_cost / c.cases_per_pack / c.units_per_case;
                                     return `
                                         <tr data-consumable-id="${c.id}">
-                                            <td><strong>${getLocalizedName(c, 'item_name', 'name_ar')}</strong></td>
+                                            <td><strong>${getLocalizedName(c)}</strong></td>
                                             <td>${formatCurrency(c.pack_cost)}</td>
                                             <td>${c.cases_per_pack}</td>
                                             <td>${c.units_per_case}</td>
@@ -1917,6 +2557,59 @@ const Pages = {
                             </div>
                         </div>
                     `}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Materials Tab Content -->
+                    <div id="materials-tab" class="tab-content" role="tabpanel" hidden>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">${t('materials.title')}</h3>
+                                <button class="btn btn-primary" onclick="Pages.showMaterialForm()">+ ${t('materials.addMaterial')}</button>
+                            </div>
+                        <div class="card-body" style="padding:0;">
+                            ${materials.length > 0 ? `
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>${t('materials.materialName')}</th>
+                                            <th>${t('materials.labName')}</th>
+                                            <th>${t('materials.unitCost')}</th>
+                                            <th>${t('common.actions')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${materials.map(m => {
+                                            return `
+                                                <tr data-material-id="${m.id}">
+                                                    <td><strong>${getLocalizedName(m)}</strong></td>
+                                                    <td>${m.lab_name || '-'}</td>
+                                                    <td><strong>${formatCurrency(m.unit_cost)}</strong></td>
+                                                    <td>
+                                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showMaterialForm(${m.id})" title="${t('common.edit')}">✎</button>
+                                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteMaterial(${m.id})" title="${t('common.delete')}">🗑️</button>
+                                                    </td>
+                                                </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            ` : `
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">🦷</div>
+                                    <h3>${t('materials.noMaterials')}</h3>
+                                    <p>${t('materials.addFirst')}</p>
+                                    <div class="empty-state-actions">
+                                        <button class="btn btn-primary" onclick="Pages.showMaterialForm()">
+                                            + ${t('materials.addMaterial')}
+                                        </button>
+                                    </div>
+                                </div>
+                            `}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -2066,6 +2759,83 @@ const Pages = {
             'consumable',
             id,
             async (itemId) => await API.delete(`/api/consumables/${itemId}`),
+            () => APP.loadPage('consumables')
+        );
+    },
+
+    async showMaterialForm(id=null) {
+        let material = null;
+        if (id) {
+            const materials = await API.get('/api/materials');
+            material = materials.find(m => m.id === id);
+        }
+
+        const content = `
+            <form id="materialForm">
+                <div class="form-group">
+                    <label class="form-label required">${t('materials.name')}</label>
+                    <input type="text" class="form-input" name="material_name" value="${material?.material_name||''}" placeholder="e.g., Zirconia Crown, Porcelain Veneer" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${t('materials.nameArabic')}</label>
+                    <input type="text" class="form-input" name="name_ar" value="${material?.name_ar||''}" dir="rtl" placeholder="اسم المادة بالعربية" style="font-family: 'Noto Sans Arabic', var(--font-sans);">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${t('materials.labName')}</label>
+                    <input type="text" class="form-input" name="lab_name" value="${material?.lab_name||''}" placeholder="e.g., Cairo Dental Lab">
+                    <small style="color:var(--gray-500);font-size:0.8125rem;">${t('materials.labNameHelp')}</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label required">${t('materials.unitCost')}</label>
+                    <div class="input-with-unit">
+                        <input type="number" class="form-input" name="unit_cost" value="${material?.unit_cost||''}" step="0.01" placeholder="e.g., 500" required>
+                        <span class="input-unit">${APP.settings?.currency || 'EGP'}</span>
+                    </div>
+                    <small style="color:var(--gray-500);font-size:0.8125rem;">${t('materials.unitCostHelp')}</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${t('materials.description')}</label>
+                    <textarea class="form-input" name="description" rows="3" placeholder="${t('materials.descriptionPlaceholder')}">${material?.description||''}</textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAllModals()">${t('common.cancel')}</button>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.25rem;">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        ${t('materials.saveMaterial')}
+                    </button>
+                </div>
+            </form>
+        `;
+
+        openModal(id ? t('modal.editMaterial') : t('modal.addMaterial'), content, 'modal-md');
+
+        document.getElementById('materialForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = Object.fromEntries(new FormData(e.target));
+            formData.unit_cost = parseFloat(formData.unit_cost);
+
+            try {
+                if (id) {
+                    await API.put(`/api/materials/${id}`, formData);
+                } else {
+                    await API.post('/api/materials', formData);
+                }
+                showToast(t('toast.materialSaved'));
+                closeAllModals();
+                APP.loadPage('consumables');
+            } catch(err) {
+                showToast(t('common.error') + ': ' + err.message, 'error');
+            }
+        };
+    },
+
+    async deleteMaterial(id) {
+        deleteWithUndo(
+            'material',
+            id,
+            async (itemId) => await API.delete(`/api/materials/${itemId}`),
             () => APP.loadPage('consumables')
         );
     },
@@ -2312,6 +3082,7 @@ const Pages = {
     async showServiceForm(id=null) {
         const equipment = await API.get('/api/equipment');
         const consumables = await API.get('/api/consumables');
+        const materials = await API.get('/api/materials');
         const categories = await API.get('/api/categories');
         // Store consumables globally so addConsumableRow can access them
         window.serviceFormConsumables = consumables;
@@ -2321,13 +3092,16 @@ const Pages = {
             service = await API.get(`/api/services/${id}`);
         }
 
-        // Count consumables and equipment for badge
+        // Count consumables, materials, and equipment for badge
         const consumablesCount = service?.consumables?.length || 0;
+        const materialsCount = service?.materials?.length || 0;
         const equipmentCount = service?.equipment_list?.length || 0;
         const hasEquipment = equipmentCount > 0;
         const hasCustomProfit = !(service?.use_default_profit === undefined || service?.use_default_profit === null || service?.use_default_profit == 1 || service?.use_default_profit === true);
 
-        // Store equipment globally for addEquipmentRow
+        // Store consumables, materials, and equipment globally for add row functions
+        window.serviceFormConsumables = consumables;
+        window.serviceFormMaterials = materials;
         window.serviceFormEquipment = equipment.filter(e => e.allocation_type === 'per-hour');
 
         // Check if trial mode - blur live price preview
@@ -2396,11 +3170,11 @@ const Pages = {
                                 <span class="input-unit">${t('services.hours')}</span>
                             </div>
                             <div class="quick-options">
-                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='0.25'">15min</button>
-                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='0.5'">30min</button>
-                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='1'">1hr</button>
-                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='1.5'">1.5hr</button>
-                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='2'">2hr</button>
+                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='0.25'; window.updateLivePricePreview()">15min</button>
+                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='0.5'; window.updateLivePricePreview()">30min</button>
+                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='1'; window.updateLivePricePreview()">1hr</button>
+                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='1.5'; window.updateLivePricePreview()">1.5hr</button>
+                                <button type="button" class="quick-btn" onclick="document.querySelector('[name=chair_time_hours]').value='2'; window.updateLivePricePreview()">2hr</button>
                             </div>
                         </div>
                         <div class="form-group">
@@ -2469,6 +3243,35 @@ const Pages = {
                         </div>
                         <div id="consumablesContainer">
                             ${!service?.consumables?.length ? '<div class="empty-consumables" style="color:var(--gray-500);text-align:center;padding:1rem;background:var(--gray-50);border-radius:var(--radius);border:1px dashed var(--gray-300);">' + t('services.noConsumablesYet') + '</div>' : ''}
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Collapsible: Lab Materials -->
+                <section class="form-section-collapsible ${materialsCount > 0 ? 'is-open' : ''}">
+                    <button type="button" class="section-toggle" aria-expanded="${materialsCount > 0 ? 'true' : 'false'}" onclick="window.toggleFormSection(this)">
+                        <span class="toggle-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                        </span>
+                        <span class="toggle-title">${t('services.materialsSection')}</span>
+                        <span class="toggle-badge">${materialsCount > 0 ? materialsCount + ' ' + t('services.items') : t('services.optional')}</span>
+                    </button>
+                    <div class="section-content" ${materialsCount > 0 ? '' : 'hidden'}>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                            <small style="color:var(--gray-600);">${t('services.materialsHelp')}</small>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="addMaterialRow()">+ ${t('common.add')}</button>
+                        </div>
+                        <div class="materials-header" style="display:flex;gap:0.5rem;margin-bottom:0.25rem;padding:0 0.25rem;font-size:0.75rem;color:var(--gray-500);font-weight:600;">
+                            <span style="flex:2;">${t('services.material')}</span>
+                            <span style="width:70px;">${t('services.qty')}</span>
+                            <span style="width:90px;">${t('services.unitPrice')}</span>
+                            <span style="width:80px;">${t('dashboard.cost')}</span>
+                            <span style="width:32px;"></span>
+                        </div>
+                        <div id="materialsContainer">
+                            ${!service?.materials?.length ? '<div class="empty-materials" style="color:var(--gray-500);text-align:center;padding:1rem;background:var(--gray-50);border-radius:var(--radius);border:1px dashed var(--gray-300);">' + t('services.noMaterialsYet') + '</div>' : ''}
                         </div>
                     </div>
                 </section>
@@ -2550,11 +3353,21 @@ const Pages = {
             });
         }
 
-        // Load existing equipment
+        // Load existing materials
+        if (service?.materials?.length > 0) {
+            service.materials.forEach(sm => {
+                window.addMaterialRow(sm.material_id, sm.quantity, sm.custom_unit_price);
+            });
+        }
+
+        // Load existing equipment (supports both new equipment_list and legacy equipment_id)
         if (service?.equipment_list?.length > 0) {
             service.equipment_list.forEach(eq => {
                 window.addEquipmentRow(eq.equipment_id, eq.hours_used);
             });
+        } else if (service?.equipment_id && service?.equipment_hours_used) {
+            // Load legacy single equipment field
+            window.addEquipmentRow(service.equipment_id, service.equipment_hours_used);
         }
 
         // Setup real-time form validation
@@ -2599,17 +3412,61 @@ const Pages = {
                 consumablesCost += parseFloat(costText) || 0;
             });
 
+            // Calculate materials cost
+            let materialsCost = 0;
+            document.querySelectorAll('[data-material-cost]').forEach(el => {
+                const costText = el.textContent.replace(/[^0-9.]/g, '');
+                materialsCost += parseFloat(costText) || 0;
+            });
+
+            // Calculate equipment cost
+            let equipmentCost = 0;
+            document.querySelectorAll('.equipment-row').forEach(row => {
+                const equipmentId = row.querySelector('[data-equipment-select]')?.value;
+                const hours = parseFloat(row.querySelector('[data-equipment-hours]')?.value) || 0;
+                if (equipmentId && hours > 0 && window.serviceFormEquipment) {
+                    const equipment = window.serviceFormEquipment.find(e => e.id == equipmentId);
+                    if (equipment && equipment.allocation_type === 'per-hour') {
+                        // Calculate cost per hour: purchase_cost / (life_years * 12 months * monthly_usage_hours)
+                        const totalHoursLife = equipment.life_years * 12 * (equipment.monthly_usage_hours || 160);
+                        const costPerHour = equipment.purchase_cost / totalHoursLife;
+                        equipmentCost += costPerHour * hours;
+                    }
+                }
+            });
+
             // Total cost
-            const totalCost = doctorCost + overheadCost + consumablesCost;
+            let totalCost = doctorCost + overheadCost + consumablesCost + materialsCost + equipmentCost;
 
             // Calculate price with profit margin
             const profitMargin = useDefaultProfit ? (APP.settings?.default_profit_margin || 30) : customProfit;
-            let calculatedPrice = totalCost * (1 + profitMargin / 100);
+            const vatPercent = APP.settings?.vat_percent || 0;
+            const rounding = APP.settings?.rounding_nearest || 5;
 
-            // If doctor fee is percentage, solve for price
+            let calculatedPrice = 0;
+            let finalPrice = 0;
+
+            // If doctor fee is percentage, solve for price differently
             if (doctorFeeType === 'percentage') {
-                calculatedPrice = (overheadCost + consumablesCost) / (1 - (profitMargin + doctorPercentage) / 100);
+                // Price = (OtherCosts) / (1 - (ProfitMargin + DoctorPercentage) / 100)
+                // Then apply VAT
+                const priceBeforeVat = (overheadCost + consumablesCost + materialsCost + equipmentCost) / (1 - (profitMargin + doctorPercentage) / 100);
+                const vatAmount = priceBeforeVat * (vatPercent / 100);
+                finalPrice = priceBeforeVat + vatAmount;
+
+                // Calculate doctor cost for display
+                const doctorCostFromPercentage = priceBeforeVat * (doctorPercentage / 100);
+                totalCost = doctorCostFromPercentage + overheadCost + consumablesCost + materialsCost + equipmentCost;
+            } else {
+                // Standard calculation: Cost + Profit + VAT
+                const profitAmount = totalCost * (profitMargin / 100);
+                const priceBeforeVat = totalCost + profitAmount;
+                const vatAmount = priceBeforeVat * (vatPercent / 100);
+                finalPrice = priceBeforeVat + vatAmount;
             }
+
+            // Apply rounding
+            calculatedPrice = Math.round(finalPrice / rounding) * rounding;
 
             // Update preview card
             const previewCard = document.getElementById('livePricePreview');
@@ -2635,7 +3492,8 @@ const Pages = {
             '[name="doctor_fixed_fee"]',
             '[name="doctor_percentage"]',
             '[name="use_default_profit"]',
-            '[name="custom_profit_percent"]'
+            '[name="custom_profit_percent"]',
+            '[name="equipment_id"]'
         ];
 
         priceInputs.forEach(selector => {
@@ -2711,6 +3569,34 @@ const Pages = {
                     }
 
                     formData.consumables.push(consumableData);
+                }
+            });
+
+            // Collect materials data
+            formData.materials = [];
+            document.querySelectorAll('.material-row').forEach(row => {
+                const select = row.querySelector('[data-material-select]');
+                const quantity = row.querySelector('[data-material-quantity]');
+                const unitPrice = row.querySelector('[data-material-unit-price]');
+                const defaultPrice = row.querySelector('[data-material-default-price]');
+
+                if (select.value && quantity.value) {
+                    const materialData = {
+                        material_id: parseInt(select.value),
+                        quantity: parseFloat(quantity.value)
+                    };
+
+                    // Include custom_unit_price only if it differs from default
+                    if (unitPrice && unitPrice.value && defaultPrice && defaultPrice.value) {
+                        const enteredPrice = parseFloat(unitPrice.value);
+                        const calcDefaultPrice = parseFloat(defaultPrice.value);
+                        // Only save if custom price differs from default (with small tolerance for floating point)
+                        if (Math.abs(enteredPrice - calcDefaultPrice) > 0.001) {
+                            materialData.custom_unit_price = enteredPrice;
+                        }
+                    }
+
+                    formData.materials.push(materialData);
                 }
             });
 
@@ -2980,6 +3866,9 @@ const Pages = {
         const totalServices = priceList.length;
         const settings = await API.get('/api/settings/global');
 
+        // Initialize Profit Simulator
+        ProfitSimulator.init(priceList);
+
         // Calculate summary statistics
         const servicesWithPrice = priceList.filter(p => p.current_price);
         const underpriced = servicesWithPrice.filter(p => p.rounded_price > p.current_price);
@@ -3173,8 +4062,54 @@ const Pages = {
             </div>
         ` : '';
 
+        // Profit Simulator HTML - only show for non-trial users
+        const simulatorHtml = !isTrial ? `
+            <div class="profit-simulator" id="profitSimulator">
+                <div class="simulator-header" onclick="toggleSimulator()">
+                    <h3>🎮 ${t('priceList.simulator.title') || 'Profit Margin Editor'}</h3>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div class="simulator-body">
+                    <p style="color:var(--gray-600);margin-bottom:1rem;">Adjust profit margins for each service individually below</p>
+
+                    <!-- Metrics -->
+                    <div class="simulator-metrics">
+                        <div class="metric-card" id="revenueImpactCard">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-label">${t('priceList.simulator.revenueImpact') || 'Revenue Impact'}</div>
+                            <div class="metric-value" id="revenueImpactValue">${formatCurrency(0)}</div>
+                            <div class="metric-subtext">from modified services</div>
+                        </div>
+                        <div class="metric-card" id="pricingHealthCard">
+                            <div class="metric-icon">💚</div>
+                            <div class="metric-label">${t('priceList.simulator.pricingHealth') || 'Pricing Health'}</div>
+                            <div class="metric-value" id="pricingHealthValue">${optimal.length > 0 ? Math.round((optimal.length / servicesWithPrice.length) * 100) : 0}%</div>
+                            <div class="health-bar"><div class="health-bar-fill" id="healthBarFill" style="width:${optimal.length > 0 ? (optimal.length / servicesWithPrice.length) * 100 : 0}%"></div></div>
+                        </div>
+                        <div class="metric-card" id="modifiedServicesCard">
+                            <div class="metric-icon">✏️</div>
+                            <div class="metric-label">Modified Services</div>
+                            <div class="metric-value" id="modifiedCount">0</div>
+                            <div class="metric-subtext">changes pending</div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="simulator-actions">
+                        <button class="btn btn-reset" onclick="resetAllMargins()" style="display:none;" id="resetAllBtn">
+                            ↺ Reset All Changes
+                        </button>
+                        <button class="btn btn-apply" onclick="applyAllChanges()" style="display:none;" id="applyAllBtn">
+                            ✓ Save All Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        ` : '';
+
         return `
             ${trialBannerHtml}
+            ${simulatorHtml}
             <div class="card" style="background:#d1fae5;border-color:#34d399;">
                 <div class="card-header" style="background:#a7f3d0;">
                     <h3 class="card-title">💰 ${t('priceList.overview')}</h3>
@@ -3214,13 +4149,32 @@ const Pages = {
                         const renderServiceRow = (p) => {
                             const variance = getVarianceDisplay(p);
                             return `
-                                <tr style="${variance.status === 'underpriced' ? 'background:#fffbeb;' : ''}">
+                                <tr data-service-id="${p.id}" class="service-row" style="${variance.status === 'underpriced' ? 'background:#fffbeb;' : ''}">
                                     <td style="padding-left:2rem;"><strong>${getLocalizedName(p)}</strong></td>
                                     <td class="${blurClass}">${formatCurrency(p.total_cost)}</td>
-                                    <td class="${blurClass}"><span class="badge badge-success">${p.profit_percent}%</span></td>
-                                    <td class="${blurClass}"><strong style="color:var(--primary-600);">${formatCurrency(p.rounded_price)}</strong></td>
+                                    <td class="${blurClass}" style="padding:0.75rem 1rem;">
+                                        <div class="margin-control">
+                                            <button class="margin-quick-btn" onclick="adjustMargin(${p.id}, -5)" title="Decrease by 5%">−5</button>
+                                            <div class="margin-slider-container">
+                                                <input type="range" class="margin-slider" value="${p.profit_percent}" min="0" max="100" step="1"
+                                                       oninput="updateServiceMargin(${p.id}, this.value); this.nextElementSibling.value = this.value"
+                                                       style="width:80px;">
+                                                <input type="number" class="margin-input" value="${p.profit_percent}" min="0" max="100" step="1"
+                                                       onchange="updateServiceMargin(${p.id}, this.value); this.previousElementSibling.value = this.value"
+                                                       style="width:50px;">
+                                                <span class="margin-percent">%</span>
+                                            </div>
+                                            <button class="margin-quick-btn" onclick="adjustMargin(${p.id}, 5)" title="Increase by 5%">+5</button>
+                                        </div>
+                                    </td>
+                                    <td class="${blurClass}"><strong class="simulated-price" data-original="${p.rounded_price}" style="color:var(--primary-600);">${formatCurrency(p.rounded_price)}</strong></td>
                                     <td class="${blurClass}">${p.current_price ? formatCurrency(p.current_price) : `<span style="color:#94a3b8;font-size:0.8rem;">${t('priceList.notSet')}</span>`}</td>
                                     <td class="${blurClass}">${variance.html}</td>
+                                    <td class="row-actions">
+                                        <button class="save-btn" id="saveBtn-${p.id}" onclick="saveServiceMargin(${p.id})" style="display:none;" title="${t('common.save') || 'Save'}">
+                                            💾
+                                        </button>
+                                    </td>
                                 </tr>
                             `;
                         };
@@ -3232,7 +4186,7 @@ const Pages = {
                         categoryNames.forEach(catName => {
                             tableRows += `
                                 <tr class="category-header" style="background:var(--gray-100);">
-                                    <td colspan="6" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
+                                    <td colspan="7" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
                                         📁 ${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${grouped[catName].length} ${t('priceList.services')})</span>
                                     </td>
                                 </tr>
@@ -3244,7 +4198,7 @@ const Pages = {
                         if (uncategorized.length > 0) {
                             tableRows += `
                                 <tr class="category-header" style="background:var(--gray-100);">
-                                    <td colspan="6" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
+                                    <td colspan="7" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
                                         📁 ${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length} ${t('priceList.services')})</span>
                                     </td>
                                 </tr>
@@ -3262,6 +4216,7 @@ const Pages = {
                                         <th>${t('priceList.calculatedPrice')}</th>
                                         <th>${t('priceList.currentPrice')}</th>
                                         <th>${t('priceList.variance')}</th>
+                                        <th style="width:50px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
