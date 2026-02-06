@@ -373,7 +373,7 @@
     "doctorFeePercent": "Doctor Fee (%)",
     "doctorFeeHourlyHelp": "Doctor's hourly rate for this procedure",
     "doctorFeeFixedHelp": "Fixed amount paid to doctor for this service",
-    "doctorFeePercentHelp": "Percentage of final price paid to doctor",
+    "doctorFeePercentHelp": "Percentage of (final price - lab materials) paid to doctor",
     "profitMargin": "Profit Margin",
     "useDefaultProfit": "Use default profit margin",
     "customProfitPercent": "Custom Profit %",

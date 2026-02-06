@@ -3750,7 +3750,7 @@ const Pages = {
                                     } else if (feeType === 'fixed') {
                                         return `<span style="font-size:0.75rem;color:#64748b;"> (Fixed fee)</span>`;
                                     } else if (feeType === 'percentage') {
-                                        return `<span style="font-size:0.75rem;color:#64748b;"> (${service.doctor_percentage}% of rounded final price)</span>`;
+                                        return `<span style="font-size:0.75rem;color:#64748b;"> (${service.doctor_percentage}% excl. lab materials)</span>`;
                                     }
                                     return '';
                                 })()}

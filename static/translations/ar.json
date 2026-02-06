@@ -373,7 +373,7 @@
     "doctorFeePercent": "أتعاب الطبيب (%)",
     "doctorFeeHourlyHelp": "سعر الساعة للطبيب لهذا الإجراء",
     "doctorFeeFixedHelp": "المبلغ الثابت المدفوع للطبيب لهذه الخدمة",
-    "doctorFeePercentHelp": "نسبة من السعر النهائي تُدفع للطبيب",
+    "doctorFeePercentHelp": "نسبة من (السعر النهائي - مواد المعمل) تُدفع للطبيب",
     "profitMargin": "هامش الربح",
     "useDefaultProfit": "استخدام هامش الربح الافتراضي",
     "customProfitPercent": "نسبة ربح مخصصة %",
