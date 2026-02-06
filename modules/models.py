@@ -3,7 +3,7 @@ Models Module - Data access and business logic for Dental Pricing Calculator
 Multi-tenant SaaS version with clinic isolation
 """
 
-from .database import get_connection, dict_from_row, hash_password, verify_password, create_default_categories
+from .database import get_connection, dict_from_row, hash_password, verify_password, create_default_categories, create_clinic_starter_data
 import secrets
 import hashlib
 import re
@@ -49,6 +49,9 @@ def create_clinic(name, email, phone=None, address=None, city=None, country='Egy
 
     # Create default service categories
     create_default_categories(clinic_id, conn)
+
+    # Create starter data (consumables, materials, equipment, salaries, services)
+    create_clinic_starter_data(clinic_id, conn)
 
     conn.commit()
 

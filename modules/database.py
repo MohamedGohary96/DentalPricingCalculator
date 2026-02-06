@@ -489,6 +489,230 @@ def create_default_categories(clinic_id, conn=None):
         conn.close()
 
 
+def create_clinic_starter_data(clinic_id, conn=None):
+    """
+    Create comprehensive starter data for a new clinic.
+    Includes: 10 consumables, 5 lab materials, 3 fixed costs, 3 equipment, 3 salaries, 5 services
+    All items include Arabic translations.
+    """
+    close_conn = False
+    if conn is None:
+        conn = get_connection()
+        close_conn = True
+
+    cursor = conn.cursor()
+
+    # Check if starter data already exists for this clinic (check consumables as indicator)
+    cursor.execute("SELECT COUNT(*) FROM consumables WHERE clinic_id = ?", (clinic_id,))
+    if cursor.fetchone()[0] > 0:
+        if close_conn:
+            conn.close()
+        return
+
+    print(f"📦 Creating starter data for clinic {clinic_id}...")
+
+    # ===== 10 ESSENTIAL DENTAL CONSUMABLES =====
+    # (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case, name_ar)
+    consumables = [
+        (clinic_id, 'Nitrile Gloves (Box of 100)', 180, 1, 100, 'قفازات نيتريل (علبة 100)'),
+        (clinic_id, 'Anesthetic Cartridge (Lidocaine)', 850, 1, 50, 'كارتريدج مخدر (ليدوكايين)'),
+        (clinic_id, 'Composite Resin A2 (4g)', 1200, 1, 1, 'كومبوزيت راتنج A2 (4 جرام)'),
+        (clinic_id, 'Bonding Agent (5ml)', 900, 1, 40, 'مادة لاصقة (5 مل)'),
+        (clinic_id, 'Etch Gel 37% (3ml)', 120, 1, 15, 'جل إتش 37% (3 مل)'),
+        (clinic_id, 'Cotton Rolls (Pack of 1000)', 250, 1, 1000, 'لفات قطن (عبوة 1000)'),
+        (clinic_id, 'Gauze 2x2 (Pack of 200)', 180, 1, 200, 'شاش 2×2 (عبوة 200)'),
+        (clinic_id, 'Diamond Bur (Pack of 5)', 350, 1, 5, 'سنبلة ماسية (عبوة 5)'),
+        (clinic_id, 'Disposable Bib', 200, 1, 100, 'مريلة للاستعمال مرة واحدة'),
+        (clinic_id, 'Temporary Filling Material', 280, 1, 25, 'مادة حشو مؤقت'),
+    ]
+    cursor.executemany('''
+        INSERT INTO consumables (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case, name_ar)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', consumables)
+
+    # Get the inserted consumable IDs (they start at the next available ID)
+    cursor.execute("SELECT id FROM consumables WHERE clinic_id = ? ORDER BY id", (clinic_id,))
+    consumable_ids = [row[0] for row in cursor.fetchall()]
+
+    # ===== 5 COMMON LAB MATERIALS =====
+    # (clinic_id, material_name, lab_name, unit_cost, description, name_ar)
+    materials = [
+        (clinic_id, 'Zirconia Crown', 'Premium Dental Lab', 3500, 'High-quality ceramic crown', 'تاج زركونيا'),
+        (clinic_id, 'PFM Crown', 'Premium Dental Lab', 2200, 'Porcelain-fused-to-metal crown', 'تاج بورسلين على معدن'),
+        (clinic_id, 'Porcelain Veneer', 'Elite Ceramics Lab', 3000, 'Thin ceramic veneer', 'قشرة بورسلين'),
+        (clinic_id, 'Full Denture (Acrylic)', 'Prosthetics Lab', 6000, 'Complete denture set', 'طقم أسنان كامل (أكريليك)'),
+        (clinic_id, 'Night Guard', 'Appliance Lab', 1200, 'Custom occlusal guard', 'واقي ليلي'),
+    ]
+    cursor.executemany('''
+        INSERT INTO lab_materials (clinic_id, material_name, lab_name, unit_cost, description, name_ar)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', materials)
+
+    # Get the inserted material IDs
+    cursor.execute("SELECT id FROM lab_materials WHERE clinic_id = ? ORDER BY id", (clinic_id,))
+    material_ids = [row[0] for row in cursor.fetchall()]
+
+    # ===== 3 FIXED MONTHLY COSTS =====
+    # (clinic_id, category, monthly_amount, included, notes)
+    fixed_costs = [
+        (clinic_id, 'Rent', 20000, 1, 'Monthly clinic rent / إيجار العيادة الشهري'),
+        (clinic_id, 'Utilities (Electricity/Water/Internet)', 2500, 1, 'Base utility costs / تكاليف المرافق الأساسية'),
+        (clinic_id, 'Insurance & Admin', 3000, 1, 'Insurance and administrative expenses / التأمين والمصاريف الإدارية'),
+    ]
+    cursor.executemany('''
+        INSERT INTO fixed_costs (clinic_id, category, monthly_amount, included, notes)
+        VALUES (?, ?, ?, ?, ?)
+    ''', fixed_costs)
+
+    # ===== 3 EQUIPMENT ITEMS (DEPRECIATION) =====
+    # (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours)
+    equipment = [
+        (clinic_id, 'Dental Chair / كرسي الأسنان', 100000, 10, 'fixed', None),
+        (clinic_id, 'Autoclave Sterilizer / جهاز التعقيم', 35000, 7, 'fixed', None),
+        (clinic_id, 'Dental X-Ray Unit / جهاز أشعة الأسنان', 80000, 8, 'per-hour', 40),
+    ]
+    cursor.executemany('''
+        INSERT INTO equipment (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', equipment)
+
+    # Get the inserted equipment IDs
+    cursor.execute("SELECT id FROM equipment WHERE clinic_id = ? ORDER BY id", (clinic_id,))
+    equipment_ids = [row[0] for row in cursor.fetchall()]
+
+    # ===== 3 STAFF SALARIES =====
+    # (clinic_id, role_name, monthly_salary, included, notes)
+    salaries = [
+        (clinic_id, 'Receptionist / موظف استقبال', 8000, 1, 'Front desk staff'),
+        (clinic_id, 'Dental Assistant / مساعد طبيب أسنان', 12000, 1, 'Clinical assistant'),
+        (clinic_id, 'Cleaner / عامل نظافة', 4000, 1, 'Facility maintenance'),
+    ]
+    cursor.executemany('''
+        INSERT INTO salaries (clinic_id, role_name, monthly_salary, included, notes)
+        VALUES (?, ?, ?, ?, ?)
+    ''', salaries)
+
+    # ===== 5 MAIN DENTAL SERVICES =====
+    # (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent, current_price, name_ar)
+    services = [
+        (clinic_id, 'Dental Checkup & Cleaning', 0.75, 400, 1, None, 400, 'فحص وتنظيف الأسنان'),
+        (clinic_id, 'Composite Filling', 0.75, 500, 1, None, 700, 'حشو كومبوزيت'),
+        (clinic_id, 'Root Canal Treatment', 2.0, 800, 1, None, 2500, 'علاج عصب'),
+        (clinic_id, 'Zirconia Crown', 2.0, 800, 1, None, 6000, 'تاج زركونيا'),
+        (clinic_id, 'Teeth Whitening', 1.5, 500, 1, None, 3000, 'تبييض الأسنان'),
+    ]
+    cursor.executemany('''
+        INSERT INTO services (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent, current_price, name_ar)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', services)
+
+    # Get the inserted service IDs
+    cursor.execute("SELECT id FROM services WHERE clinic_id = ? ORDER BY id", (clinic_id,))
+    service_ids = [row[0] for row in cursor.fetchall()]
+
+    # ===== SERVICE-CONSUMABLE RELATIONSHIPS =====
+    # Map consumables: [0]=Gloves, [1]=Anesthetic, [2]=Composite, [3]=Bonding, [4]=Etch,
+    # [5]=Cotton, [6]=Gauze, [7]=Bur, [8]=Bib, [9]=TempFill
+
+    service_consumables = []
+
+    # Service 1: Checkup & Cleaning (uses gloves, cotton, gauze, bib)
+    if len(service_ids) > 0 and len(consumable_ids) >= 9:
+        service_consumables.extend([
+            (service_ids[0], consumable_ids[0], 4),   # 4 gloves
+            (service_ids[0], consumable_ids[5], 10),  # 10 cotton rolls
+            (service_ids[0], consumable_ids[6], 5),   # 5 gauze
+            (service_ids[0], consumable_ids[8], 1),   # 1 bib
+        ])
+
+    # Service 2: Composite Filling (uses gloves, anesthetic, composite, bonding, etch, cotton, bur, bib)
+    if len(service_ids) > 1 and len(consumable_ids) >= 9:
+        service_consumables.extend([
+            (service_ids[1], consumable_ids[0], 4),   # 4 gloves
+            (service_ids[1], consumable_ids[1], 1),   # 1 anesthetic
+            (service_ids[1], consumable_ids[2], 0.4), # 0.4 composite syringe
+            (service_ids[1], consumable_ids[3], 1),   # 1 bonding
+            (service_ids[1], consumable_ids[4], 1),   # 1 etch
+            (service_ids[1], consumable_ids[5], 8),   # 8 cotton rolls
+            (service_ids[1], consumable_ids[7], 1),   # 1 bur
+            (service_ids[1], consumable_ids[8], 1),   # 1 bib
+        ])
+
+    # Service 3: Root Canal (uses gloves, anesthetic, cotton, gauze, bib, temp fill)
+    if len(service_ids) > 2 and len(consumable_ids) >= 10:
+        service_consumables.extend([
+            (service_ids[2], consumable_ids[0], 6),   # 6 gloves
+            (service_ids[2], consumable_ids[1], 2),   # 2 anesthetic
+            (service_ids[2], consumable_ids[5], 20),  # 20 cotton rolls
+            (service_ids[2], consumable_ids[6], 10),  # 10 gauze
+            (service_ids[2], consumable_ids[8], 1),   # 1 bib
+            (service_ids[2], consumable_ids[9], 1),   # 1 temp fill
+        ])
+
+    # Service 4: Zirconia Crown (uses gloves, anesthetic, bur, bib, temp fill)
+    if len(service_ids) > 3 and len(consumable_ids) >= 10:
+        service_consumables.extend([
+            (service_ids[3], consumable_ids[0], 6),   # 6 gloves
+            (service_ids[3], consumable_ids[1], 2),   # 2 anesthetic
+            (service_ids[3], consumable_ids[7], 3),   # 3 burs
+            (service_ids[3], consumable_ids[8], 1),   # 1 bib
+            (service_ids[3], consumable_ids[9], 1),   # 1 temp fill
+        ])
+
+    # Service 5: Teeth Whitening (uses gloves, bib)
+    if len(service_ids) > 4 and len(consumable_ids) >= 9:
+        service_consumables.extend([
+            (service_ids[4], consumable_ids[0], 4),   # 4 gloves
+            (service_ids[4], consumable_ids[8], 1),   # 1 bib
+        ])
+
+    if service_consumables:
+        cursor.executemany('''
+            INSERT INTO service_consumables (service_id, consumable_id, quantity)
+            VALUES (?, ?, ?)
+        ''', service_consumables)
+
+    # ===== SERVICE-MATERIAL RELATIONSHIPS =====
+    # Map materials: [0]=Zirconia Crown, [1]=PFM Crown, [2]=Porcelain Veneer, [3]=Full Denture, [4]=Night Guard
+
+    service_materials = []
+
+    # Service 4: Zirconia Crown (uses Zirconia Crown lab material)
+    if len(service_ids) > 3 and len(material_ids) >= 1:
+        service_materials.append((service_ids[3], material_ids[0], 1))  # 1 zirconia crown
+
+    if service_materials:
+        cursor.executemany('''
+            INSERT INTO service_materials (service_id, material_id, quantity)
+            VALUES (?, ?, ?)
+        ''', service_materials)
+
+    # ===== SERVICE-EQUIPMENT RELATIONSHIPS =====
+    # Map equipment: [0]=Dental Chair, [1]=Autoclave, [2]=X-Ray Unit
+
+    service_equipment = []
+
+    # Service 3: Root Canal (uses X-Ray)
+    if len(service_ids) > 2 and len(equipment_ids) >= 3:
+        service_equipment.append((service_ids[2], equipment_ids[2], 0.25))  # 15 min X-ray for root canal
+
+    # Service 4: Zirconia Crown (uses X-Ray)
+    if len(service_ids) > 3 and len(equipment_ids) >= 3:
+        service_equipment.append((service_ids[3], equipment_ids[2], 0.25))  # 15 min X-ray for crown
+
+    if service_equipment:
+        cursor.executemany('''
+            INSERT INTO service_equipment (service_id, equipment_id, hours_used)
+            VALUES (?, ?, ?)
+        ''', service_equipment)
+
+    conn.commit()
+    if close_conn:
+        conn.close()
+
+    print(f"✅ Starter data created for clinic {clinic_id}!")
+
+
 def create_initial_admin():
     """Create initial demo clinic and admin user if no clinics exist"""
     conn = get_connection()
@@ -538,6 +762,9 @@ def create_initial_admin():
 
     # Create default service categories
     create_default_categories(clinic_id, conn)
+
+    # Create starter data (consumables, materials, equipment, salaries, services)
+    create_clinic_starter_data(clinic_id, conn)
 
     conn.commit()
     conn.close()
