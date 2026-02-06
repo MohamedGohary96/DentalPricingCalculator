@@ -414,7 +414,7 @@
     "doctorFeePerHour": "Doctor Fee per Hour",
     "fixedDoctorFee": "Fixed Doctor Fee",
     "doctorFeePercentage": "Doctor Fee Percentage",
-    "doctorFeePercentageHelp": "Percentage of rounded final price (after profit, VAT & rounding)",
+    "doctorFeePercentageHelp": "Percentage of (final price - lab materials cost). Doctor earns from clinic work only.",
     "currentMarketPrice": "Current Market Price",
     "currentMarketPriceHelp": "Optional - Used to compare with calculated price",
     "consumablesSection": "Consumables",

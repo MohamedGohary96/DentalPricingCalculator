@@ -414,7 +414,7 @@
     "doctorFeePerHour": "أتعاب الطبيب بالساعة",
     "fixedDoctorFee": "أتعاب الطبيب الثابتة",
     "doctorFeePercentage": "نسبة أتعاب الطبيب",
-    "doctorFeePercentageHelp": "نسبة من السعر النهائي المُقرَّب (بعد الربح والضريبة والتقريب)",
+    "doctorFeePercentageHelp": "نسبة من (السعر النهائي - تكلفة مواد المعمل). الطبيب يكسب من عمل العيادة فقط.",
     "currentMarketPrice": "السعر الحالي في السوق",
     "currentMarketPriceHelp": "اختياري - يُستخدم للمقارنة مع السعر المحسوب",
     "consumablesSection": "المستهلكات",

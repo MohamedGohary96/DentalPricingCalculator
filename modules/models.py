@@ -1025,21 +1025,32 @@ def calculate_service_price(service_id, clinic_id):
 
     if doctor_fee_type == 'percentage':
         doctor_percentage = service.get('doctor_percentage', 0) / 100  # Convert to decimal
-        costs_without_doctor = chair_time_cost + equipment_cost + materials_cost
+
+        # Separate clinic costs (where doctor earns percentage) from lab costs (where doctor doesn't)
+        clinic_costs = chair_time_cost + equipment_cost + consumables_cost  # Doctor's work
+        lab_costs = lab_materials_cost  # External lab work - no doctor percentage
 
         # Calculate base price without doctor fee
         profit_multiplier = 1 + (profit_percent / 100)
         vat_multiplier = 1 + (settings['vat_percent'] / 100)
 
-        # Final price formula with doctor fee as percentage of rounded price
-        final_price_before_rounding = (costs_without_doctor * profit_multiplier * vat_multiplier) / (1 - doctor_percentage)
+        # Calculate clinic portion with doctor percentage gross-up
+        # This ensures doctor gets their % from clinic work after profit & VAT
+        clinic_price_before_rounding = (clinic_costs * profit_multiplier * vat_multiplier) / (1 - doctor_percentage)
 
-        # Round the price first
+        # Lab portion has no doctor percentage adjustment
+        lab_price = lab_costs * profit_multiplier * vat_multiplier
+
+        # Total price before rounding
+        final_price_before_rounding = clinic_price_before_rounding + lab_price
+
+        # Round the total price
         rounding = settings['rounding_nearest']
         rounded_price = round(final_price_before_rounding / rounding) * rounding if rounding > 0 else final_price_before_rounding
 
-        # Now calculate doctor fee from the ROUNDED price
-        doctor_fee = rounded_price * doctor_percentage
+        # Calculate doctor fee from (rounded_price - lab_materials_cost)
+        # This gives doctor their percentage of the final price excluding lab costs
+        doctor_fee = (rounded_price - lab_materials_cost) * doctor_percentage
 
         # Back-calculate other components from rounded price
         final_price = rounded_price

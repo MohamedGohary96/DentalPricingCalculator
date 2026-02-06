@@ -3447,15 +3447,30 @@ const Pages = {
             let finalPrice = 0;
 
             // If doctor fee is percentage, solve for price differently
+            // Doctor gets percentage of (final price - lab materials cost)
             if (doctorFeeType === 'percentage') {
-                // Price = (OtherCosts) / (1 - (ProfitMargin + DoctorPercentage) / 100)
-                // Then apply VAT
-                const priceBeforeVat = (overheadCost + consumablesCost + materialsCost + equipmentCost) / (1 - (profitMargin + doctorPercentage) / 100);
-                const vatAmount = priceBeforeVat * (vatPercent / 100);
-                finalPrice = priceBeforeVat + vatAmount;
+                // Separate clinic costs (doctor earns %) from lab costs (no doctor %)
+                const clinicCosts = overheadCost + consumablesCost + equipmentCost;  // Doctor's work
+                const labCosts = materialsCost;  // External lab - no doctor percentage
 
-                // Calculate doctor cost for display
-                const doctorCostFromPercentage = priceBeforeVat * (doctorPercentage / 100);
+                const profitMultiplier = 1 + (profitMargin / 100);
+                const vatMultiplier = 1 + (vatPercent / 100);
+                const doctorPct = doctorPercentage / 100;
+
+                // Clinic portion with doctor percentage gross-up
+                const clinicPriceBeforeRounding = (clinicCosts * profitMultiplier * vatMultiplier) / (1 - doctorPct);
+
+                // Lab portion has no doctor percentage adjustment
+                const labPrice = labCosts * profitMultiplier * vatMultiplier;
+
+                // Total price before rounding
+                finalPrice = clinicPriceBeforeRounding + labPrice;
+
+                // Apply rounding
+                calculatedPrice = Math.round(finalPrice / rounding) * rounding;
+
+                // Calculate doctor fee from (rounded_price - lab_materials_cost)
+                const doctorCostFromPercentage = (calculatedPrice - labCosts) * doctorPct;
                 totalCost = doctorCostFromPercentage + overheadCost + consumablesCost + materialsCost + equipmentCost;
             } else {
                 // Standard calculation: Cost + Profit + VAT
@@ -3463,10 +3478,10 @@ const Pages = {
                 const priceBeforeVat = totalCost + profitAmount;
                 const vatAmount = priceBeforeVat * (vatPercent / 100);
                 finalPrice = priceBeforeVat + vatAmount;
-            }
 
-            // Apply rounding
-            calculatedPrice = Math.round(finalPrice / rounding) * rounding;
+                // Apply rounding
+                calculatedPrice = Math.round(finalPrice / rounding) * rounding;
+            }
 
             // Update preview card
             const previewCard = document.getElementById('livePricePreview');
