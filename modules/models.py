@@ -215,7 +215,36 @@ def get_global_settings(clinic_id):
         conn.close()
         return get_global_settings(clinic_id)
 
-    return dict_from_row(row)
+    settings = dict_from_row(row)
+
+    # Calculate total_overhead_per_hour (chair hourly rate)
+    fixed_costs = get_all_fixed_costs(clinic_id)
+    salaries = get_all_salaries(clinic_id)
+    equipment_list = get_all_equipment(clinic_id)
+    capacity = get_clinic_capacity(clinic_id)
+
+    # Calculate total monthly fixed costs
+    total_fixed = sum(c['monthly_amount'] for c in fixed_costs if c['included'])
+    total_salaries = sum(s['monthly_salary'] for s in salaries if s['included'])
+
+    # Fixed equipment depreciation
+    fixed_depreciation = 0
+    for eq in equipment_list:
+        if eq['allocation_type'] == 'fixed':
+            monthly_depreciation = eq['purchase_cost'] / (eq['life_years'] * 12)
+            fixed_depreciation += monthly_depreciation
+
+    total_monthly_fixed = total_fixed + total_salaries + fixed_depreciation
+
+    # Calculate effective hours
+    theoretical_hours = capacity['chairs'] * capacity['days_per_month'] * capacity['hours_per_day']
+    effective_hours = theoretical_hours * (capacity['utilization_percent'] / 100)
+
+    # Calculate overhead per hour
+    chair_hourly_rate = total_monthly_fixed / effective_hours if effective_hours > 0 else 0
+    settings['total_overhead_per_hour'] = round(chair_hourly_rate, 2)
+
+    return settings
 
 
 def update_global_settings(clinic_id, **kwargs):
@@ -518,6 +547,68 @@ def delete_consumable(consumable_id, clinic_id):
         conn.close()
 
 
+# ============== Lab Materials ==============
+
+def get_all_materials(clinic_id):
+    """Get all lab materials for a clinic"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM lab_materials WHERE clinic_id = ? ORDER BY material_name', (clinic_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict_from_row(r) for r in rows]
+
+
+def create_material(clinic_id, material_name, unit_cost, lab_name=None, description=None, name_ar=None):
+    """Create new lab material for a clinic"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO lab_materials (clinic_id, material_name, lab_name, unit_cost, description, name_ar)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (clinic_id, material_name, lab_name, unit_cost, description, name_ar))
+    material_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return material_id
+
+
+def update_material(material_id, clinic_id, **kwargs):
+    """Update lab material (must belong to clinic)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    fields = []
+    values = []
+    for key, value in kwargs.items():
+        if key not in ['id', 'created_at', 'clinic_id']:
+            fields.append(f'{key} = ?')
+            values.append(value)
+
+    if fields:
+        values.extend([material_id, clinic_id])
+        cursor.execute(f"UPDATE lab_materials SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
+        conn.commit()
+
+    conn.close()
+    return True
+
+
+def delete_material(material_id, clinic_id):
+    """Delete lab material (must belong to clinic)"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        # First delete from service_materials to avoid foreign key constraint
+        cursor.execute('DELETE FROM service_materials WHERE material_id = ?', (material_id,))
+        # Then delete the material itself
+        cursor.execute('DELETE FROM lab_materials WHERE id = ? AND clinic_id = ?', (material_id, clinic_id))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
 # ============== Service Categories ==============
 
 def get_all_categories(clinic_id):
@@ -630,6 +721,15 @@ def get_service_by_id(service_id, clinic_id):
         ''', (service_id,))
         service['consumables'] = [dict_from_row(r) for r in cursor.fetchall()]
 
+        # Get materials for this service
+        cursor.execute('''
+            SELECT sm.*, m.material_name, m.lab_name, m.unit_cost, m.description, m.name_ar
+            FROM service_materials sm
+            JOIN lab_materials m ON sm.material_id = m.id
+            WHERE sm.service_id = ?
+        ''', (service_id,))
+        service['materials'] = [dict_from_row(r) for r in cursor.fetchall()]
+
         # Get equipment for this service (from service_equipment table)
         cursor.execute('''
             SELECT se.*, e.asset_name, e.purchase_cost, e.life_years, e.allocation_type, e.monthly_usage_hours
@@ -691,6 +791,7 @@ def delete_service(service_id, clinic_id):
         cursor = conn.cursor()
         # Explicitly delete child records first (even though CASCADE should handle it)
         cursor.execute('DELETE FROM service_consumables WHERE service_id = ?', (service_id,))
+        cursor.execute('DELETE FROM service_materials WHERE service_id = ?', (service_id,))
         cursor.execute('DELETE FROM service_equipment WHERE service_id = ?', (service_id,))
         # Then delete the service itself
         cursor.execute('DELETE FROM services WHERE id = ? AND clinic_id = ?', (service_id, clinic_id))
@@ -741,6 +842,53 @@ def update_service_consumables(service_id, consumables):
             INSERT INTO service_consumables (service_id, consumable_id, quantity, custom_unit_price)
             VALUES (?, ?, ?, ?)
         ''', (service_id, c['consumable_id'], c['quantity'], custom_price))
+
+    conn.commit()
+    conn.close()
+    return True
+
+
+def add_service_material(service_id, material_id, quantity, custom_unit_price=None):
+    """Add lab material to service"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO service_materials (service_id, material_id, quantity, custom_unit_price)
+        VALUES (?, ?, ?, ?)
+    ''', (service_id, material_id, quantity, custom_unit_price))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def remove_service_material(service_id, material_id):
+    """Remove lab material from service"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        DELETE FROM service_materials
+        WHERE service_id = ? AND material_id = ?
+    ''', (service_id, material_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def update_service_materials(service_id, materials):
+    """Update all lab materials for a service (with optional custom unit price)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Delete existing
+    cursor.execute('DELETE FROM service_materials WHERE service_id = ?', (service_id,))
+
+    # Insert new
+    for m in materials:
+        custom_price = m.get('custom_unit_price')
+        cursor.execute('''
+            INSERT INTO service_materials (service_id, material_id, quantity, custom_unit_price)
+            VALUES (?, ?, ?, ?)
+        ''', (service_id, m['material_id'], m['quantity'], custom_price))
 
     conn.commit()
     conn.close()
@@ -839,14 +987,28 @@ def calculate_service_price(service_id, clinic_id):
 
     # Direct materials (consumables) - supports custom unit price per service
     consumables = service.get('consumables', [])
-    materials_cost = 0
+    consumables_cost = 0
     for c in consumables:
         # Use custom unit price if set, otherwise calculate from pack cost
         if c.get('custom_unit_price') is not None:
             unit_cost = c['custom_unit_price']
         else:
             unit_cost = c['pack_cost'] / c['cases_per_pack'] / c['units_per_case']
-        materials_cost += unit_cost * c['quantity']
+        consumables_cost += unit_cost * c['quantity']
+
+    # Lab materials - supports custom unit price per service
+    materials = service.get('materials', [])
+    lab_materials_cost = 0
+    for m in materials:
+        # Use custom unit price if set, otherwise use the default unit cost
+        if m.get('custom_unit_price') is not None:
+            unit_cost = m['custom_unit_price']
+        else:
+            unit_cost = m['unit_cost']
+        lab_materials_cost += unit_cost * m['quantity']
+
+    # Total materials cost (consumables + lab materials)
+    materials_cost = consumables_cost + lab_materials_cost
 
     # Total cost (initial calculation)
     total_cost = chair_time_cost + doctor_fee + equipment_cost + materials_cost
@@ -899,6 +1061,8 @@ def calculate_service_price(service_id, clinic_id):
         'chair_time_cost': round(chair_time_cost, 2),
         'doctor_fee': round(doctor_fee, 2),
         'equipment_cost': round(equipment_cost, 2),
+        'consumables_cost': round(consumables_cost, 2),
+        'lab_materials_cost': round(lab_materials_cost, 2),
         'materials_cost': round(materials_cost, 2),
         'total_cost': round(total_cost, 2),
         'profit_percent': profit_percent,

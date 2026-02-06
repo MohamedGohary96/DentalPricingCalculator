@@ -28,11 +28,12 @@ from modules.models import (
     get_all_equipment, create_equipment, update_equipment, delete_equipment,
     get_clinic_capacity, update_clinic_capacity,
     get_all_consumables, create_consumable, update_consumable, delete_consumable,
+    get_all_materials, create_material, update_material, delete_material,
     # Categories
     get_all_categories, get_category_by_id, create_category, update_category, delete_category,
     # Services
     get_all_services, get_service_by_id, create_service, update_service, delete_service,
-    update_service_consumables, update_service_equipment,
+    update_service_consumables, update_service_materials, update_service_equipment,
     calculate_service_price, calculate_all_services,
     # Super Admin & Subscription
     is_super_admin, get_all_clinics_admin, get_clinic_payments, record_payment,
@@ -453,6 +454,45 @@ def api_delete_consumable(consumable_id):
     return jsonify({'success': True})
 
 
+# ============== Lab Materials ==============
+
+@app.route('/api/materials')
+@login_required
+def api_get_materials():
+    """Get all lab materials"""
+    clinic_id = get_clinic_id()
+    return jsonify(get_all_materials(clinic_id))
+
+
+@app.route('/api/materials', methods=['POST'])
+@login_required
+def api_create_material():
+    """Create new lab material"""
+    clinic_id = get_clinic_id()
+    data = request.get_json()
+    material_id = create_material(clinic_id, **data)
+    return jsonify({'success': True, 'id': material_id})
+
+
+@app.route('/api/materials/<int:material_id>', methods=['PUT'])
+@login_required
+def api_update_material(material_id):
+    """Update lab material"""
+    clinic_id = get_clinic_id()
+    data = request.get_json()
+    update_material(material_id, clinic_id, **data)
+    return jsonify({'success': True})
+
+
+@app.route('/api/materials/<int:material_id>', methods=['DELETE'])
+@login_required
+def api_delete_material(material_id):
+    """Delete lab material"""
+    clinic_id = get_clinic_id()
+    delete_material(material_id, clinic_id)
+    return jsonify({'success': True})
+
+
 # ============== Service Categories ==============
 
 @app.route('/api/categories')
@@ -531,12 +571,16 @@ def api_create_service():
     clinic_id = get_clinic_id()
     data = request.get_json()
     consumables = data.pop('consumables', [])
+    materials = data.pop('materials', [])
     equipment_list = data.pop('equipment_list', [])
 
     service_id = create_service(clinic_id, **data)
 
     if consumables:
         update_service_consumables(service_id, consumables)
+
+    if materials:
+        update_service_materials(service_id, materials)
 
     if equipment_list:
         update_service_equipment(service_id, equipment_list)
@@ -551,12 +595,16 @@ def api_update_service(service_id):
     clinic_id = get_clinic_id()
     data = request.get_json()
     consumables = data.pop('consumables', None)
+    materials = data.pop('materials', None)
     equipment_list = data.pop('equipment_list', None)
 
     update_service(service_id, clinic_id, **data)
 
     if consumables is not None:
         update_service_consumables(service_id, consumables)
+
+    if materials is not None:
+        update_service_materials(service_id, materials)
 
     if equipment_list is not None:
         update_service_equipment(service_id, equipment_list)

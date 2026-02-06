@@ -272,6 +272,35 @@ def init_database():
         )
     ''')
 
+    # Lab Materials Library table (per clinic)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lab_materials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            clinic_id INTEGER NOT NULL,
+            material_name TEXT NOT NULL,
+            lab_name TEXT,
+            unit_cost REAL NOT NULL,
+            description TEXT,
+            name_ar TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (clinic_id) REFERENCES clinics(id)
+        )
+    ''')
+
+    # Service Materials (junction table)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS service_materials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            service_id INTEGER NOT NULL,
+            material_id INTEGER NOT NULL,
+            quantity REAL NOT NULL,
+            custom_unit_price REAL,
+            FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE,
+            FOREIGN KEY (material_id) REFERENCES lab_materials(id)
+        )
+    ''')
+
     # Service Equipment (junction table for multiple equipment per service)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS service_equipment (
@@ -401,6 +430,18 @@ def init_database():
     sc_columns = [column[1] for column in cursor.fetchall()]
     if 'custom_unit_price' not in sc_columns:
         cursor.execute('ALTER TABLE service_consumables ADD COLUMN custom_unit_price REAL')
+
+    # Add lab_name column to lab_materials table
+    cursor.execute('PRAGMA table_info(lab_materials)')
+    material_columns = [column[1] for column in cursor.fetchall()]
+    if 'lab_name' not in material_columns:
+        cursor.execute('ALTER TABLE lab_materials ADD COLUMN lab_name TEXT')
+
+    # Add custom_unit_price column to service_materials table (for service-specific pricing)
+    cursor.execute('PRAGMA table_info(service_materials)')
+    sm_columns = [column[1] for column in cursor.fetchall()]
+    if 'custom_unit_price' not in sm_columns:
+        cursor.execute('ALTER TABLE service_materials ADD COLUMN custom_unit_price REAL')
 
     conn.commit()
     conn.close()
@@ -590,6 +631,73 @@ def create_sample_data():
         INSERT INTO consumables (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case)
         VALUES (?, ?, ?, ?, ?)
     ''', consumables)
+
+    # Lab Materials (clinic_id, material_name, lab_name, unit_cost, description)
+    # Materials from labs with direct per-unit pricing
+    materials = [
+        # Premium Dental Lab - Crowns & Bridges
+        (clinic_id, 'Zirconia Crown', 'Premium Dental Lab', 3500, 'High-quality ceramic crown'),
+        (clinic_id, 'PFM Crown', 'Premium Dental Lab', 2200, 'Porcelain-fused-to-metal crown'),
+        (clinic_id, 'Emax Crown', 'Premium Dental Lab', 4500, 'Lithium disilicate crown'),
+        (clinic_id, 'Gold Crown', 'Premium Dental Lab', 5500, 'Full gold crown'),
+        (clinic_id, 'Maryland Bridge', 'Premium Dental Lab', 4500, 'Resin-bonded bridge'),
+        (clinic_id, '3-Unit Bridge', 'Premium Dental Lab', 9000, 'Fixed bridge with 3 units'),
+        (clinic_id, '4-Unit Bridge', 'Premium Dental Lab', 12000, 'Fixed bridge with 4 units'),
+        (clinic_id, 'Implant Crown (Screw-Retained)', 'Premium Dental Lab', 4000, 'Crown for implant with abutment'),
+        (clinic_id, 'Implant Crown (Cement-Retained)', 'Premium Dental Lab', 3800, 'Cemented crown for implant'),
+        (clinic_id, 'Implant-Supported Bridge (per unit)', 'Premium Dental Lab', 3500, 'Bridge unit on implant'),
+
+        # Elite Ceramics Lab - Veneers & Inlays
+        (clinic_id, 'Porcelain Veneer', 'Elite Ceramics Lab', 3000, 'Thin ceramic veneer'),
+        (clinic_id, 'Composite Veneer', 'Elite Ceramics Lab', 2000, 'Composite resin veneer'),
+        (clinic_id, 'Ceramic Inlay', 'Elite Ceramics Lab', 2500, 'Indirect ceramic inlay'),
+        (clinic_id, 'Ceramic Onlay', 'Elite Ceramics Lab', 3000, 'Indirect ceramic onlay'),
+        (clinic_id, 'Lumineers (Ultra-thin Veneer)', 'Elite Ceramics Lab', 4000, 'Ultra-thin porcelain veneer'),
+
+        # Prosthetics Lab - Dentures
+        (clinic_id, 'Full Denture (Acrylic)', 'Prosthetics Lab', 6000, 'Complete denture set'),
+        (clinic_id, 'Full Denture (Premium)', 'Prosthetics Lab', 8500, 'Premium acrylic with better aesthetics'),
+        (clinic_id, 'Partial Denture (Metal Frame)', 'Prosthetics Lab', 5500, 'Partial denture with chrome-cobalt frame'),
+        (clinic_id, 'Partial Denture (Acrylic)', 'Prosthetics Lab', 3500, 'Basic acrylic partial denture'),
+        (clinic_id, 'Flexible Denture (Valplast)', 'Prosthetics Lab', 7500, 'Flexible partial denture'),
+        (clinic_id, 'Implant-Retained Denture', 'Prosthetics Lab', 15000, 'Full denture with implant attachments'),
+
+        # Appliance Lab - Guards & Retainers
+        (clinic_id, 'Night Guard (Custom)', 'Appliance Lab', 1200, 'Custom-fabricated occlusal guard'),
+        (clinic_id, 'Sports Mouth Guard', 'Appliance Lab', 800, 'Custom sports protection'),
+        (clinic_id, 'Orthodontic Retainer (Hawley)', 'Appliance Lab', 800, 'Wire and acrylic retainer'),
+        (clinic_id, 'Orthodontic Retainer (Clear)', 'Appliance Lab', 900, 'Clear plastic retainer'),
+        (clinic_id, 'Bite Splint', 'Appliance Lab', 1500, 'TMJ treatment splint'),
+        (clinic_id, 'Bleaching Tray (Custom)', 'Appliance Lab', 600, 'Custom whitening tray'),
+
+        # Quick Lab - Temporary Solutions
+        (clinic_id, 'Temporary Crown (Acrylic)', 'Quick Lab', 500, 'Temporary crown'),
+        (clinic_id, 'Temporary Bridge', 'Quick Lab', 1200, 'Temporary bridge'),
+        (clinic_id, 'Diagnostic Wax-up', 'Quick Lab', 800, 'Wax model for treatment planning'),
+
+        # Advanced Ceramics Lab - Specialized
+        (clinic_id, 'Bruxzir Crown', 'Advanced Ceramics Lab', 4000, 'High-strength zirconia crown'),
+        (clinic_id, 'Layered Zirconia Crown', 'Advanced Ceramics Lab', 4200, 'Layered for better aesthetics'),
+        (clinic_id, 'All-Ceramic Bridge (per unit)', 'Advanced Ceramics Lab', 3800, 'Metal-free bridge unit'),
+
+        # Digital Dental Lab - CAD/CAM
+        (clinic_id, 'Digital Crown (Zirconia)', 'Digital Dental Lab', 3200, 'CAD/CAM milled zirconia crown'),
+        (clinic_id, 'Digital Veneer', 'Digital Dental Lab', 2800, 'CAD/CAM pressed veneer'),
+        (clinic_id, 'Digital Surgical Guide', 'Digital Dental Lab', 2000, 'Implant placement guide'),
+
+        # Smile Design Lab - Aesthetic Focus
+        (clinic_id, 'Full Smile Makeover (per tooth)', 'Smile Design Lab', 3500, 'Complete aesthetic restoration'),
+        (clinic_id, 'Custom Shade Crown', 'Smile Design Lab', 4000, 'Individually characterized crown'),
+
+        # Budget Dental Lab - Economy Options
+        (clinic_id, 'Economy PFM Crown', 'Budget Dental Lab', 1800, 'Basic porcelain-fused-to-metal'),
+        (clinic_id, 'Economy Denture', 'Budget Dental Lab', 4000, 'Basic full denture'),
+        (clinic_id, 'Basic Retainer', 'Budget Dental Lab', 500, 'Simple retainer'),
+    ]
+    cursor.executemany('''
+        INSERT INTO lab_materials (clinic_id, material_name, lab_name, unit_cost, description)
+        VALUES (?, ?, ?, ?, ?)
+    ''', materials)
 
     # Services (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent, current_price)
     # Realistic dental service pricing (EGP 250 - 30,000 range)
