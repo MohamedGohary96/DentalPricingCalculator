@@ -2543,16 +2543,25 @@ html[dir="rtl"] .sidebar-nav {
     direction: rtl;
 }
 
-/* Navigation items */
-html[dir="rtl"] .nav-item, html[dir="rtl"] .nav-link {
-    flex-direction: row-reverse;
-    text-align: right;
-    direction: rtl;
+/* Navigation items - RTL layout with icon on right */
+html[dir="rtl"] .nav-item,
+html[dir="rtl"] .nav-link,
+html[dir="rtl"] .sidebar-nav .nav-link,
+html[dir="rtl"] .sidebar .nav-link {
+    flex-direction: row-reverse !important;
+    text-align: right !important;
+    direction: rtl !important;
 }
 
-html[dir="rtl"] .nav-text {
-    direction: rtl;
-    text-align: right;
+html[dir="rtl"] .nav-text,
+html[dir="rtl"] .nav-item-text {
+    direction: rtl !important;
+    text-align: right !important;
+}
+
+html[dir="rtl"] .nav-icon,
+html[dir="rtl"] .nav-item-icon {
+    order: 1;
 }
 
 html[dir="rtl"] .nav-badge {
