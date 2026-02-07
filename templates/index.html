@@ -3,12 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#142d63">
+    <meta name="color-scheme" content="light">
     <title>Dental Pricing Calculator</title>
+
+    <!-- Preconnect for faster font loading -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Optimized font loading with display=swap for better performance -->
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Main stylesheet -->
     <link rel="stylesheet" href="/static/css/style.css">
+
+    <!-- Critical inline styles for above-the-fold content -->
     <style>
+        /* Prevent FOUT (Flash of Unstyled Text) */
+        html {
+            font-family: 'Rubik', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        /* Print styles */
         @media print {
             .sidebar, .header, .btn:not(.btn-print) {
                 display: none !important;
