@@ -2547,6 +2547,12 @@ html[dir="rtl"] .sidebar-nav {
 html[dir="rtl"] .nav-item, html[dir="rtl"] .nav-link {
     flex-direction: row-reverse;
     text-align: right;
+    direction: rtl;
+}
+
+html[dir="rtl"] .nav-text {
+    direction: rtl;
+    text-align: right;
 }
 
 html[dir="rtl"] .nav-badge {

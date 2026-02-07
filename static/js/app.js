@@ -2242,8 +2242,8 @@ const Pages = {
                 <div class="form-group">
                     <label class="form-label">${t('settings.includeInPricing')}</label>
                     <select class="form-select" name="included">
-                        <option value="1" ${cost?.included?'selected':''}>${t('settings.includeYes')}</option>
-                        <option value="0" ${!cost?.included?'selected':''}>${t('settings.includeNo')}</option>
+                        <option value="1" ${cost?.included !== 0 ? 'selected' : ''}>${t('settings.includeYes')}</option>
+                        <option value="0" ${cost?.included === 0 ? 'selected' : ''}>${t('settings.includeNo')}</option>
                     </select>
                     <small style="color:var(--gray-600);">${t('settings.includeHelp')}</small>
                 </div>
@@ -2315,8 +2315,8 @@ const Pages = {
                 <div class="form-group">
                     <label class="form-label">${t('settings.includeInPricing')}</label>
                     <select class="form-select" name="included">
-                        <option value="1" ${salary?.included?'selected':''}>${t('settings.includeYes')}</option>
-                        <option value="0" ${!salary?.included?'selected':''}>${t('settings.includeNo')}</option>
+                        <option value="1" ${salary?.included !== 0 ? 'selected' : ''}>${t('settings.includeYes')}</option>
+                        <option value="0" ${salary?.included === 0 ? 'selected' : ''}>${t('settings.includeNo')}</option>
                     </select>
                     <small style="color:var(--gray-600);">${t('settings.includeHelp')}</small>
                 </div>
