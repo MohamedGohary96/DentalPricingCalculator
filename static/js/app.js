@@ -192,18 +192,18 @@ window.adjustMargin = function(serviceId, delta) {
     }
 
     const currentValue = parseFloat(input.value) || 0;
-    const newValue = Math.max(0, Math.min(100, currentValue + delta));
+    const newValue = currentValue + delta;  // No clamping - allow any value
     console.log('Changing margin from', currentValue, 'to', newValue);
 
     input.value = newValue;
-    slider.value = newValue;
+    slider.value = Math.max(-100, Math.min(500, newValue));  // Clamp slider display only
     window.updateServiceMargin(serviceId, newValue);
 };
 
 window.updateServiceMargin = function(serviceId, newMargin) {
     console.log('updateServiceMargin called:', serviceId, newMargin);
     const margin = parseFloat(newMargin);
-    if (isNaN(margin) || margin < 0 || margin > 100) {
+    if (isNaN(margin)) {
         console.error('Invalid margin:', newMargin);
         return;
     }
@@ -247,7 +247,7 @@ window.updateServiceRow = function(serviceId, pricing, margin, service) {
 
     const currentPrice = service?.current_price;
     const priceCell = row.querySelector('.simulated-price');
-    const varianceCell = row.querySelectorAll('td')[5]; // 6th column
+    const varianceCell = row.querySelector('.variance-cell');
     const newPrice = pricing.rounded_price;
 
     // Update price
@@ -509,8 +509,9 @@ function showToast(msg, type='success', options = {}) {
     return t;
 }
 
-function formatCurrency(amount, currency = 'EGP') {
-    return `${currency} ${parseFloat(amount || 0).toFixed(2)}`;
+function formatCurrency(amount, currency = null) {
+    const curr = currency || APP.settings?.currency || 'EGP';
+    return `${curr} ${parseFloat(amount || 0).toFixed(2)}`;
 }
 window.formatCurrency = formatCurrency; // Expose for embedded scripts
 
@@ -1688,12 +1689,10 @@ const Pages = {
         let underpriced = 0;
         let optimal = 0;
         let potentialRevenue = 0;
-        let topServices = [];
 
         // Fetch price list for both active AND trial users (trial sees blurred prices)
         if (!isFullyRestricted) {
             priceList = await API.get('/api/price-list');
-            topServices = priceList.slice(0, 5);
 
             // Calculate pricing health metrics
             underpriced = priceList.filter(s => s.current_price && s.current_price < s.rounded_price * 0.95).length;
@@ -1915,36 +1914,6 @@ const Pages = {
                 </div>
             </div>
 
-            ${topServices.length > 0 ? `
-            <div class="card" style="margin-top:1.5rem;">
-                <div class="card-header">
-                    <h3 class="card-title">${t('dashboard.recentServices')}</h3>
-                    <button class="btn btn-sm btn-primary" onclick="APP.loadPage('price-list')">${t('common.viewAll')} →</button>
-                </div>
-                <div class="card-body" style="padding:0;">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>${t('dashboard.service')}</th>
-                                <th>${t('dashboard.cost')}</th>
-                                <th>${t('dashboard.finalPrice')}</th>
-                                <th>${t('dashboard.margin')}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${topServices.map(s => `
-                                <tr>
-                                    <td><strong>${getLocalizedName(s, 'service_name', 'service_name_ar')}</strong></td>
-                                    <td class="${isTrial ? 'trial-blur' : ''}">${formatCurrency(s.total_cost)}</td>
-                                    <td class="${isTrial ? 'trial-blur' : ''}"><strong>${formatCurrency(s.rounded_price)}</strong></td>
-                                    <td class="${isTrial ? 'trial-blur' : ''}"><span class="badge badge-success">${s.profit_percent}%</span></td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            ` : ''}
         `;
     },
 
@@ -1982,6 +1951,13 @@ const Pages = {
                             <label class="form-label">${t('settings.currency')}</label>
                             <select class="form-select" name="currency">
                                 <option value="EGP" ${settings.currency==='EGP'?'selected':''}>${t('currency.EGP')}</option>
+                                <option value="SAR" ${settings.currency==='SAR'?'selected':''}>${t('currency.SAR')}</option>
+                                <option value="AED" ${settings.currency==='AED'?'selected':''}>${t('currency.AED')}</option>
+                                <option value="KWD" ${settings.currency==='KWD'?'selected':''}>${t('currency.KWD')}</option>
+                                <option value="QAR" ${settings.currency==='QAR'?'selected':''}>${t('currency.QAR')}</option>
+                                <option value="BHD" ${settings.currency==='BHD'?'selected':''}>${t('currency.BHD')}</option>
+                                <option value="OMR" ${settings.currency==='OMR'?'selected':''}>${t('currency.OMR')}</option>
+                                <option value="JOD" ${settings.currency==='JOD'?'selected':''}>${t('currency.JOD')}</option>
                                 <option value="USD" ${settings.currency==='USD'?'selected':''}>${t('currency.USD')}</option>
                                 <option value="EUR" ${settings.currency==='EUR'?'selected':''}>${t('currency.EUR')}</option>
                             </select>
@@ -1994,7 +1970,7 @@ const Pages = {
                         </div>
                         <div class="form-group">
                             <label class="form-label">${t('settings.defaultProfit')}</label>
-                            <input type="number" class="form-input" name="default_profit_percent" value="${settings.default_profit_percent}" step="1" min="0" max="200" placeholder="e.g., 40">
+                            <input type="number" class="form-input" name="default_profit_percent" value="${settings.default_profit_percent}" step="1" placeholder="e.g., 40">
                             <small style="color:var(--gray-600);">${t('settings.defaultProfitHelp')}</small>
                         </div>
                         <div class="form-group">
@@ -4161,22 +4137,73 @@ const Pages = {
 
                         // Render table with category headers
                         const blurClass = isTrial ? 'trial-blur' : '';
+
+                        // Helper function for doctor fee type badge
+                        const getDoctorFeeTypeBadge = (p) => {
+                            const type = p.doctor_fee_type || 'hourly';
+                            const config = {
+                                'hourly': { icon: '⏱️', label: t('services.perHour') || 'Hourly', badgeClass: 'badge-secondary' },
+                                'fixed': { icon: '💵', label: t('services.fixed') || 'Fixed', badgeClass: 'badge-primary' },
+                                'percentage': { icon: '📊', label: `${p.doctor_percentage || 0}%`, badgeClass: 'badge-warning' }
+                            };
+                            const c = config[type] || config['hourly'];
+                            return `<span class="fee-type-badge ${c.badgeClass}"><span class="badge-icon">${c.icon}</span> ${c.label}</span>`;
+                        };
+
+                        // Helper function for print variance (text only)
+                        const getVarianceText = (p) => {
+                            if (!p.current_price) return t('priceList.notSet') || 'Not set';
+                            const variance = p.rounded_price - p.current_price;
+                            const variancePercent = ((variance / p.current_price) * 100).toFixed(0);
+                            if (Math.abs(variancePercent) <= 5) {
+                                return `✓ ${t('priceList.perfect') || 'Perfect'} ${variancePercent >= 0 ? '+' : ''}${variancePercent}%`;
+                            } else if (variance > 0) {
+                                return `↑ ${t('priceList.raiseBy') || 'Raise by'} ${formatCurrency(variance)}`;
+                            } else {
+                                return `✓ +${formatCurrency(Math.abs(variance))} ${t('priceList.buffer') || 'buffer'}`;
+                            }
+                        };
+
+                        // Render row for print table (simpler, no interactive elements)
+                        const renderPrintRow = (p) => {
+                            const baseCost = p.base_cost || (p.total_cost - (p.doctor_fee || 0) - (p.lab_materials_cost || 0));
+                            const varianceText = getVarianceText(p);
+                            const isUnderpriced = p.current_price && p.rounded_price > p.current_price;
+                            return `
+                                <tr class="${isUnderpriced ? 'underpriced-row' : ''}">
+                                    <td><strong>${getLocalizedName(p)}</strong></td>
+                                    <td>${formatCurrency(baseCost)}</td>
+                                    <td>${formatCurrency(p.doctor_fee || 0)}</td>
+                                    <td>${p.lab_materials_cost > 0 ? formatCurrency(p.lab_materials_cost) : '—'}</td>
+                                    <td>${p.profit_percent}%</td>
+                                    <td><strong>${formatCurrency(p.rounded_price)}</strong></td>
+                                    <td>${p.current_price ? formatCurrency(p.current_price) : '—'}</td>
+                                    <td>${varianceText}</td>
+                                </tr>
+                            `;
+                        };
+
                         const renderServiceRow = (p) => {
                             const variance = getVarianceDisplay(p);
+                            const baseCost = p.base_cost || (p.total_cost - (p.doctor_fee || 0) - (p.lab_materials_cost || 0));
                             return `
                                 <tr data-service-id="${p.id}" class="service-row" style="${variance.status === 'underpriced' ? 'background:#fffbeb;' : ''}">
                                     <td style="padding-left:2rem;"><strong>${getLocalizedName(p)}</strong></td>
-                                    <td class="${blurClass}">${formatCurrency(p.total_cost)}</td>
-                                    <td class="${blurClass}" style="padding:0.75rem 1rem;">
-                                        <div class="margin-control">
+                                    <td class="${blurClass} cost-cell">${formatCurrency(baseCost)}</td>
+                                    <td class="${blurClass} cost-cell doctor-fee-cell">${formatCurrency(p.doctor_fee || 0)}</td>
+                                    <td class="${blurClass} fee-type-cell">${getDoctorFeeTypeBadge(p)}</td>
+                                    <td class="${blurClass} cost-cell lab-materials-cell">${p.lab_materials_cost > 0 ? formatCurrency(p.lab_materials_cost) : '<span class="no-value">—</span>'}</td>
+                                    <td class="${blurClass} profit-cell" style="padding:0.75rem 1rem;">
+                                        <span class="print-only profit-print">${p.profit_percent}%</span>
+                                        <div class="margin-control no-print">
                                             <button class="margin-quick-btn" onclick="adjustMargin(${p.id}, -5)" title="Decrease by 5%">−5</button>
                                             <div class="margin-slider-container">
-                                                <input type="range" class="margin-slider" value="${p.profit_percent}" min="0" max="100" step="1"
+                                                <input type="range" class="margin-slider" value="${Math.max(-100, Math.min(500, p.profit_percent))}" min="-100" max="500" step="1"
                                                        oninput="updateServiceMargin(${p.id}, this.value); this.nextElementSibling.value = this.value"
                                                        style="width:80px;">
-                                                <input type="number" class="margin-input" value="${p.profit_percent}" min="0" max="100" step="1"
-                                                       onchange="updateServiceMargin(${p.id}, this.value); this.previousElementSibling.value = this.value"
-                                                       style="width:50px;">
+                                                <input type="number" class="margin-input" value="${p.profit_percent}" step="1"
+                                                       onchange="updateServiceMargin(${p.id}, this.value); this.previousElementSibling.value = Math.max(-100, Math.min(500, this.value))"
+                                                       style="width:55px;">
                                                 <span class="margin-percent">%</span>
                                             </div>
                                             <button class="margin-quick-btn" onclick="adjustMargin(${p.id}, 5)" title="Increase by 5%">+5</button>
@@ -4184,7 +4211,7 @@ const Pages = {
                                     </td>
                                     <td class="${blurClass}"><strong class="simulated-price" data-original="${p.rounded_price}" style="color:var(--primary-600);">${formatCurrency(p.rounded_price)}</strong></td>
                                     <td class="${blurClass}">${p.current_price ? formatCurrency(p.current_price) : `<span style="color:#94a3b8;font-size:0.8rem;">${t('priceList.notSet')}</span>`}</td>
-                                    <td class="${blurClass}">${variance.html}</td>
+                                    <td class="${blurClass} variance-cell">${variance.html}</td>
                                     <td class="row-actions">
                                         <button class="save-btn" id="saveBtn-${p.id}" onclick="saveServiceMargin(${p.id})" style="display:none;" title="${t('common.save') || 'Save'}">
                                             💾
@@ -4196,46 +4223,89 @@ const Pages = {
 
                         const categoryNames = Object.keys(grouped);
                         let tableRows = '';
+                        let printTableRows = '';
 
                         // Render categorized services
                         categoryNames.forEach(catName => {
                             tableRows += `
                                 <tr class="category-header" style="background:var(--gray-100);">
-                                    <td colspan="7" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
+                                    <td colspan="10" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
                                         📁 ${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${grouped[catName].length} ${t('priceList.services')})</span>
                                     </td>
                                 </tr>
                             `;
                             tableRows += grouped[catName].map(renderServiceRow).join('');
+
+                            // Print table rows
+                            printTableRows += `
+                                <tr class="print-category-row">
+                                    <td colspan="8"><strong>📁 ${catName}</strong> (${grouped[catName].length} ${t('priceList.services')})</td>
+                                </tr>
+                            `;
+                            printTableRows += grouped[catName].map(renderPrintRow).join('');
                         });
 
                         // Render uncategorized services
                         if (uncategorized.length > 0) {
                             tableRows += `
                                 <tr class="category-header" style="background:var(--gray-100);">
-                                    <td colspan="7" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
+                                    <td colspan="10" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
                                         📁 ${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length} ${t('priceList.services')})</span>
                                     </td>
                                 </tr>
                             `;
                             tableRows += uncategorized.map(renderServiceRow).join('');
+
+                            // Print table rows for uncategorized
+                            printTableRows += `
+                                <tr class="print-category-row">
+                                    <td colspan="8"><strong>📁 ${t('priceList.uncategorized')}</strong> (${uncategorized.length} ${t('priceList.services')})</td>
+                                </tr>
+                            `;
+                            printTableRows += uncategorized.map(renderPrintRow).join('');
                         }
 
                         return `
                             <table class="data-table">
                                 <thead>
-                                    <tr>
-                                        <th>${t('priceList.service')}</th>
-                                        <th>${t('priceList.totalCost')}</th>
-                                        <th>${t('priceList.profit')}</th>
+                                    <tr class="header-group">
+                                        <th rowspan="2">${t('priceList.service')}</th>
+                                        <th colspan="4" class="column-group-header">${t('priceList.costBreakdown')}</th>
+                                        <th rowspan="2">${t('priceList.profit')}</th>
+                                        <th colspan="2" class="column-group-header">${t('priceList.pricing')}</th>
+                                        <th rowspan="2">${t('priceList.variance')}</th>
+                                        <th rowspan="2" style="width:50px;"></th>
+                                    </tr>
+                                    <tr class="header-subgroup">
+                                        <th>${t('priceList.baseCost')}</th>
+                                        <th>${t('priceList.doctorFee')}</th>
+                                        <th class="fee-type-header">${t('priceList.doctorFeeType')}</th>
+                                        <th class="lab-materials-header">${t('priceList.labMaterials')}</th>
                                         <th>${t('priceList.calculatedPrice')}</th>
                                         <th>${t('priceList.currentPrice')}</th>
-                                        <th>${t('priceList.variance')}</th>
-                                        <th style="width:50px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     ${tableRows}
+                                </tbody>
+                            </table>
+
+                            <!-- Print-only table (simpler structure for printing) -->
+                            <table class="data-table print-table print-only">
+                                <thead>
+                                    <tr>
+                                        <th>${t('priceList.service')}</th>
+                                        <th>${t('priceList.baseCost')}</th>
+                                        <th>${t('priceList.doctorFee')}</th>
+                                        <th>${t('priceList.labMaterials')}</th>
+                                        <th>${t('priceList.profit')}</th>
+                                        <th>${t('priceList.calculatedPrice')}</th>
+                                        <th>${t('priceList.currentPrice')}</th>
+                                        <th>${t('priceList.variance')}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${printTableRows}
                                 </tbody>
                             </table>
                         `;

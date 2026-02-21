@@ -6,25 +6,218 @@
     <title>Login - Dental Pricing Calculator</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Rubik:wght@300;400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
-        .login-container {
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rubik', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #1e3a5f;
+        }
+
+        /* Login Page Layout */
+        .login-wrapper {
             min-height: 100vh;
+            display: flex;
+            background: linear-gradient(135deg, #1e3a5f 0%, #1e4976 50%, #2563eb 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Floating background circles */
+        .login-wrapper::before {
+            content: '';
+            position: absolute;
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
+            top: -400px;
+            right: -400px;
+            animation: float 20s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .login-wrapper::after {
+            content: '';
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(20, 184, 166, 0.2) 0%, transparent 70%);
+            bottom: -300px;
+            left: -300px;
+            animation: float 15s ease-in-out infinite reverse;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(50px, 50px) scale(1.1); }
+        }
+
+        /* Language Toggle Button */
+        .lang-toggle-btn {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: white;
+            padding: 0.625rem 1.25rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            font-family: inherit;
+        }
+
+        .lang-toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .lang-toggle-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Left Side - Branding & Features */
+        .login-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 4rem;
+            color: white;
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-brand {
+            margin-bottom: 3.5rem;
+        }
+
+        .login-brand h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-family: 'Poppins', sans-serif;
+            letter-spacing: -0.02em;
+        }
+
+        .login-brand-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, var(--primary-800), var(--primary-900));
-            padding: 2rem;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            font-size: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
 
-        .login-box {
-            background: white;
+        .login-brand p {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            font-weight: 400;
+            margin-left: 0.5rem;
+        }
+
+        /* Feature Cards Grid */
+        .login-features {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            max-width: 700px;
+        }
+
+        .login-feature {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 16px;
-            padding: 3rem;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 420px;
+            padding: 1.75rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .login-feature:hover {
+            background: rgba(255, 255, 255, 0.14);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .login-feature-icon {
+            width: 56px;
+            height: 56px;
+            min-width: 56px;
+            background: rgba(20, 184, 166, 0.25);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+        }
+
+        .login-feature-content {
+            flex: 1;
+        }
+
+        .login-feature h4 {
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.375rem;
+            margin-top: 0;
+        }
+
+        .login-feature p {
+            font-size: 0.9rem;
+            opacity: 0.75;
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        /* Right Side - Login Form */
+        .login-right {
+            width: 480px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-card {
             width: 100%;
+            background: white;
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
         }
 
         .login-header {
@@ -32,117 +225,530 @@
             margin-bottom: 2rem;
         }
 
-        .login-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-        }
-
-        .login-header h1 {
-            color: var(--primary);
-            font-size: 1.8rem;
+        .login-header h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e3a5f;
             margin-bottom: 0.5rem;
+            font-family: 'Poppins', sans-serif;
         }
 
         .login-header p {
-            color: var(--gray-600);
+            color: #5c7eb1;
             font-size: 0.95rem;
+            margin: 0;
+        }
+
+        /* Form Styles */
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
         }
 
         .form-group {
-            margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
         }
 
         .form-label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: var(--gray-700);
+            font-size: 0.9rem;
             font-weight: 500;
+            color: #1e3a5f;
+        }
+
+        .form-label.required::after {
+            content: ' *';
+            color: #FF5470;
+        }
+
+        .input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 1rem;
+            width: 20px;
+            height: 20px;
+            color: #9fb3d1;
+            pointer-events: none;
+            z-index: 1;
         }
 
         .form-input {
             width: 100%;
-            padding: 0.875rem 1rem;
-            border: 2px solid var(--gray-200);
-            border-radius: 8px;
+            padding: 0.875rem 1rem 0.875rem 2.75rem;
+            border: 2px solid #c5d1e3;
+            border-radius: 10px;
             font-size: 1rem;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            background: #f8fafc;
+            font-family: inherit;
+        }
+
+        .form-input:hover {
+            border-color: #9fb3d1;
         }
 
         .form-input:focus {
             outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #3f67a3;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(63, 103, 163, 0.12);
         }
 
+        .form-input::placeholder {
+            color: #9fb3d1;
+        }
+
+        /* Form Options (Remember me + Forgot) */
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .form-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #3f67a3;
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            margin: 0;
+            font-weight: normal;
+            font-size: 0.9rem;
+            color: #5c7eb1;
+            cursor: pointer;
+        }
+
+        .forgot-link {
+            font-size: 0.9rem;
+            color: #3f67a3;
+            font-weight: 500;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .forgot-link:hover {
+            color: #1e3a5f;
+            text-decoration: underline;
+        }
+
+        /* Error Message */
+        .error-message {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 0.875rem 1rem;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            display: none;
+            border: 1px solid #fecaca;
+        }
+
+        /* Login Button */
         .btn-login {
             width: 100%;
-            padding: 1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, #3f67a3 0%, #1e3a5f 100%);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-family: inherit;
         }
 
         .btn-login:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 8px 25px rgba(30, 58, 95, 0.4);
         }
 
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .btn-login svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Login Footer */
         .login-footer {
-            margin-top: 2rem;
             text-align: center;
-            color: var(--gray-600);
-            font-size: 0.875rem;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #c5d1e3;
         }
 
-        .error-message {
-            background: #fee;
-            color: #c33;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            display: none;
+        .footer-text {
+            font-size: 0.9rem;
+            color: #5c7eb1;
+            margin-bottom: 0.75rem;
+        }
+
+        .register-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #3f67a3;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .register-link:hover {
+            color: #1e3a5f;
+            gap: 0.75rem;
+        }
+
+        .register-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .login-features {
+                gap: 1rem;
+            }
+
+            .login-feature {
+                padding: 1.25rem;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .login-features {
+                grid-template-columns: 1fr;
+                max-width: 400px;
+            }
+
+            .login-left {
+                padding: 3rem;
+            }
+
+            .login-brand h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .login-left {
+                display: none;
+            }
+
+            .login-right {
+                width: 100%;
+                padding: 1.5rem;
+            }
+
+            .login-card {
+                padding: 2rem;
+            }
+
+            .lang-toggle-btn {
+                position: fixed;
+                top: 1rem;
+                right: 1rem;
+            }
+        }
+
+        /* RTL Support */
+        html[dir="rtl"] .login-brand h1 {
+            font-family: 'IBM Plex Sans Arabic', 'Poppins', sans-serif;
+        }
+
+        html[dir="rtl"] .login-header h2 {
+            font-family: 'IBM Plex Sans Arabic', 'Poppins', sans-serif;
+        }
+
+        html[dir="rtl"] body {
+            font-family: 'IBM Plex Sans Arabic', 'Rubik', sans-serif;
+        }
+
+        html[dir="rtl"] .input-icon {
+            left: auto;
+            right: 1rem;
+        }
+
+        html[dir="rtl"] .form-input {
+            padding-left: 1rem;
+            padding-right: 2.75rem;
+            text-align: right;
+        }
+
+        html[dir="rtl"] .lang-toggle-btn {
+            right: auto;
+            left: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            html[dir="rtl"] .lang-toggle-btn {
+                left: 1rem;
+                right: auto;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-box">
-            <div class="login-header">
-                <div class="login-icon">🦷</div>
-                <h1>Dental Pricing Calculator</h1>
-                <p>Cost-Plus Pricing Model</p>
+    <div class="login-wrapper">
+        <!-- Language Toggle -->
+        <button class="lang-toggle-btn" onclick="toggleLanguage()" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            <span id="langToggleText">عربي</span>
+        </button>
+
+        <!-- Left Side - Branding & Features -->
+        <div class="login-left">
+            <div class="login-brand">
+                <h1>
+                    <div class="login-brand-icon">🦷</div>
+                    <span id="brandName">Dental Pricing Calculator</span>
+                </h1>
+                <p id="brandTagline">Cost-Plus Pricing for Modern Dental Practices</p>
             </div>
 
-            <div id="errorMessage" class="error-message"></div>
-
-            <form id="loginForm">
-                <div class="form-group">
-                    <label class="form-label">Username</label>
-                    <input type="text" class="form-input" id="username" name="username" required autofocus>
+            <div class="login-features">
+                <div class="login-feature">
+                    <div class="login-feature-icon">📊</div>
+                    <div class="login-feature-content">
+                        <h4 id="feature1Title">Cost Analysis</h4>
+                        <p id="feature1Desc">Track all costs including chair time, equipment, and materials</p>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Password</label>
-                    <input type="password" class="form-input" id="password" name="password" required>
+                <div class="login-feature">
+                    <div class="login-feature-icon">💰</div>
+                    <div class="login-feature-content">
+                        <h4 id="feature2Title">Profit Margins</h4>
+                        <p id="feature2Desc">Set and adjust profit percentages for each service</p>
+                    </div>
                 </div>
 
-                <button type="submit" class="btn-login">Sign In</button>
-            </form>
+                <div class="login-feature">
+                    <div class="login-feature-icon">📈</div>
+                    <div class="login-feature-content">
+                        <h4 id="feature3Title">Price Optimization</h4>
+                        <p id="feature3Desc">Compare current prices vs calculated optimal prices</p>
+                    </div>
+                </div>
 
-            <div class="login-footer">
-                <p style="margin-bottom: 0.75rem;"><a href="/forgot-password" style="color: var(--gray-500); font-size: 0.9rem;">Forgot your password?</a></p>
-                <p style="margin-bottom: 0.75rem;">Don't have an account? <a href="/register" style="color: var(--primary); font-weight: 500;">Register your clinic</a></p>
-                <p style="color: var(--gray-400); font-size: 0.8rem;">Demo: <strong>admin</strong> / <strong>12345</strong></p>
+            </div>
+        </div>
+
+        <!-- Right Side - Login Form -->
+        <div class="login-right">
+            <div class="login-card">
+                <div class="login-header">
+                    <h2 id="welcomeText">Welcome Back</h2>
+                    <p id="signInText">Sign in to your account</p>
+                </div>
+
+                <div id="errorMessage" class="error-message"></div>
+
+                <form id="loginForm" class="login-form">
+                    <div class="form-group">
+                        <label class="form-label required" id="usernameLabel">Username</label>
+                        <div class="input-group">
+                            <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <input type="text" class="form-input" id="username" name="username" required autofocus>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label required" id="passwordLabel">Password</label>
+                        <div class="input-group">
+                            <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            <input type="password" class="form-input" id="password" name="password" required>
+                        </div>
+                    </div>
+
+                    <div class="form-options">
+                        <div class="form-checkbox">
+                            <input type="checkbox" id="remember" name="remember">
+                            <label for="remember" class="checkbox-label" id="rememberLabel">Remember me</label>
+                        </div>
+                        <a href="/forgot-password" class="forgot-link" id="forgotLink">Forgot password?</a>
+                    </div>
+
+                    <button type="submit" class="btn-login">
+                        <span id="signInBtnText">Sign In</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </button>
+                </form>
+
+                <div class="login-footer">
+                    <p class="footer-text" id="newClinicText">Don't have an account?</p>
+                    <a href="/register" class="register-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                        <span id="registerText">Register your clinic</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        // Translations
+        const translations = {
+            en: {
+                langToggle: 'عربي',
+                brandName: 'Dental Pricing Calculator',
+                brandTagline: 'Cost-Plus Pricing for Modern Dental Practices',
+                feature1Title: 'Cost Analysis',
+                feature1Desc: 'Track all costs including chair time, equipment, and materials',
+                feature2Title: 'Profit Margins',
+                feature2Desc: 'Set and adjust profit percentages for each service',
+                feature3Title: 'Price Optimization',
+                feature3Desc: 'Compare current prices vs calculated optimal prices',
+                welcome: 'Welcome Back',
+                signIn: 'Sign in to your account',
+                username: 'Username',
+                password: 'Password',
+                rememberMe: 'Remember me',
+                forgotPassword: 'Forgot password?',
+                signInBtn: 'Sign In',
+                newClinic: "Don't have an account?",
+                register: 'Register your clinic'
+            },
+            ar: {
+                langToggle: 'English',
+                brandName: 'حاسبة أسعار الأسنان',
+                brandTagline: 'تسعير التكلفة الإضافية لعيادات الأسنان الحديثة',
+                feature1Title: 'تحليل التكاليف',
+                feature1Desc: 'تتبع جميع التكاليف بما في ذلك وقت الكرسي والمعدات والمواد',
+                feature2Title: 'هوامش الربح',
+                feature2Desc: 'تعيين وضبط نسب الربح لكل خدمة',
+                feature3Title: 'تحسين الأسعار',
+                feature3Desc: 'مقارنة الأسعار الحالية بالأسعار المثلى المحسوبة',
+                welcome: 'مرحباً بعودتك',
+                signIn: 'سجّل الدخول إلى حسابك',
+                username: 'اسم المستخدم',
+                password: 'كلمة المرور',
+                rememberMe: 'تذكرني',
+                forgotPassword: 'نسيت كلمة المرور؟',
+                signInBtn: 'تسجيل الدخول',
+                newClinic: 'ليس لديك حساب؟',
+                register: 'سجّل عيادتك'
+            }
+        };
+
+        // Get current language from localStorage or default to 'en'
+        let currentLang = localStorage.getItem('dental_lang') || 'en';
+        const REMEMBER_KEY = 'dental_remember_login';
+
+        // Load saved login info
+        function loadRememberedLogin() {
+            try {
+                const saved = localStorage.getItem(REMEMBER_KEY);
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    document.getElementById('username').value = data.username || '';
+                    document.getElementById('remember').checked = true;
+                }
+            } catch {
+                localStorage.removeItem(REMEMBER_KEY);
+            }
+        }
+
+        // Save login info if remember is checked
+        function saveRememberedLogin(username) {
+            const remember = document.getElementById('remember').checked;
+            if (remember) {
+                localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username }));
+            } else {
+                localStorage.removeItem(REMEMBER_KEY);
+            }
+        }
+
+        // Initialize page with saved language
+        document.addEventListener('DOMContentLoaded', () => {
+            if (currentLang === 'ar') {
+                document.documentElement.lang = 'ar';
+                document.documentElement.dir = 'rtl';
+            }
+            updateTexts();
+            loadRememberedLogin();
+        });
+
+        // Toggle language function
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'ar' : 'en';
+            localStorage.setItem('dental_lang', currentLang);
+
+            const html = document.documentElement;
+            html.lang = currentLang;
+            html.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+
+            updateTexts();
+        }
+
+        // Update all text elements
+        function updateTexts() {
+            const t = translations[currentLang];
+
+            document.getElementById('langToggleText').textContent = t.langToggle;
+            document.getElementById('brandName').textContent = t.brandName;
+            document.getElementById('brandTagline').textContent = t.brandTagline;
+            document.getElementById('feature1Title').textContent = t.feature1Title;
+            document.getElementById('feature1Desc').textContent = t.feature1Desc;
+            document.getElementById('feature2Title').textContent = t.feature2Title;
+            document.getElementById('feature2Desc').textContent = t.feature2Desc;
+            document.getElementById('feature3Title').textContent = t.feature3Title;
+            document.getElementById('feature3Desc').textContent = t.feature3Desc;
+            document.getElementById('welcomeText').textContent = t.welcome;
+            document.getElementById('signInText').textContent = t.signIn;
+            document.getElementById('usernameLabel').textContent = t.username;
+            document.getElementById('passwordLabel').textContent = t.password;
+            document.getElementById('rememberLabel').textContent = t.rememberMe;
+            document.getElementById('forgotLink').textContent = t.forgotPassword;
+            document.getElementById('signInBtnText').textContent = t.signInBtn;
+            document.getElementById('newClinicText').textContent = t.newClinic;
+            document.getElementById('registerText').textContent = t.register;
+        }
+
+        // Login form handler
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -162,14 +768,15 @@
                 });
 
                 if (response.ok) {
+                    saveRememberedLogin(username);
                     window.location.href = '/';
                 } else {
                     const data = await response.json();
-                    errorDiv.textContent = data.error || 'Invalid credentials';
+                    errorDiv.textContent = data.error || (currentLang === 'ar' ? 'بيانات الاعتماد غير صالحة' : 'Invalid credentials');
                     errorDiv.style.display = 'block';
                 }
             } catch (error) {
-                errorDiv.textContent = 'Connection error. Please try again.';
+                errorDiv.textContent = currentLang === 'ar' ? 'خطأ في الاتصال. حاول مرة أخرى.' : 'Connection error. Please try again.';
                 errorDiv.style.display = 'block';
             }
         });

@@ -21,15 +21,15 @@ This design system provides a comprehensive set of design tokens, components, an
 
 | Token | Size | Pixels | Usage |
 |-------|------|--------|-------|
-| `--text-xs` | 0.75rem | 12px | Captions, badges |
-| `--text-sm` | 0.875rem | 14px | Secondary text, labels |
-| `--text-base` | 1rem | 16px | Body text |
-| `--text-md` | 1.125rem | 18px | Emphasized body |
-| `--text-lg` | 1.25rem | 20px | Subheadings |
-| `--text-xl` | 1.5rem | 24px | Section headings |
-| `--text-2xl` | 1.875rem | 30px | Page titles |
-| `--text-3xl` | 2.25rem | 36px | Hero headings |
-| `--text-4xl` | 3rem | 48px | Display text |
+| `--text-xs` | 0.875rem | 14px | Captions, badges |
+| `--text-sm` | 1rem | 16px | Secondary text, labels |
+| `--text-base` | 1.125rem | 18px | Body text |
+| `--text-md` | 1.25rem | 20px | Emphasized body |
+| `--text-lg` | 1.375rem | 22px | Subheadings |
+| `--text-xl` | 1.625rem | 26px | Section headings |
+| `--text-2xl` | 2rem | 32px | Page titles |
+| `--text-3xl` | 2.375rem | 38px | Hero headings |
+| `--text-4xl` | 3.125rem | 50px | Display text |
 
 ### Font Weights
 

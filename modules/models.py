@@ -1069,15 +1069,21 @@ def calculate_service_price(service_id, clinic_id):
         rounding = settings['rounding_nearest']
         rounded_price = round(final_price / rounding) * rounding if rounding > 0 else final_price
 
+    # Base cost (without doctor fee and lab materials)
+    base_cost = chair_time_cost + equipment_cost + consumables_cost
+
     return {
         'service_name': service['name'],
         'name_ar': service.get('name_ar', ''),
         'chair_time_cost': round(chair_time_cost, 2),
         'doctor_fee': round(doctor_fee, 2),
+        'doctor_fee_type': doctor_fee_type,
+        'doctor_percentage': service.get('doctor_percentage', 0),
         'equipment_cost': round(equipment_cost, 2),
         'consumables_cost': round(consumables_cost, 2),
         'lab_materials_cost': round(lab_materials_cost, 2),
         'materials_cost': round(materials_cost, 2),
+        'base_cost': round(base_cost, 2),
         'total_cost': round(total_cost, 2),
         'profit_percent': profit_percent,
         'profit_amount': round(profit_amount, 2),
