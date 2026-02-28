@@ -29,8 +29,12 @@ def get_connection():
     if os.environ.get('DB_SSL', '').lower() in ('true', '1', 'required'):
         ssl_config = {'ssl': True}
         ca_path = os.environ.get('DB_SSL_CA', '')
-        if ca_path and os.path.exists(ca_path):
-            ssl_config['ca'] = ca_path
+        if ca_path:
+            # Resolve relative paths from project root
+            if not os.path.isabs(ca_path):
+                ca_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ca_path)
+            if os.path.exists(ca_path):
+                ssl_config['ca'] = ca_path
         connect_args['ssl'] = ssl_config
     conn = pymysql.connect(**connect_args)
     return conn

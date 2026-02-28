@@ -4,7 +4,9 @@ A multi-tenant SaaS platform for dental clinics to calculate service prices usin
 """
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask.json.provider import DefaultJSONProvider
 from functools import wraps
+from datetime import datetime, date
 import os
 from dotenv import load_dotenv
 
@@ -51,6 +53,20 @@ from modules.email_service import init_mail, send_verification_email, send_passw
 
 # Initialize Flask app
 app = Flask(__name__)
+
+
+# Custom JSON provider to handle MySQL datetime objects
+class CustomJSONProvider(DefaultJSONProvider):
+    def default(self, o):
+        if isinstance(o, datetime):
+            return o.isoformat()
+        if isinstance(o, date):
+            return o.isoformat()
+        return super().default(o)
+
+
+app.json_provider_class = CustomJSONProvider
+app.json = CustomJSONProvider(app)
 
 # Load configuration
 env = os.environ.get('FLASK_ENV', 'production')
