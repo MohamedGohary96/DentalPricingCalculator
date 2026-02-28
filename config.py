@@ -37,8 +37,12 @@ class Config:
     # Get base directory for user data
     USER_DATA_DIR = get_user_data_dir()
 
-    # Database - only use env var if it's set and not empty
-    DATABASE_PATH = os.environ.get('DATABASE_PATH') or os.path.join(USER_DATA_DIR, 'data', 'dental_calculator.db')
+    # MySQL Database Configuration
+    DB_HOST = os.environ.get('DB_HOST', '127.0.0.1')
+    DB_PORT = int(os.environ.get('DB_PORT', 3308))
+    DB_NAME = os.environ.get('DB_NAME', 'dental_calculator')
+    DB_USER = os.environ.get('DB_USER', 'dental_user')
+    DB_PASSWORD = os.environ.get('DB_PASSWORD', '')
 
     # Session configuration
     SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True') == 'True'

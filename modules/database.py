@@ -1,8 +1,9 @@
 """
-Database Module - SQLite database schema and connection management for Dental Pricing Calculator
+Database Module - MySQL database schema and connection management for Dental Pricing Calculator
 """
 
-import sqlite3
+import pymysql
+import pymysql.cursors
 import hashlib
 import secrets
 import os
@@ -11,42 +12,32 @@ from datetime import datetime
 from pathlib import Path
 
 
-def get_data_directory():
-    """Get the appropriate data directory for storing user data"""
-    if getattr(sys, 'frozen', False):
-        if sys.platform == 'darwin':  # macOS
-            app_support = Path.home() / 'Library' / 'Application Support' / 'DentalCalculator'
-            app_support.mkdir(parents=True, exist_ok=True)
-            return str(app_support / 'data')
-        elif sys.platform == 'win32':  # Windows
-            app_data = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local'))
-            app_dir = app_data / 'DentalCalculator'
-            app_dir.mkdir(parents=True, exist_ok=True)
-            return str(app_dir / 'data')
-
-    return os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
-
-
-# Get database path from environment or use platform-appropriate default
-DB_PATH = os.environ.get('DATABASE_PATH') or os.path.join(get_data_directory(), 'dental_calculator.db')
-
-
 def get_connection():
-    """Get database connection with row factory"""
-    db_dir = os.path.dirname(DB_PATH)
-    if db_dir and not os.path.exists(db_dir):
-        os.makedirs(db_dir, exist_ok=True)
-
-    conn = sqlite3.connect(DB_PATH, timeout=60.0, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA busy_timeout = 60000")
+    """Get MySQL database connection with DictCursor"""
+    connect_args = {
+        'host': os.environ.get('DB_HOST', '127.0.0.1'),
+        'port': int(os.environ.get('DB_PORT', 3308)),
+        'user': os.environ.get('DB_USER', 'dental_user'),
+        'password': os.environ.get('DB_PASSWORD', ''),
+        'database': os.environ.get('DB_NAME', 'dental_calculator'),
+        'charset': 'utf8mb4',
+        'cursorclass': pymysql.cursors.DictCursor,
+        'autocommit': False,
+        'connect_timeout': 60,
+    }
+    # Enable SSL for production (cloud databases)
+    if os.environ.get('DB_SSL', '').lower() in ('true', '1', 'required'):
+        ssl_config = {'ssl': True}
+        ca_path = os.environ.get('DB_SSL_CA', '')
+        if ca_path and os.path.exists(ca_path):
+            ssl_config['ca'] = ca_path
+        connect_args['ssl'] = ssl_config
+    conn = pymysql.connect(**connect_args)
     return conn
 
 
 def dict_from_row(row):
-    """Convert sqlite3.Row to dictionary"""
+    """Convert row to dictionary"""
     return dict(row) if row else None
 
 
@@ -67,6 +58,15 @@ def verify_password(password, stored_hash):
         return False
 
 
+def _get_table_columns(cursor, table_name):
+    """Get list of column names for a table"""
+    cursor.execute("""
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
+    """, (os.environ.get('DB_NAME', 'dental_calculator'), table_name))
+    return [row['COLUMN_NAME'] for row in cursor.fetchall()]
+
+
 def init_database():
     """Initialize database with all tables"""
     conn = get_connection()
@@ -75,373 +75,366 @@ def init_database():
     # Clinics table (multi-tenant support)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS clinics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            slug TEXT UNIQUE NOT NULL,
-            email TEXT,
-            phone TEXT,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            name VARCHAR(255) NOT NULL,
+            slug VARCHAR(100) UNIQUE NOT NULL,
+            email VARCHAR(255),
+            phone VARCHAR(50),
             address TEXT,
-            city TEXT,
-            country TEXT DEFAULT 'Egypt',
-            logo_url TEXT,
-            subscription_plan TEXT DEFAULT 'professional',
-            subscription_status TEXT DEFAULT 'trial',
+            city VARCHAR(255),
+            country VARCHAR(255) DEFAULT 'Egypt',
+            logo_url VARCHAR(255),
+            subscription_plan VARCHAR(100) DEFAULT 'professional',
+            subscription_status VARCHAR(100) DEFAULT 'trial',
             subscription_expires_at DATE,
             last_payment_date DATE,
-            last_payment_amount REAL,
+            last_payment_amount DOUBLE,
             grace_period_start DATE,
-            max_users INTEGER DEFAULT 10,
-            max_services INTEGER DEFAULT 100,
-            is_active INTEGER DEFAULT 1,
+            max_users INT DEFAULT 10,
+            max_services INT DEFAULT 100,
+            is_active TINYINT(1) DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Users table (updated with clinic_id and role)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER,
-            username TEXT NOT NULL,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT,
+            username VARCHAR(255) NOT NULL,
             password_hash TEXT NOT NULL,
-            first_name TEXT NOT NULL,
-            last_name TEXT NOT NULL,
-            email TEXT,
-            role TEXT DEFAULT 'staff',
-            is_super_admin INTEGER DEFAULT 0,
-            is_active INTEGER DEFAULT 1,
+            first_name VARCHAR(255) NOT NULL,
+            last_name VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            role VARCHAR(100) DEFAULT 'staff',
+            is_super_admin TINYINT(1) DEFAULT 0,
+            is_active TINYINT(1) DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id),
             UNIQUE(clinic_id, username)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Global Settings table (per clinic)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS global_settings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            currency TEXT DEFAULT 'EGP',
-            vat_percent REAL DEFAULT 0,
-            default_profit_percent REAL DEFAULT 40,
-            rounding_nearest INTEGER DEFAULT 1,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            currency VARCHAR(100) DEFAULT 'EGP',
+            vat_percent DOUBLE DEFAULT 0,
+            default_profit_percent DOUBLE DEFAULT 40,
+            rounding_nearest INT DEFAULT 1,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id),
             UNIQUE(clinic_id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Fixed Costs table (per clinic)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS fixed_costs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            category TEXT NOT NULL,
-            monthly_amount REAL NOT NULL,
-            included INTEGER DEFAULT 1,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            category VARCHAR(255) NOT NULL,
+            monthly_amount DOUBLE NOT NULL,
+            included TINYINT(1) DEFAULT 1,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Salaries table (per clinic)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS salaries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            role_name TEXT NOT NULL,
-            monthly_salary REAL NOT NULL,
-            included INTEGER DEFAULT 1,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            role_name VARCHAR(255) NOT NULL,
+            monthly_salary DOUBLE NOT NULL,
+            included TINYINT(1) DEFAULT 1,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Equipment table (per clinic)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS equipment (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            asset_name TEXT NOT NULL,
-            purchase_cost REAL NOT NULL,
-            life_years INTEGER NOT NULL,
-            allocation_type TEXT CHECK(allocation_type IN ('fixed', 'per-hour')) NOT NULL,
-            monthly_usage_hours REAL,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            asset_name VARCHAR(255) NOT NULL,
+            purchase_cost DOUBLE NOT NULL,
+            life_years INT NOT NULL,
+            allocation_type VARCHAR(50) CHECK(allocation_type IN ('fixed', 'per-hour')) NOT NULL,
+            monthly_usage_hours DOUBLE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Clinic Capacity Settings table (per clinic)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS clinic_capacity (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            chairs INTEGER DEFAULT 1,
-            days_per_month INTEGER DEFAULT 24,
-            hours_per_day INTEGER DEFAULT 8,
-            utilization_percent REAL DEFAULT 80,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            chairs INT DEFAULT 1,
+            days_per_month INT DEFAULT 24,
+            hours_per_day INT DEFAULT 8,
+            utilization_percent DOUBLE DEFAULT 80,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id),
             UNIQUE(clinic_id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Consumables Library table (per clinic)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS consumables (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            item_name TEXT NOT NULL,
-            pack_cost REAL NOT NULL,
-            cases_per_pack INTEGER NOT NULL,
-            units_per_case INTEGER DEFAULT 1,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            item_name VARCHAR(255) NOT NULL,
+            pack_cost DOUBLE NOT NULL,
+            cases_per_pack INT NOT NULL,
+            units_per_case INT DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Service Categories table (per clinic)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS service_categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            display_order INTEGER DEFAULT 0,
-            is_active INTEGER DEFAULT 1,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            display_order INT DEFAULT 0,
+            is_active TINYINT(1) DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            name_ar VARCHAR(255),
             FOREIGN KEY (clinic_id) REFERENCES clinics(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Services table (per clinic)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS services (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            category_id INTEGER,
-            name TEXT NOT NULL,
-            chair_time_hours REAL NOT NULL,
-            doctor_hourly_fee REAL NOT NULL,
-            use_default_profit INTEGER DEFAULT 1,
-            custom_profit_percent REAL,
-            equipment_id INTEGER,
-            equipment_hours_used REAL,
-            current_price REAL,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            category_id INT,
+            name VARCHAR(255) NOT NULL,
+            chair_time_hours DOUBLE NOT NULL,
+            doctor_hourly_fee DOUBLE NOT NULL,
+            use_default_profit TINYINT(1) DEFAULT 1,
+            custom_profit_percent DOUBLE,
+            equipment_id INT,
+            equipment_hours_used DOUBLE,
+            current_price DOUBLE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id),
             FOREIGN KEY (category_id) REFERENCES service_categories(id),
             FOREIGN KEY (equipment_id) REFERENCES equipment(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Add current_price column if it doesn't exist (migration)
-    cursor.execute("PRAGMA table_info(services)")
-    columns = [column[1] for column in cursor.fetchall()]
+    columns = _get_table_columns(cursor, 'services')
     if 'current_price' not in columns:
-        cursor.execute('ALTER TABLE services ADD COLUMN current_price REAL')
+        cursor.execute('ALTER TABLE services ADD COLUMN current_price DOUBLE')
 
     # Add doctor fee type columns if they don't exist (migration)
     if 'doctor_fee_type' not in columns:
-        cursor.execute("ALTER TABLE services ADD COLUMN doctor_fee_type TEXT DEFAULT 'hourly'")
+        cursor.execute("ALTER TABLE services ADD COLUMN doctor_fee_type VARCHAR(50) DEFAULT 'hourly'")
     if 'doctor_fixed_fee' not in columns:
-        cursor.execute('ALTER TABLE services ADD COLUMN doctor_fixed_fee REAL DEFAULT 0')
+        cursor.execute('ALTER TABLE services ADD COLUMN doctor_fixed_fee DOUBLE DEFAULT 0')
     if 'doctor_percentage' not in columns:
-        cursor.execute('ALTER TABLE services ADD COLUMN doctor_percentage REAL DEFAULT 0')
+        cursor.execute('ALTER TABLE services ADD COLUMN doctor_percentage DOUBLE DEFAULT 0')
     if 'category_id' not in columns:
-        cursor.execute('ALTER TABLE services ADD COLUMN category_id INTEGER REFERENCES service_categories(id)')
+        cursor.execute('ALTER TABLE services ADD COLUMN category_id INT')
 
     # Service Consumables (junction table)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS service_consumables (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            service_id INTEGER NOT NULL,
-            consumable_id INTEGER NOT NULL,
-            quantity REAL NOT NULL,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            service_id INT NOT NULL,
+            consumable_id INT NOT NULL,
+            quantity DOUBLE NOT NULL,
             FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE,
             FOREIGN KEY (consumable_id) REFERENCES consumables(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Lab Materials Library table (per clinic)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS lab_materials (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            material_name TEXT NOT NULL,
-            lab_name TEXT,
-            unit_cost REAL NOT NULL,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            material_name VARCHAR(255) NOT NULL,
+            lab_name VARCHAR(255),
+            unit_cost DOUBLE NOT NULL,
+            unit_type VARCHAR(50) DEFAULT 'per unit',
             description TEXT,
-            name_ar TEXT,
+            name_ar VARCHAR(255),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Service Materials (junction table)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS service_materials (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            service_id INTEGER NOT NULL,
-            material_id INTEGER NOT NULL,
-            quantity REAL NOT NULL,
-            custom_unit_price REAL,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            service_id INT NOT NULL,
+            material_id INT NOT NULL,
+            quantity DOUBLE NOT NULL,
+            custom_unit_price DOUBLE,
             FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE,
             FOREIGN KEY (material_id) REFERENCES lab_materials(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Service Equipment (junction table for multiple equipment per service)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS service_equipment (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            service_id INTEGER NOT NULL,
-            equipment_id INTEGER NOT NULL,
-            hours_used REAL NOT NULL DEFAULT 0.25,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            service_id INT NOT NULL,
+            equipment_id INT NOT NULL,
+            hours_used DOUBLE NOT NULL DEFAULT 0.25,
             FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE,
             FOREIGN KEY (equipment_id) REFERENCES equipment(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Email verification tokens table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS email_verification_tokens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            token_hash TEXT UNIQUE NOT NULL,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            token_hash VARCHAR(255) UNIQUE NOT NULL,
             expires_at TIMESTAMP NOT NULL,
-            used INTEGER DEFAULT 0,
+            used TINYINT(1) DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Password reset tokens table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS password_reset_tokens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            token_hash TEXT UNIQUE NOT NULL,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            token_hash VARCHAR(255) UNIQUE NOT NULL,
             expires_at TIMESTAMP NOT NULL,
-            used INTEGER DEFAULT 0,
+            used TINYINT(1) DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Invitation tokens table (for inviting users to clinics)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS invitation_tokens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            email TEXT NOT NULL,
-            role TEXT DEFAULT 'staff',
-            token TEXT UNIQUE NOT NULL,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            email VARCHAR(255) NOT NULL,
+            role VARCHAR(100) DEFAULT 'staff',
+            token VARCHAR(255) UNIQUE NOT NULL,
             expires_at TIMESTAMP NOT NULL,
-            used INTEGER DEFAULT 0,
+            used TINYINT(1) DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Subscription payments table (for tracking payments)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS subscription_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            clinic_id INTEGER NOT NULL,
-            amount REAL NOT NULL,
-            currency TEXT DEFAULT 'EGP',
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            amount DOUBLE NOT NULL,
+            currency VARCHAR(100) DEFAULT 'EGP',
             payment_date DATE NOT NULL,
-            payment_method TEXT CHECK(payment_method IN ('cash', 'bank_transfer', 'check', 'other')),
-            months_paid INTEGER DEFAULT 1,
-            receipt_number TEXT,
+            payment_method VARCHAR(50) CHECK(payment_method IN ('cash', 'bank_transfer', 'check', 'other')),
+            months_paid INT DEFAULT 1,
+            receipt_number VARCHAR(255),
             payment_notes TEXT,
-            recorded_by INTEGER,
+            recorded_by INT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (clinic_id) REFERENCES clinics(id),
             FOREIGN KEY (recorded_by) REFERENCES users(id)
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
     # Migration: Add is_super_admin to users if it doesn't exist
-    cursor.execute("PRAGMA table_info(users)")
-    user_columns = [column[1] for column in cursor.fetchall()]
+    user_columns = _get_table_columns(cursor, 'users')
     if 'is_super_admin' not in user_columns:
-        cursor.execute('ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0')
+        cursor.execute('ALTER TABLE users ADD COLUMN is_super_admin TINYINT(1) DEFAULT 0')
 
     # Migration: Add email_verified to users if it doesn't exist
     if 'email_verified' not in user_columns:
-        cursor.execute('ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 1')  # Default 1 for existing users
+        cursor.execute('ALTER TABLE users ADD COLUMN email_verified TINYINT(1) DEFAULT 1')  # Default 1 for existing users
 
     # Migration: Update password_reset_tokens table to use token_hash instead of token
-    cursor.execute("PRAGMA table_info(password_reset_tokens)")
-    prt_columns = [column[1] for column in cursor.fetchall()]
+    prt_columns = _get_table_columns(cursor, 'password_reset_tokens')
     if 'token' in prt_columns and 'token_hash' not in prt_columns:
         # Drop old table and recreate with new schema
         cursor.execute('DROP TABLE IF EXISTS password_reset_tokens')
         cursor.execute('''
             CREATE TABLE password_reset_tokens (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                token_hash TEXT UNIQUE NOT NULL,
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_id INT NOT NULL,
+                token_hash VARCHAR(255) UNIQUE NOT NULL,
                 expires_at TIMESTAMP NOT NULL,
-                used INTEGER DEFAULT 0,
+                used TINYINT(1) DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ''')
 
     # Migration: Add subscription fields to clinics if they don't exist
-    cursor.execute("PRAGMA table_info(clinics)")
-    clinic_columns = [column[1] for column in cursor.fetchall()]
+    clinic_columns = _get_table_columns(cursor, 'clinics')
     if 'last_payment_date' not in clinic_columns:
         cursor.execute('ALTER TABLE clinics ADD COLUMN last_payment_date DATE')
     if 'last_payment_amount' not in clinic_columns:
-        cursor.execute('ALTER TABLE clinics ADD COLUMN last_payment_amount REAL')
+        cursor.execute('ALTER TABLE clinics ADD COLUMN last_payment_amount DOUBLE')
     if 'grace_period_start' not in clinic_columns:
         cursor.execute('ALTER TABLE clinics ADD COLUMN grace_period_start DATE')
     if 'language' not in clinic_columns:
-        cursor.execute("ALTER TABLE clinics ADD COLUMN language TEXT DEFAULT 'en'")
+        cursor.execute("ALTER TABLE clinics ADD COLUMN language VARCHAR(50) DEFAULT 'en'")
 
     # Add name_ar column to services table
-    cursor.execute('PRAGMA table_info(services)')
-    service_columns = [column[1] for column in cursor.fetchall()]
+    service_columns = _get_table_columns(cursor, 'services')
     if 'name_ar' not in service_columns:
-        cursor.execute('ALTER TABLE services ADD COLUMN name_ar TEXT')
+        cursor.execute('ALTER TABLE services ADD COLUMN name_ar VARCHAR(255)')
 
     # Add name_ar column to consumables table
-    cursor.execute('PRAGMA table_info(consumables)')
-    consumable_columns = [column[1] for column in cursor.fetchall()]
+    consumable_columns = _get_table_columns(cursor, 'consumables')
     if 'name_ar' not in consumable_columns:
-        cursor.execute('ALTER TABLE consumables ADD COLUMN name_ar TEXT')
+        cursor.execute('ALTER TABLE consumables ADD COLUMN name_ar VARCHAR(255)')
 
     # Add custom_unit_price column to service_consumables table (for service-specific pricing)
-    cursor.execute('PRAGMA table_info(service_consumables)')
-    sc_columns = [column[1] for column in cursor.fetchall()]
+    sc_columns = _get_table_columns(cursor, 'service_consumables')
     if 'custom_unit_price' not in sc_columns:
-        cursor.execute('ALTER TABLE service_consumables ADD COLUMN custom_unit_price REAL')
+        cursor.execute('ALTER TABLE service_consumables ADD COLUMN custom_unit_price DOUBLE')
 
     # Add lab_name column to lab_materials table
-    cursor.execute('PRAGMA table_info(lab_materials)')
-    material_columns = [column[1] for column in cursor.fetchall()]
+    material_columns = _get_table_columns(cursor, 'lab_materials')
     if 'lab_name' not in material_columns:
-        cursor.execute('ALTER TABLE lab_materials ADD COLUMN lab_name TEXT')
+        cursor.execute('ALTER TABLE lab_materials ADD COLUMN lab_name VARCHAR(255)')
 
     # Add custom_unit_price column to service_materials table (for service-specific pricing)
-    cursor.execute('PRAGMA table_info(service_materials)')
-    sm_columns = [column[1] for column in cursor.fetchall()]
+    sm_columns = _get_table_columns(cursor, 'service_materials')
     if 'custom_unit_price' not in sm_columns:
-        cursor.execute('ALTER TABLE service_materials ADD COLUMN custom_unit_price REAL')
+        cursor.execute('ALTER TABLE service_materials ADD COLUMN custom_unit_price DOUBLE')
 
     conn.commit()
     conn.close()
@@ -471,8 +464,8 @@ def create_default_categories(clinic_id, conn=None):
     cursor = conn.cursor()
 
     # Check if categories already exist for this clinic
-    cursor.execute('SELECT COUNT(*) FROM service_categories WHERE clinic_id = ?', (clinic_id,))
-    if cursor.fetchone()[0] > 0:
+    cursor.execute('SELECT COUNT(*) as cnt FROM service_categories WHERE clinic_id = %s', (clinic_id,))
+    if cursor.fetchone()['cnt'] > 0:
         if close_conn:
             conn.close()
         return
@@ -481,7 +474,7 @@ def create_default_categories(clinic_id, conn=None):
     for order, name in enumerate(DEFAULT_SERVICE_CATEGORIES):
         cursor.execute('''
             INSERT INTO service_categories (clinic_id, name, display_order)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         ''', (clinic_id, name, order))
 
     conn.commit()
@@ -503,8 +496,8 @@ def create_clinic_starter_data(clinic_id, conn=None):
     cursor = conn.cursor()
 
     # Check if starter data already exists for this clinic (check consumables as indicator)
-    cursor.execute("SELECT COUNT(*) FROM consumables WHERE clinic_id = ?", (clinic_id,))
-    if cursor.fetchone()[0] > 0:
+    cursor.execute("SELECT COUNT(*) as cnt FROM consumables WHERE clinic_id = %s", (clinic_id,))
+    if cursor.fetchone()['cnt'] > 0:
         if close_conn:
             conn.close()
         return
@@ -527,12 +520,12 @@ def create_clinic_starter_data(clinic_id, conn=None):
     ]
     cursor.executemany('''
         INSERT INTO consumables (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case, name_ar)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     ''', consumables)
 
     # Get the inserted consumable IDs (they start at the next available ID)
-    cursor.execute("SELECT id FROM consumables WHERE clinic_id = ? ORDER BY id", (clinic_id,))
-    consumable_ids = [row[0] for row in cursor.fetchall()]
+    cursor.execute("SELECT id FROM consumables WHERE clinic_id = %s ORDER BY id", (clinic_id,))
+    consumable_ids = [row['id'] for row in cursor.fetchall()]
 
     # ===== 5 COMMON LAB MATERIALS =====
     # (clinic_id, material_name, lab_name, unit_cost, description, name_ar)
@@ -545,12 +538,12 @@ def create_clinic_starter_data(clinic_id, conn=None):
     ]
     cursor.executemany('''
         INSERT INTO lab_materials (clinic_id, material_name, lab_name, unit_cost, description, name_ar)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     ''', materials)
 
     # Get the inserted material IDs
-    cursor.execute("SELECT id FROM lab_materials WHERE clinic_id = ? ORDER BY id", (clinic_id,))
-    material_ids = [row[0] for row in cursor.fetchall()]
+    cursor.execute("SELECT id FROM lab_materials WHERE clinic_id = %s ORDER BY id", (clinic_id,))
+    material_ids = [row['id'] for row in cursor.fetchall()]
 
     # ===== 3 FIXED MONTHLY COSTS =====
     # (clinic_id, category, monthly_amount, included, notes)
@@ -561,7 +554,7 @@ def create_clinic_starter_data(clinic_id, conn=None):
     ]
     cursor.executemany('''
         INSERT INTO fixed_costs (clinic_id, category, monthly_amount, included, notes)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     ''', fixed_costs)
 
     # ===== 3 EQUIPMENT ITEMS (DEPRECIATION) =====
@@ -573,12 +566,12 @@ def create_clinic_starter_data(clinic_id, conn=None):
     ]
     cursor.executemany('''
         INSERT INTO equipment (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     ''', equipment)
 
     # Get the inserted equipment IDs
-    cursor.execute("SELECT id FROM equipment WHERE clinic_id = ? ORDER BY id", (clinic_id,))
-    equipment_ids = [row[0] for row in cursor.fetchall()]
+    cursor.execute("SELECT id FROM equipment WHERE clinic_id = %s ORDER BY id", (clinic_id,))
+    equipment_ids = [row['id'] for row in cursor.fetchall()]
 
     # ===== 3 STAFF SALARIES =====
     # (clinic_id, role_name, monthly_salary, included, notes)
@@ -589,7 +582,7 @@ def create_clinic_starter_data(clinic_id, conn=None):
     ]
     cursor.executemany('''
         INSERT INTO salaries (clinic_id, role_name, monthly_salary, included, notes)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     ''', salaries)
 
     # ===== 5 MAIN DENTAL SERVICES =====
@@ -603,12 +596,12 @@ def create_clinic_starter_data(clinic_id, conn=None):
     ]
     cursor.executemany('''
         INSERT INTO services (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent, current_price, name_ar)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     ''', services)
 
     # Get the inserted service IDs
-    cursor.execute("SELECT id FROM services WHERE clinic_id = ? ORDER BY id", (clinic_id,))
-    service_ids = [row[0] for row in cursor.fetchall()]
+    cursor.execute("SELECT id FROM services WHERE clinic_id = %s ORDER BY id", (clinic_id,))
+    service_ids = [row['id'] for row in cursor.fetchall()]
 
     # ===== SERVICE-CONSUMABLE RELATIONSHIPS =====
     # Map consumables: [0]=Gloves, [1]=Anesthetic, [2]=Composite, [3]=Bonding, [4]=Etch,
@@ -669,7 +662,7 @@ def create_clinic_starter_data(clinic_id, conn=None):
     if service_consumables:
         cursor.executemany('''
             INSERT INTO service_consumables (service_id, consumable_id, quantity)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         ''', service_consumables)
 
     # ===== SERVICE-MATERIAL RELATIONSHIPS =====
@@ -684,7 +677,7 @@ def create_clinic_starter_data(clinic_id, conn=None):
     if service_materials:
         cursor.executemany('''
             INSERT INTO service_materials (service_id, material_id, quantity)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         ''', service_materials)
 
     # ===== SERVICE-EQUIPMENT RELATIONSHIPS =====
@@ -703,7 +696,7 @@ def create_clinic_starter_data(clinic_id, conn=None):
     if service_equipment:
         cursor.executemany('''
             INSERT INTO service_equipment (service_id, equipment_id, hours_used)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         ''', service_equipment)
 
     conn.commit()
@@ -718,8 +711,8 @@ def create_initial_admin():
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) FROM clinics")
-    if cursor.fetchone()[0] > 0:
+    cursor.execute("SELECT COUNT(*) as cnt FROM clinics")
+    if cursor.fetchone()['cnt'] > 0:
         conn.close()
         return
 
@@ -736,7 +729,7 @@ def create_initial_admin():
     # Create demo clinic (super admin clinic - always active)
     cursor.execute('''
         INSERT INTO clinics (name, slug, email, phone, address, city, country, subscription_plan, subscription_status, max_users, max_services)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', ('Demo Dental Clinic', 'demo-clinic', 'demo@dentalcalc.local', '+20 100 000 0000',
           '123 Demo Street', 'Cairo', 'Egypt', 'professional', 'active', 10, 100))
     clinic_id = cursor.lastrowid
@@ -745,19 +738,19 @@ def create_initial_admin():
     admin_hash = hash_password('12345')
     cursor.execute('''
         INSERT INTO users (clinic_id, username, password_hash, first_name, last_name, email, role, is_super_admin)
-        VALUES (?, ?, ?, 'Admin', 'User', 'admin@dentalcalc.local', 'owner', 1)
+        VALUES (%s, %s, %s, 'Admin', 'User', 'admin@dentalcalc.local', 'owner', 1)
     ''', (clinic_id, 'admin', admin_hash))
 
     # Create default settings for demo clinic
     cursor.execute('''
         INSERT INTO global_settings (clinic_id, currency, vat_percent, default_profit_percent, rounding_nearest)
-        VALUES (?, 'EGP', 0, 40, 5)
+        VALUES (%s, 'EGP', 0, 40, 5)
     ''', (clinic_id,))
 
     # Create default clinic capacity
     cursor.execute('''
         INSERT INTO clinic_capacity (clinic_id, chairs, days_per_month, hours_per_day, utilization_percent)
-        VALUES (?, 1, 24, 8, 80)
+        VALUES (%s, 1, 24, 8, 80)
     ''', (clinic_id,))
 
     # Create default service categories
@@ -781,11 +774,11 @@ def create_sample_data():
     if not row:
         conn.close()
         return
-    clinic_id = row[0]
+    clinic_id = row['id']
 
     # Check if data exists for this clinic
-    cursor.execute("SELECT COUNT(*) FROM fixed_costs WHERE clinic_id = ?", (clinic_id,))
-    if cursor.fetchone()[0] > 0:
+    cursor.execute("SELECT COUNT(*) as cnt FROM fixed_costs WHERE clinic_id = %s", (clinic_id,))
+    if cursor.fetchone()['cnt'] > 0:
         conn.close()
         return
 
@@ -803,7 +796,7 @@ def create_sample_data():
     ]
     cursor.executemany('''
         INSERT INTO fixed_costs (clinic_id, category, monthly_amount, included, notes)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     ''', fixed_costs)
 
     # Salaries
@@ -815,7 +808,7 @@ def create_sample_data():
     ]
     cursor.executemany('''
         INSERT INTO salaries (clinic_id, role_name, monthly_salary, included, notes)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     ''', salaries)
 
     # Equipment
@@ -827,7 +820,7 @@ def create_sample_data():
     ]
     cursor.executemany('''
         INSERT INTO equipment (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     ''', equipment)
 
     # Consumables (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case)
@@ -856,7 +849,7 @@ def create_sample_data():
     ]
     cursor.executemany('''
         INSERT INTO consumables (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     ''', consumables)
 
     # Lab Materials (clinic_id, material_name, lab_name, unit_cost, description)
@@ -923,7 +916,7 @@ def create_sample_data():
     ]
     cursor.executemany('''
         INSERT INTO lab_materials (clinic_id, material_name, lab_name, unit_cost, description)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     ''', materials)
 
     # Services (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent, current_price)
@@ -952,7 +945,7 @@ def create_sample_data():
     ]
     cursor.executemany('''
         INSERT INTO services (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent, current_price)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
     ''', services)
 
     # Service Consumables Examples (service_id, consumable_id, quantity)
@@ -1054,7 +1047,7 @@ def create_sample_data():
     ]
     cursor.executemany('''
         INSERT INTO service_consumables (service_id, consumable_id, quantity)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', service_consumables)
 
     conn.commit()

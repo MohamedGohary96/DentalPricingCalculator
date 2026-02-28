@@ -760,13 +760,13 @@ def api_register_clinic():
     from modules.database import get_connection
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT id FROM users WHERE username = ?', (data['owner_username'],))
+    cursor.execute('SELECT id FROM users WHERE username = %s', (data['owner_username'],))
     if cursor.fetchone():
         conn.close()
         return jsonify({'error': 'Username already exists'}), 400
 
     # Check if email already exists
-    cursor.execute('SELECT id FROM users WHERE email = ?', (data['owner_email'],))
+    cursor.execute('SELECT id FROM users WHERE email = %s', (data['owner_email'],))
     if cursor.fetchone():
         conn.close()
         return jsonify({'error': 'Email already registered'}), 400

@@ -23,7 +23,7 @@ def create_clinic(name, email, phone=None, address=None, city=None, country='Egy
     counter = 1
 
     while True:
-        cursor.execute('SELECT id FROM clinics WHERE slug = ?', (slug,))
+        cursor.execute('SELECT id FROM clinics WHERE slug = %s', (slug,))
         if not cursor.fetchone():
             break
         slug = f"{base_slug}-{counter}"
@@ -31,20 +31,20 @@ def create_clinic(name, email, phone=None, address=None, city=None, country='Egy
 
     cursor.execute('''
         INSERT INTO clinics (name, slug, email, phone, address, city, country, subscription_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'trial')
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 'trial')
     ''', (name, slug, email, phone, address, city, country))
     clinic_id = cursor.lastrowid
 
     # Create default settings for the clinic
     cursor.execute('''
         INSERT INTO global_settings (clinic_id, currency, vat_percent, default_profit_percent, rounding_nearest)
-        VALUES (?, 'EGP', 0, 40, 5)
+        VALUES (%s, 'EGP', 0, 40, 5)
     ''', (clinic_id,))
 
     # Create default clinic capacity
     cursor.execute('''
         INSERT INTO clinic_capacity (clinic_id, chairs, days_per_month, hours_per_day, utilization_percent)
-        VALUES (?, 1, 24, 8, 80)
+        VALUES (%s, 1, 24, 8, 80)
     ''', (clinic_id,))
 
     # Create default service categories
@@ -55,7 +55,7 @@ def create_clinic(name, email, phone=None, address=None, city=None, country='Egy
 
     conn.commit()
 
-    cursor.execute('SELECT * FROM clinics WHERE id = ?', (clinic_id,))
+    cursor.execute('SELECT * FROM clinics WHERE id = %s', (clinic_id,))
     clinic = dict_from_row(cursor.fetchone())
     conn.close()
 
@@ -66,7 +66,7 @@ def get_clinic_by_id(clinic_id):
     """Get clinic by ID"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM clinics WHERE id = ?', (clinic_id,))
+    cursor.execute('SELECT * FROM clinics WHERE id = %s', (clinic_id,))
     clinic = dict_from_row(cursor.fetchone())
     conn.close()
     return clinic
@@ -76,7 +76,7 @@ def get_clinic_by_slug(slug):
     """Get clinic by slug"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM clinics WHERE slug = ?', (slug,))
+    cursor.execute('SELECT * FROM clinics WHERE slug = %s', (slug,))
     clinic = dict_from_row(cursor.fetchone())
     conn.close()
     return clinic
@@ -91,12 +91,12 @@ def update_clinic(clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'slug']:  # Don't allow slug change
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.append(clinic_id)
-        cursor.execute(f"UPDATE clinics SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        cursor.execute(f"UPDATE clinics SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s", values)
         conn.commit()
 
     conn.close()
@@ -117,7 +117,7 @@ def authenticate_user(username, password):
         SELECT u.*, c.name as clinic_name, c.slug as clinic_slug, c.is_active as clinic_is_active
         FROM users u
         LEFT JOIN clinics c ON u.clinic_id = c.id
-        WHERE u.username = ? AND u.is_active = 1
+        WHERE u.username = %s AND u.is_active = 1
     ''', (username,))
     row = cursor.fetchone()
     conn.close()
@@ -136,7 +136,7 @@ def create_user(clinic_id, username, password, first_name, last_name, email, rol
     password_hash = hash_password(password)
     cursor.execute('''
         INSERT INTO users (clinic_id, username, password_hash, first_name, last_name, email, role)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
     ''', (clinic_id, username, password_hash, first_name, last_name, email, role))
     user_id = cursor.lastrowid
     conn.commit()
@@ -150,7 +150,7 @@ def get_clinic_users(clinic_id):
     cursor = conn.cursor()
     cursor.execute('''
         SELECT id, clinic_id, username, first_name, last_name, email, role, is_active, created_at
-        FROM users WHERE clinic_id = ? ORDER BY first_name
+        FROM users WHERE clinic_id = %s ORDER BY first_name
     ''', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
@@ -163,7 +163,7 @@ def update_user(user_id, clinic_id, **kwargs):
     cursor = conn.cursor()
 
     # Verify user belongs to clinic
-    cursor.execute('SELECT id FROM users WHERE id = ? AND clinic_id = ?', (user_id, clinic_id))
+    cursor.execute('SELECT id FROM users WHERE id = %s AND clinic_id = %s', (user_id, clinic_id))
     if not cursor.fetchone():
         conn.close()
         return False
@@ -173,15 +173,15 @@ def update_user(user_id, clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id', 'password_hash']:
             if key == 'password':
-                fields.append('password_hash = ?')
+                fields.append('password_hash = %s')
                 values.append(hash_password(value))
             else:
-                fields.append(f'{key} = ?')
+                fields.append(f'{key} = %s')
                 values.append(value)
 
     if fields:
         values.append(user_id)
-        cursor.execute(f"UPDATE users SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        cursor.execute(f"UPDATE users SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s", values)
         conn.commit()
 
     conn.close()
@@ -202,7 +202,7 @@ def get_global_settings(clinic_id):
     """Get global settings for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM global_settings WHERE clinic_id = ?', (clinic_id,))
+    cursor.execute('SELECT * FROM global_settings WHERE clinic_id = %s', (clinic_id,))
     row = cursor.fetchone()
     conn.close()
 
@@ -212,7 +212,7 @@ def get_global_settings(clinic_id):
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO global_settings (clinic_id, currency, vat_percent, default_profit_percent, rounding_nearest)
-            VALUES (?, 'EGP', 0, 40, 5)
+            VALUES (%s, 'EGP', 0, 40, 5)
         ''', (clinic_id,))
         conn.commit()
         conn.close()
@@ -259,12 +259,12 @@ def update_global_settings(clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key != 'clinic_id':
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.append(clinic_id)
-        cursor.execute(f"UPDATE global_settings SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE clinic_id = ?", values)
+        cursor.execute(f"UPDATE global_settings SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE clinic_id = %s", values)
         conn.commit()
 
     conn.close()
@@ -277,7 +277,7 @@ def get_all_fixed_costs(clinic_id):
     """Get all fixed costs for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM fixed_costs WHERE clinic_id = ? ORDER BY category', (clinic_id,))
+    cursor.execute('SELECT * FROM fixed_costs WHERE clinic_id = %s ORDER BY category', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
@@ -289,7 +289,7 @@ def create_fixed_cost(clinic_id, category, monthly_amount, included=1, notes='')
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO fixed_costs (clinic_id, category, monthly_amount, included, notes)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     ''', (clinic_id, category, monthly_amount, included, notes))
     cost_id = cursor.lastrowid
     conn.commit()
@@ -306,12 +306,12 @@ def update_fixed_cost(cost_id, clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.extend([cost_id, clinic_id])
-        cursor.execute(f"UPDATE fixed_costs SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
+        cursor.execute(f"UPDATE fixed_costs SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s AND clinic_id = %s", values)
         conn.commit()
 
     conn.close()
@@ -322,7 +322,7 @@ def delete_fixed_cost(cost_id, clinic_id):
     """Delete fixed cost (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM fixed_costs WHERE id = ? AND clinic_id = ?', (cost_id, clinic_id))
+    cursor.execute('DELETE FROM fixed_costs WHERE id = %s AND clinic_id = %s', (cost_id, clinic_id))
     conn.commit()
     conn.close()
     return True
@@ -334,7 +334,7 @@ def get_all_salaries(clinic_id):
     """Get all salaries for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM salaries WHERE clinic_id = ? ORDER BY role_name', (clinic_id,))
+    cursor.execute('SELECT * FROM salaries WHERE clinic_id = %s ORDER BY role_name', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
@@ -346,7 +346,7 @@ def create_salary(clinic_id, role_name, monthly_salary, included=1, notes=''):
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO salaries (clinic_id, role_name, monthly_salary, included, notes)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     ''', (clinic_id, role_name, monthly_salary, included, notes))
     salary_id = cursor.lastrowid
     conn.commit()
@@ -363,12 +363,12 @@ def update_salary(salary_id, clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.extend([salary_id, clinic_id])
-        cursor.execute(f"UPDATE salaries SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
+        cursor.execute(f"UPDATE salaries SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s AND clinic_id = %s", values)
         conn.commit()
 
     conn.close()
@@ -379,7 +379,7 @@ def delete_salary(salary_id, clinic_id):
     """Delete salary (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM salaries WHERE id = ? AND clinic_id = ?', (salary_id, clinic_id))
+    cursor.execute('DELETE FROM salaries WHERE id = %s AND clinic_id = %s', (salary_id, clinic_id))
     conn.commit()
     conn.close()
     return True
@@ -391,7 +391,7 @@ def get_all_equipment(clinic_id):
     """Get all equipment for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM equipment WHERE clinic_id = ? ORDER BY asset_name', (clinic_id,))
+    cursor.execute('SELECT * FROM equipment WHERE clinic_id = %s ORDER BY asset_name', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
@@ -403,7 +403,7 @@ def create_equipment(clinic_id, asset_name, purchase_cost, life_years, allocatio
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO equipment (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     ''', (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours))
     equipment_id = cursor.lastrowid
     conn.commit()
@@ -420,12 +420,12 @@ def update_equipment(equipment_id, clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.extend([equipment_id, clinic_id])
-        cursor.execute(f"UPDATE equipment SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
+        cursor.execute(f"UPDATE equipment SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s AND clinic_id = %s", values)
         conn.commit()
 
     conn.close()
@@ -436,7 +436,7 @@ def delete_equipment(equipment_id, clinic_id):
     """Delete equipment (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM equipment WHERE id = ? AND clinic_id = ?', (equipment_id, clinic_id))
+    cursor.execute('DELETE FROM equipment WHERE id = %s AND clinic_id = %s', (equipment_id, clinic_id))
     conn.commit()
     conn.close()
     return True
@@ -448,7 +448,7 @@ def get_clinic_capacity(clinic_id):
     """Get clinic capacity settings for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM clinic_capacity WHERE clinic_id = ?', (clinic_id,))
+    cursor.execute('SELECT * FROM clinic_capacity WHERE clinic_id = %s', (clinic_id,))
     row = cursor.fetchone()
     conn.close()
 
@@ -458,7 +458,7 @@ def get_clinic_capacity(clinic_id):
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO clinic_capacity (clinic_id, chairs, days_per_month, hours_per_day, utilization_percent)
-            VALUES (?, 1, 24, 8, 80)
+            VALUES (%s, 1, 24, 8, 80)
         ''', (clinic_id,))
         conn.commit()
         conn.close()
@@ -476,12 +476,12 @@ def update_clinic_capacity(clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key != 'clinic_id':
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.append(clinic_id)
-        cursor.execute(f"UPDATE clinic_capacity SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE clinic_id = ?", values)
+        cursor.execute(f"UPDATE clinic_capacity SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE clinic_id = %s", values)
         conn.commit()
 
     conn.close()
@@ -494,7 +494,7 @@ def get_all_consumables(clinic_id):
     """Get all consumables for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM consumables WHERE clinic_id = ? ORDER BY item_name', (clinic_id,))
+    cursor.execute('SELECT * FROM consumables WHERE clinic_id = %s ORDER BY item_name', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
@@ -506,7 +506,7 @@ def create_consumable(clinic_id, item_name, pack_cost, cases_per_pack, units_per
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO consumables (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case, name_ar)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     ''', (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case, name_ar))
     consumable_id = cursor.lastrowid
     conn.commit()
@@ -523,12 +523,12 @@ def update_consumable(consumable_id, clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.extend([consumable_id, clinic_id])
-        cursor.execute(f"UPDATE consumables SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
+        cursor.execute(f"UPDATE consumables SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s AND clinic_id = %s", values)
         conn.commit()
 
     conn.close()
@@ -541,9 +541,9 @@ def delete_consumable(consumable_id, clinic_id):
     try:
         cursor = conn.cursor()
         # First delete from service_consumables to avoid foreign key constraint
-        cursor.execute('DELETE FROM service_consumables WHERE consumable_id = ?', (consumable_id,))
+        cursor.execute('DELETE FROM service_consumables WHERE consumable_id = %s', (consumable_id,))
         # Then delete the consumable itself
-        cursor.execute('DELETE FROM consumables WHERE id = ? AND clinic_id = ?', (consumable_id, clinic_id))
+        cursor.execute('DELETE FROM consumables WHERE id = %s AND clinic_id = %s', (consumable_id, clinic_id))
         conn.commit()
         return True
     finally:
@@ -556,7 +556,7 @@ def get_all_materials(clinic_id):
     """Get all lab materials for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM lab_materials WHERE clinic_id = ? ORDER BY material_name', (clinic_id,))
+    cursor.execute('SELECT * FROM lab_materials WHERE clinic_id = %s ORDER BY material_name', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
@@ -568,7 +568,7 @@ def create_material(clinic_id, material_name, unit_cost, lab_name=None, descript
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO lab_materials (clinic_id, material_name, lab_name, unit_cost, description, name_ar)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     ''', (clinic_id, material_name, lab_name, unit_cost, description, name_ar))
     material_id = cursor.lastrowid
     conn.commit()
@@ -585,12 +585,12 @@ def update_material(material_id, clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.extend([material_id, clinic_id])
-        cursor.execute(f"UPDATE lab_materials SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
+        cursor.execute(f"UPDATE lab_materials SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s AND clinic_id = %s", values)
         conn.commit()
 
     conn.close()
@@ -603,9 +603,9 @@ def delete_material(material_id, clinic_id):
     try:
         cursor = conn.cursor()
         # First delete from service_materials to avoid foreign key constraint
-        cursor.execute('DELETE FROM service_materials WHERE material_id = ?', (material_id,))
+        cursor.execute('DELETE FROM service_materials WHERE material_id = %s', (material_id,))
         # Then delete the material itself
-        cursor.execute('DELETE FROM lab_materials WHERE id = ? AND clinic_id = ?', (material_id, clinic_id))
+        cursor.execute('DELETE FROM lab_materials WHERE id = %s AND clinic_id = %s', (material_id, clinic_id))
         conn.commit()
         return True
     finally:
@@ -618,7 +618,7 @@ def get_all_categories(clinic_id):
     """Get all service categories for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM service_categories WHERE clinic_id = ? AND is_active = 1 ORDER BY display_order, name', (clinic_id,))
+    cursor.execute('SELECT * FROM service_categories WHERE clinic_id = %s AND is_active = 1 ORDER BY display_order, name', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
@@ -628,7 +628,7 @@ def get_category_by_id(category_id, clinic_id):
     """Get a category by ID (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM service_categories WHERE id = ? AND clinic_id = ?', (category_id, clinic_id))
+    cursor.execute('SELECT * FROM service_categories WHERE id = %s AND clinic_id = %s', (category_id, clinic_id))
     row = cursor.fetchone()
     conn.close()
     return dict_from_row(row)
@@ -640,13 +640,13 @@ def create_category(clinic_id, name, display_order=None):
     cursor = conn.cursor()
 
     if display_order is None:
-        cursor.execute('SELECT MAX(display_order) FROM service_categories WHERE clinic_id = ?', (clinic_id,))
-        max_order = cursor.fetchone()[0]
+        cursor.execute('SELECT MAX(display_order) as max_order FROM service_categories WHERE clinic_id = %s', (clinic_id,))
+        max_order = cursor.fetchone()['max_order']
         display_order = (max_order or 0) + 1
 
     cursor.execute('''
         INSERT INTO service_categories (clinic_id, name, display_order)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (clinic_id, name, display_order))
     category_id = cursor.lastrowid
     conn.commit()
@@ -663,12 +663,12 @@ def update_category(category_id, clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.extend([category_id, clinic_id])
-        cursor.execute(f"UPDATE service_categories SET {', '.join(fields)} WHERE id = ? AND clinic_id = ?", values)
+        cursor.execute(f"UPDATE service_categories SET {', '.join(fields)} WHERE id = %s AND clinic_id = %s", values)
         conn.commit()
 
     conn.close()
@@ -680,9 +680,9 @@ def delete_category(category_id, clinic_id):
     conn = get_connection()
     cursor = conn.cursor()
     # Soft delete the category
-    cursor.execute('UPDATE service_categories SET is_active = 0 WHERE id = ? AND clinic_id = ?', (category_id, clinic_id))
+    cursor.execute('UPDATE service_categories SET is_active = 0 WHERE id = %s AND clinic_id = %s', (category_id, clinic_id))
     # Unlink services from this category
-    cursor.execute('UPDATE services SET category_id = NULL WHERE category_id = ? AND clinic_id = ?', (category_id, clinic_id))
+    cursor.execute('UPDATE services SET category_id = NULL WHERE category_id = %s AND clinic_id = %s', (category_id, clinic_id))
     conn.commit()
     conn.close()
     return True
@@ -699,7 +699,7 @@ def get_all_services(clinic_id):
         FROM services s
         LEFT JOIN equipment e ON s.equipment_id = e.id
         LEFT JOIN service_categories sc ON s.category_id = sc.id
-        WHERE s.clinic_id = ?
+        WHERE s.clinic_id = %s
         ORDER BY sc.display_order, sc.name, s.name
     ''', (clinic_id,))
     rows = cursor.fetchall()
@@ -711,7 +711,7 @@ def get_service_by_id(service_id, clinic_id):
     """Get service by ID with consumables and equipment (must belong to clinic)"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM services WHERE id = ? AND clinic_id = ?', (service_id, clinic_id))
+    cursor.execute('SELECT * FROM services WHERE id = %s AND clinic_id = %s', (service_id, clinic_id))
     service = dict_from_row(cursor.fetchone())
 
     if service:
@@ -720,7 +720,7 @@ def get_service_by_id(service_id, clinic_id):
             SELECT sc.*, c.item_name, c.pack_cost, c.cases_per_pack, c.units_per_case, c.name_ar
             FROM service_consumables sc
             JOIN consumables c ON sc.consumable_id = c.id
-            WHERE sc.service_id = ?
+            WHERE sc.service_id = %s
         ''', (service_id,))
         service['consumables'] = [dict_from_row(r) for r in cursor.fetchall()]
 
@@ -729,7 +729,7 @@ def get_service_by_id(service_id, clinic_id):
             SELECT sm.*, m.material_name, m.lab_name, m.unit_cost, m.description, m.name_ar
             FROM service_materials sm
             JOIN lab_materials m ON sm.material_id = m.id
-            WHERE sm.service_id = ?
+            WHERE sm.service_id = %s
         ''', (service_id,))
         service['materials'] = [dict_from_row(r) for r in cursor.fetchall()]
 
@@ -738,7 +738,7 @@ def get_service_by_id(service_id, clinic_id):
             SELECT se.*, e.asset_name, e.purchase_cost, e.life_years, e.allocation_type, e.monthly_usage_hours
             FROM service_equipment se
             JOIN equipment e ON se.equipment_id = e.id
-            WHERE se.service_id = ?
+            WHERE se.service_id = %s
         ''', (service_id,))
         service['equipment_list'] = [dict_from_row(r) for r in cursor.fetchall()]
 
@@ -756,7 +756,7 @@ def create_service(clinic_id, name, chair_time_hours, doctor_hourly_fee, use_def
         INSERT INTO services (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit,
                              custom_profit_percent, equipment_id, equipment_hours_used, current_price,
                              doctor_fee_type, doctor_fixed_fee, doctor_percentage, category_id, name_ar)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit,
           custom_profit_percent, equipment_id, equipment_hours_used, current_price,
           doctor_fee_type, doctor_fixed_fee, doctor_percentage, category_id, name_ar))
@@ -775,12 +775,12 @@ def update_service(service_id, clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'consumables', 'clinic_id']:
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.extend([service_id, clinic_id])
-        cursor.execute(f"UPDATE services SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND clinic_id = ?", values)
+        cursor.execute(f"UPDATE services SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s AND clinic_id = %s", values)
         conn.commit()
 
     conn.close()
@@ -793,11 +793,11 @@ def delete_service(service_id, clinic_id):
     try:
         cursor = conn.cursor()
         # Explicitly delete child records first (even though CASCADE should handle it)
-        cursor.execute('DELETE FROM service_consumables WHERE service_id = ?', (service_id,))
-        cursor.execute('DELETE FROM service_materials WHERE service_id = ?', (service_id,))
-        cursor.execute('DELETE FROM service_equipment WHERE service_id = ?', (service_id,))
+        cursor.execute('DELETE FROM service_consumables WHERE service_id = %s', (service_id,))
+        cursor.execute('DELETE FROM service_materials WHERE service_id = %s', (service_id,))
+        cursor.execute('DELETE FROM service_equipment WHERE service_id = %s', (service_id,))
         # Then delete the service itself
-        cursor.execute('DELETE FROM services WHERE id = ? AND clinic_id = ?', (service_id, clinic_id))
+        cursor.execute('DELETE FROM services WHERE id = %s AND clinic_id = %s', (service_id, clinic_id))
         conn.commit()
         return True
     finally:
@@ -810,7 +810,7 @@ def add_service_consumable(service_id, consumable_id, quantity):
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO service_consumables (service_id, consumable_id, quantity)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (service_id, consumable_id, quantity))
     conn.commit()
     conn.close()
@@ -823,7 +823,7 @@ def remove_service_consumable(service_id, consumable_id):
     cursor = conn.cursor()
     cursor.execute('''
         DELETE FROM service_consumables
-        WHERE service_id = ? AND consumable_id = ?
+        WHERE service_id = %s AND consumable_id = %s
     ''', (service_id, consumable_id))
     conn.commit()
     conn.close()
@@ -836,14 +836,14 @@ def update_service_consumables(service_id, consumables):
     cursor = conn.cursor()
 
     # Delete existing
-    cursor.execute('DELETE FROM service_consumables WHERE service_id = ?', (service_id,))
+    cursor.execute('DELETE FROM service_consumables WHERE service_id = %s', (service_id,))
 
     # Insert new
     for c in consumables:
         custom_price = c.get('custom_unit_price')
         cursor.execute('''
             INSERT INTO service_consumables (service_id, consumable_id, quantity, custom_unit_price)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         ''', (service_id, c['consumable_id'], c['quantity'], custom_price))
 
     conn.commit()
@@ -857,7 +857,7 @@ def add_service_material(service_id, material_id, quantity, custom_unit_price=No
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO service_materials (service_id, material_id, quantity, custom_unit_price)
-        VALUES (?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s)
     ''', (service_id, material_id, quantity, custom_unit_price))
     conn.commit()
     conn.close()
@@ -870,7 +870,7 @@ def remove_service_material(service_id, material_id):
     cursor = conn.cursor()
     cursor.execute('''
         DELETE FROM service_materials
-        WHERE service_id = ? AND material_id = ?
+        WHERE service_id = %s AND material_id = %s
     ''', (service_id, material_id))
     conn.commit()
     conn.close()
@@ -883,14 +883,14 @@ def update_service_materials(service_id, materials):
     cursor = conn.cursor()
 
     # Delete existing
-    cursor.execute('DELETE FROM service_materials WHERE service_id = ?', (service_id,))
+    cursor.execute('DELETE FROM service_materials WHERE service_id = %s', (service_id,))
 
     # Insert new
     for m in materials:
         custom_price = m.get('custom_unit_price')
         cursor.execute('''
             INSERT INTO service_materials (service_id, material_id, quantity, custom_unit_price)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         ''', (service_id, m['material_id'], m['quantity'], custom_price))
 
     conn.commit()
@@ -904,13 +904,13 @@ def update_service_equipment(service_id, equipment_list):
     cursor = conn.cursor()
 
     # Delete existing
-    cursor.execute('DELETE FROM service_equipment WHERE service_id = ?', (service_id,))
+    cursor.execute('DELETE FROM service_equipment WHERE service_id = %s', (service_id,))
 
     # Insert new
     for eq in equipment_list:
         cursor.execute('''
             INSERT INTO service_equipment (service_id, equipment_id, hours_used)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         ''', (service_id, eq['equipment_id'], eq['hours_used']))
 
     conn.commit()
@@ -1128,7 +1128,7 @@ def is_super_admin(user_id):
     """Check if user is a super admin"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT is_super_admin FROM users WHERE id = ?', (user_id,))
+    cursor.execute('SELECT is_super_admin FROM users WHERE id = %s', (user_id,))
     row = cursor.fetchone()
     conn.close()
     return row and row['is_super_admin'] == 1
@@ -1155,10 +1155,10 @@ def get_clinic_payments(clinic_id):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT sp.*, u.first_name || ' ' || u.last_name as recorded_by_name
+        SELECT sp.*, CONCAT(u.first_name, ' ', u.last_name) as recorded_by_name
         FROM subscription_payments sp
         LEFT JOIN users u ON sp.recorded_by = u.id
-        WHERE sp.clinic_id = ?
+        WHERE sp.clinic_id = %s
         ORDER BY sp.payment_date DESC, sp.created_at DESC
     ''', (clinic_id,))
     rows = cursor.fetchall()
@@ -1176,13 +1176,13 @@ def record_payment(clinic_id, amount, payment_date, payment_method, months_paid,
     cursor.execute('''
         INSERT INTO subscription_payments (clinic_id, amount, currency, payment_date, payment_method,
                                           months_paid, receipt_number, payment_notes, recorded_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (clinic_id, amount, currency, payment_date, payment_method, months_paid,
           receipt_number, payment_notes, recorded_by))
     payment_id = cursor.lastrowid
 
     # Calculate new expiry date
-    cursor.execute('SELECT subscription_expires_at FROM clinics WHERE id = ?', (clinic_id,))
+    cursor.execute('SELECT subscription_expires_at FROM clinics WHERE id = %s', (clinic_id,))
     row = cursor.fetchone()
     current_expiry = row['subscription_expires_at'] if row else None
 
@@ -1205,12 +1205,12 @@ def record_payment(clinic_id, amount, payment_date, payment_method, months_paid,
     cursor.execute('''
         UPDATE clinics SET
             subscription_status = 'active',
-            subscription_expires_at = ?,
-            last_payment_date = ?,
-            last_payment_amount = ?,
+            subscription_expires_at = %s,
+            last_payment_date = %s,
+            last_payment_amount = %s,
             grace_period_start = NULL,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = %s
     ''', (new_expiry.strftime('%Y-%m-%d'), payment_date, amount, clinic_id))
 
     conn.commit()
@@ -1227,12 +1227,12 @@ def update_clinic_subscription(clinic_id, **kwargs):
     values = []
     for key, value in kwargs.items():
         if key in ['subscription_status', 'subscription_expires_at', 'subscription_plan', 'is_active', 'grace_period_start']:
-            fields.append(f'{key} = ?')
+            fields.append(f'{key} = %s')
             values.append(value)
 
     if fields:
         values.append(clinic_id)
-        cursor.execute(f"UPDATE clinics SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", values)
+        cursor.execute(f"UPDATE clinics SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s", values)
         conn.commit()
 
     conn.close()
@@ -1245,7 +1245,7 @@ def update_clinic_language(clinic_id, language):
         return False
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('UPDATE clinics SET language = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (language, clinic_id))
+    cursor.execute('UPDATE clinics SET language = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s', (language, clinic_id))
     conn.commit()
     conn.close()
     return True
@@ -1255,7 +1255,7 @@ def get_clinic_language(clinic_id):
     """Get clinic language preference"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT language FROM clinics WHERE id = ?', (clinic_id,))
+    cursor.execute('SELECT language FROM clinics WHERE id = %s', (clinic_id,))
     row = cursor.fetchone()
     conn.close()
     return row['language'] if row and row['language'] else 'en'
@@ -1265,11 +1265,11 @@ def toggle_clinic_status(clinic_id):
     """Toggle clinic active status"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('UPDATE clinics SET is_active = 1 - is_active, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (clinic_id,))
+    cursor.execute('UPDATE clinics SET is_active = 1 - is_active, updated_at = CURRENT_TIMESTAMP WHERE id = %s', (clinic_id,))
     conn.commit()
 
     # Get new status
-    cursor.execute('SELECT is_active FROM clinics WHERE id = ?', (clinic_id,))
+    cursor.execute('SELECT is_active FROM clinics WHERE id = %s', (clinic_id,))
     row = cursor.fetchone()
     conn.close()
     return row['is_active'] if row else None
@@ -1298,7 +1298,7 @@ def get_subscription_status(clinic_id):
     cursor = conn.cursor()
     cursor.execute('''
         SELECT subscription_status, subscription_expires_at, subscription_plan, grace_period_start, is_active, created_at
-        FROM clinics WHERE id = ?
+        FROM clinics WHERE id = %s
     ''', (clinic_id,))
     row = cursor.fetchone()
 
@@ -1309,7 +1309,7 @@ def get_subscription_status(clinic_id):
     clinic = dict_from_row(row)
 
     # Get service count for this clinic
-    cursor.execute('SELECT COUNT(*) as count FROM services WHERE clinic_id = ?', (clinic_id,))
+    cursor.execute('SELECT COUNT(*) as count FROM services WHERE clinic_id = %s', (clinic_id,))
     services_used = cursor.fetchone()['count']
     conn.close()
 
@@ -1444,7 +1444,7 @@ def get_super_admin_stats():
     cursor.execute('''
         SELECT COALESCE(SUM(amount), 0) as revenue
         FROM subscription_payments
-        WHERE payment_date >= date('now', '-30 days')
+        WHERE payment_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)
     ''')
     revenue = cursor.fetchone()['revenue']
 
@@ -1473,7 +1473,7 @@ def get_user_by_email(email):
         SELECT u.*, c.name as clinic_name, c.slug as clinic_slug
         FROM users u
         LEFT JOIN clinics c ON u.clinic_id = c.id
-        WHERE u.email = ? AND u.is_active = 1
+        WHERE u.email = %s AND u.is_active = 1
     ''', (email,))
     row = cursor.fetchone()
     conn.close()
@@ -1488,7 +1488,7 @@ def get_user_by_id(user_id):
         SELECT u.*, c.name as clinic_name, c.slug as clinic_slug
         FROM users u
         LEFT JOIN clinics c ON u.clinic_id = c.id
-        WHERE u.id = ?
+        WHERE u.id = %s
     ''', (user_id,))
     row = cursor.fetchone()
     conn.close()
@@ -1501,7 +1501,7 @@ def create_email_verification_token(user_id, expiry_hours=24):
     cursor = conn.cursor()
 
     # Invalidate any existing tokens for this user
-    cursor.execute('DELETE FROM email_verification_tokens WHERE user_id = ?', (user_id,))
+    cursor.execute('DELETE FROM email_verification_tokens WHERE user_id = %s', (user_id,))
 
     # Generate new token
     token = secrets.token_urlsafe(32)
@@ -1510,7 +1510,7 @@ def create_email_verification_token(user_id, expiry_hours=24):
 
     cursor.execute('''
         INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (user_id, token_hash, expires_at.strftime('%Y-%m-%d %H:%M:%S')))
 
     conn.commit()
@@ -1529,7 +1529,7 @@ def verify_email_token(token):
     # Find valid token
     cursor.execute('''
         SELECT * FROM email_verification_tokens
-        WHERE token_hash = ? AND used = 0 AND expires_at > datetime('now')
+        WHERE token_hash = %s AND used = 0 AND expires_at > NOW()
     ''', (token_hash,))
     token_row = cursor.fetchone()
 
@@ -1540,10 +1540,10 @@ def verify_email_token(token):
     user_id = token_row['user_id']
 
     # Mark token as used
-    cursor.execute('UPDATE email_verification_tokens SET used = 1 WHERE id = ?', (token_row['id'],))
+    cursor.execute('UPDATE email_verification_tokens SET used = 1 WHERE id = %s', (token_row['id'],))
 
     # Mark user as email verified
-    cursor.execute('UPDATE users SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (user_id,))
+    cursor.execute('UPDATE users SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = %s', (user_id,))
 
     conn.commit()
     conn.close()
@@ -1555,7 +1555,7 @@ def is_email_verified(user_id):
     """Check if user's email is verified"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT email_verified FROM users WHERE id = ?', (user_id,))
+    cursor.execute('SELECT email_verified FROM users WHERE id = %s', (user_id,))
     row = cursor.fetchone()
     conn.close()
     return row and row['email_verified'] == 1
@@ -1567,7 +1567,7 @@ def create_password_reset_token(user_id, expiry_hours=1):
     cursor = conn.cursor()
 
     # Invalidate any existing tokens for this user
-    cursor.execute('DELETE FROM password_reset_tokens WHERE user_id = ?', (user_id,))
+    cursor.execute('DELETE FROM password_reset_tokens WHERE user_id = %s', (user_id,))
 
     # Generate new token
     token = secrets.token_urlsafe(32)
@@ -1576,7 +1576,7 @@ def create_password_reset_token(user_id, expiry_hours=1):
 
     cursor.execute('''
         INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     ''', (user_id, token_hash, expires_at.strftime('%Y-%m-%d %H:%M:%S')))
 
     conn.commit()
@@ -1595,7 +1595,7 @@ def verify_password_reset_token(token):
     # Find valid token
     cursor.execute('''
         SELECT * FROM password_reset_tokens
-        WHERE token_hash = ? AND used = 0 AND expires_at > datetime('now')
+        WHERE token_hash = %s AND used = 0 AND expires_at > NOW()
     ''', (token_hash,))
     token_row = cursor.fetchone()
 
@@ -1617,7 +1617,7 @@ def reset_password_with_token(token, new_password):
     # Find valid token
     cursor.execute('''
         SELECT * FROM password_reset_tokens
-        WHERE token_hash = ? AND used = 0 AND expires_at > datetime('now')
+        WHERE token_hash = %s AND used = 0 AND expires_at > NOW()
     ''', (token_hash,))
     token_row = cursor.fetchone()
 
@@ -1628,11 +1628,11 @@ def reset_password_with_token(token, new_password):
     user_id = token_row['user_id']
 
     # Mark token as used
-    cursor.execute('UPDATE password_reset_tokens SET used = 1 WHERE id = ?', (token_row['id'],))
+    cursor.execute('UPDATE password_reset_tokens SET used = 1 WHERE id = %s', (token_row['id'],))
 
     # Update password
     password_hash = hash_password(new_password)
-    cursor.execute('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    cursor.execute('UPDATE users SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s',
                    (password_hash, user_id))
 
     conn.commit()
@@ -1649,7 +1649,7 @@ def create_user_unverified(clinic_id, username, password, first_name, last_name,
     password_hash = hash_password(password)
     cursor.execute('''
         INSERT INTO users (clinic_id, username, password_hash, first_name, last_name, email, role, email_verified)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 0)
     ''', (clinic_id, username, password_hash, first_name, last_name, email, role))
     user_id = cursor.lastrowid
     conn.commit()
@@ -1665,7 +1665,7 @@ def resend_verification_email(user_id):
     # Check for recent token (within last 2 minutes)
     cursor.execute('''
         SELECT created_at FROM email_verification_tokens
-        WHERE user_id = ? AND created_at > datetime('now', '-2 minutes')
+        WHERE user_id = %s AND created_at > DATE_SUB(NOW(), INTERVAL 2 MINUTE)
         ORDER BY created_at DESC LIMIT 1
     ''', (user_id,))
     recent = cursor.fetchone()

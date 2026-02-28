@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: dental-pricing-calculator
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: DB_SSL_CA
+        value: "certs/aiven-ca.pem"
+      - key: SESSION_COOKIE_SECURE
+        value: "True"
+      - key: MAIL_ENABLED
+        value: "True"
+      - key: MAIL_SERVER
+        sync: false
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USE_TLS
+        value: "True"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_DEFAULT_SENDER
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
