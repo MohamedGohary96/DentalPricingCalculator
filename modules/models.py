@@ -92,7 +92,7 @@ def update_clinic(clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'slug']:  # Don't allow slug change
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.append(clinic_id)
@@ -177,7 +177,7 @@ def update_user(user_id, clinic_id, **kwargs):
                 values.append(hash_password(value))
             else:
                 fields.append(f'{key} = %s')
-                values.append(value)
+                values.append(None if value == '' else value)
 
     if fields:
         values.append(user_id)
@@ -260,7 +260,7 @@ def update_global_settings(clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key != 'clinic_id':
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.append(clinic_id)
@@ -307,7 +307,7 @@ def update_fixed_cost(cost_id, clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.extend([cost_id, clinic_id])
@@ -364,7 +364,7 @@ def update_salary(salary_id, clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.extend([salary_id, clinic_id])
@@ -399,6 +399,7 @@ def get_all_equipment(clinic_id):
 
 def create_equipment(clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours=None):
     """Create new equipment for a clinic"""
+    monthly_usage_hours = None if monthly_usage_hours == '' else monthly_usage_hours
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -421,7 +422,7 @@ def update_equipment(equipment_id, clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.extend([equipment_id, clinic_id])
@@ -477,7 +478,7 @@ def update_clinic_capacity(clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key != 'clinic_id':
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.append(clinic_id)
@@ -524,7 +525,7 @@ def update_consumable(consumable_id, clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.extend([consumable_id, clinic_id])
@@ -586,7 +587,7 @@ def update_material(material_id, clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.extend([material_id, clinic_id])
@@ -664,7 +665,7 @@ def update_category(category_id, clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'clinic_id']:
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.extend([category_id, clinic_id])
@@ -750,6 +751,15 @@ def create_service(clinic_id, name, chair_time_hours, doctor_hourly_fee, use_def
                    custom_profit_percent=None, equipment_id=None, equipment_hours_used=None, current_price=None,
                    doctor_fee_type='hourly', doctor_fixed_fee=0, doctor_percentage=0, category_id=None, name_ar=None):
     """Create new service for a clinic"""
+    # Convert empty strings to None for numeric fields
+    _n = lambda v: None if v == '' else v
+    custom_profit_percent = _n(custom_profit_percent)
+    equipment_id = _n(equipment_id)
+    equipment_hours_used = _n(equipment_hours_used)
+    current_price = _n(current_price)
+    doctor_fixed_fee = _n(doctor_fixed_fee)
+    doctor_percentage = _n(doctor_percentage)
+    category_id = _n(category_id)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -776,7 +786,7 @@ def update_service(service_id, clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key not in ['id', 'created_at', 'consumables', 'clinic_id']:
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.extend([service_id, clinic_id])
@@ -1431,7 +1441,7 @@ def update_clinic_subscription(clinic_id, **kwargs):
     for key, value in kwargs.items():
         if key in ['subscription_status', 'subscription_expires_at', 'subscription_plan', 'is_active', 'grace_period_start']:
             fields.append(f'{key} = %s')
-            values.append(value)
+            values.append(None if value == '' else value)
 
     if fields:
         values.append(clinic_id)
