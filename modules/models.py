@@ -1105,19 +1105,216 @@ def calculate_service_price(service_id, clinic_id):
 
 
 def calculate_all_services(clinic_id):
-    """Calculate prices for all services in a clinic"""
-    services = get_all_services(clinic_id)
-    results = []
+    """Calculate prices for all services in a clinic (optimized: single DB connection)"""
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    for service in services:
-        price_data = calculate_service_price(service['id'], clinic_id)
-        if price_data:
-            results.append({
-                'id': service['id'],
-                'category_id': service.get('category_id'),
-                'category_name': service.get('category_name'),
-                **price_data
-            })
+    # Fetch all shared data once
+    cursor.execute('SELECT * FROM global_settings WHERE clinic_id = %s', (clinic_id,))
+    settings = dict_from_row(cursor.fetchone())
+    if not settings:
+        conn.close()
+        return []
+
+    cursor.execute('SELECT * FROM clinic_capacity WHERE clinic_id = %s', (clinic_id,))
+    capacity = dict_from_row(cursor.fetchone())
+
+    cursor.execute('SELECT * FROM fixed_costs WHERE clinic_id = %s', (clinic_id,))
+    fixed_costs = [dict_from_row(r) for r in cursor.fetchall()]
+
+    cursor.execute('SELECT * FROM salaries WHERE clinic_id = %s', (clinic_id,))
+    salaries = [dict_from_row(r) for r in cursor.fetchall()]
+
+    cursor.execute('SELECT * FROM equipment WHERE clinic_id = %s', (clinic_id,))
+    equipment_list = [dict_from_row(r) for r in cursor.fetchall()]
+
+    # Fetch all services with category info
+    cursor.execute('''
+        SELECT s.*, sc.name as category_name
+        FROM services s
+        LEFT JOIN service_categories sc ON s.category_id = sc.id
+        WHERE s.clinic_id = %s
+        ORDER BY sc.display_order, sc.name, s.name
+    ''', (clinic_id,))
+    all_services = [dict_from_row(r) for r in cursor.fetchall()]
+
+    if not all_services:
+        conn.close()
+        return []
+
+    service_ids = [s['id'] for s in all_services]
+
+    # Bulk fetch consumables for all services
+    format_ids = ','.join(['%s'] * len(service_ids))
+    cursor.execute(f'''
+        SELECT sc.*, c.item_name, c.pack_cost, c.cases_per_pack, c.units_per_case, c.name_ar
+        FROM service_consumables sc
+        JOIN consumables c ON sc.consumable_id = c.id
+        WHERE sc.service_id IN ({format_ids})
+    ''', service_ids)
+    all_consumables = [dict_from_row(r) for r in cursor.fetchall()]
+
+    # Bulk fetch materials for all services
+    cursor.execute(f'''
+        SELECT sm.*, m.material_name, m.lab_name, m.unit_cost, m.description, m.name_ar
+        FROM service_materials sm
+        JOIN lab_materials m ON sm.material_id = m.id
+        WHERE sm.service_id IN ({format_ids})
+    ''', service_ids)
+    all_materials = [dict_from_row(r) for r in cursor.fetchall()]
+
+    # Bulk fetch equipment for all services
+    cursor.execute(f'''
+        SELECT se.*, e.asset_name, e.purchase_cost, e.life_years, e.allocation_type, e.monthly_usage_hours
+        FROM service_equipment se
+        JOIN equipment e ON se.equipment_id = e.id
+        WHERE se.service_id IN ({format_ids})
+    ''', service_ids)
+    all_service_equipment = [dict_from_row(r) for r in cursor.fetchall()]
+
+    conn.close()
+
+    # Group by service_id
+    consumables_by_service = {}
+    for c in all_consumables:
+        consumables_by_service.setdefault(c['service_id'], []).append(c)
+
+    materials_by_service = {}
+    for m in all_materials:
+        materials_by_service.setdefault(m['service_id'], []).append(m)
+
+    equipment_by_service = {}
+    for se in all_service_equipment:
+        equipment_by_service.setdefault(se['service_id'], []).append(se)
+
+    # Pre-calculate shared values
+    total_fixed = sum(c['monthly_amount'] for c in fixed_costs if c['included'])
+    total_salaries_val = sum(s['monthly_salary'] for s in salaries if s['included'])
+
+    fixed_depreciation = 0
+    for eq in equipment_list:
+        if eq['allocation_type'] == 'fixed':
+            fixed_depreciation += eq['purchase_cost'] / (eq['life_years'] * 12)
+
+    total_monthly_fixed = total_fixed + total_salaries_val + fixed_depreciation
+
+    theoretical_hours = capacity['chairs'] * capacity['days_per_month'] * capacity['hours_per_day']
+    effective_hours = theoretical_hours * (capacity['utilization_percent'] / 100)
+    chair_hourly_rate = total_monthly_fixed / effective_hours if effective_hours > 0 else 0
+
+    # Calculate price for each service using in-memory data
+    results = []
+    for service in all_services:
+        sid = service['id']
+        service['consumables'] = consumables_by_service.get(sid, [])
+        service['materials'] = materials_by_service.get(sid, [])
+        service['equipment_list'] = equipment_by_service.get(sid, [])
+
+        chair_time_cost = chair_hourly_rate * service['chair_time_hours']
+
+        doctor_fee_type = service.get('doctor_fee_type', 'hourly')
+        if doctor_fee_type == 'hourly':
+            doctor_fee = service['doctor_hourly_fee'] * service['chair_time_hours']
+        elif doctor_fee_type == 'fixed':
+            doctor_fee = service.get('doctor_fixed_fee', 0)
+        else:
+            doctor_fee = 0
+
+        equipment_cost = 0
+        svc_equipment = service.get('equipment_list', [])
+        if not svc_equipment and service.get('equipment_id') and service.get('equipment_hours_used'):
+            for eq in equipment_list:
+                if eq['id'] == service['equipment_id'] and eq['allocation_type'] == 'per-hour':
+                    monthly_dep = eq['purchase_cost'] / (eq['life_years'] * 12)
+                    if eq['monthly_usage_hours'] and eq['monthly_usage_hours'] > 0:
+                        equipment_cost = (monthly_dep / eq['monthly_usage_hours']) * service['equipment_hours_used']
+        else:
+            for se in svc_equipment:
+                eq = next((e for e in equipment_list if e['id'] == se['equipment_id']), None)
+                if eq and eq['allocation_type'] == 'per-hour':
+                    monthly_dep = eq['purchase_cost'] / (eq['life_years'] * 12)
+                    if eq['monthly_usage_hours'] and eq['monthly_usage_hours'] > 0:
+                        equipment_cost += (monthly_dep / eq['monthly_usage_hours']) * se['hours_used']
+
+        consumables_cost = 0
+        for c in service.get('consumables', []):
+            if c.get('custom_unit_price') is not None:
+                unit_cost = c['custom_unit_price']
+            else:
+                unit_cost = c['pack_cost'] / c['cases_per_pack'] / c['units_per_case']
+            consumables_cost += unit_cost * c['quantity']
+
+        lab_materials_cost = 0
+        for m in service.get('materials', []):
+            if m.get('custom_unit_price') is not None:
+                unit_cost = m['custom_unit_price']
+            else:
+                unit_cost = m['unit_cost']
+            lab_materials_cost += unit_cost * m['quantity']
+
+        materials_cost = consumables_cost + lab_materials_cost
+        total_cost = chair_time_cost + doctor_fee + equipment_cost + materials_cost
+        profit_percent = service['custom_profit_percent'] if not service['use_default_profit'] else settings['default_profit_percent']
+
+        if doctor_fee_type == 'percentage':
+            doctor_percentage = service.get('doctor_percentage', 0) / 100
+            clinic_costs = chair_time_cost + equipment_cost + consumables_cost
+            lab_costs = lab_materials_cost
+            profit_multiplier = 1 + (profit_percent / 100)
+            vat_multiplier = 1 + (settings['vat_percent'] / 100)
+            clinic_price_before_rounding = (clinic_costs * profit_multiplier * vat_multiplier) / (1 - doctor_percentage) if doctor_percentage < 1 else 0
+            lab_price = lab_costs * profit_multiplier * vat_multiplier
+            final_price_before_rounding = clinic_price_before_rounding + lab_price
+            rounding = settings['rounding_nearest']
+            rounded_price = round(final_price_before_rounding / rounding) * rounding if rounding > 0 else final_price_before_rounding
+            doctor_fee = (rounded_price - lab_materials_cost) * doctor_percentage
+            final_price = rounded_price
+            price_before_vat = final_price / vat_multiplier
+            vat_amount = final_price - price_before_vat
+            total_cost = price_before_vat / profit_multiplier
+            profit_amount = price_before_vat - total_cost
+        else:
+            profit_amount = total_cost * (profit_percent / 100)
+            price_before_vat = total_cost + profit_amount
+            vat_amount = price_before_vat * (settings['vat_percent'] / 100)
+            final_price = price_before_vat + vat_amount
+            rounding = settings['rounding_nearest']
+            rounded_price = round(final_price / rounding) * rounding if rounding > 0 else final_price
+
+        base_cost = chair_time_cost + equipment_cost + consumables_cost
+
+        results.append({
+            'id': sid,
+            'category_id': service.get('category_id'),
+            'category_name': service.get('category_name'),
+            'service_name': service['name'],
+            'name_ar': service.get('name_ar', ''),
+            'chair_time_cost': round(chair_time_cost, 2),
+            'doctor_fee': round(doctor_fee, 2),
+            'doctor_fee_type': doctor_fee_type,
+            'doctor_percentage': service.get('doctor_percentage', 0),
+            'equipment_cost': round(equipment_cost, 2),
+            'consumables_cost': round(consumables_cost, 2),
+            'lab_materials_cost': round(lab_materials_cost, 2),
+            'materials_cost': round(materials_cost, 2),
+            'base_cost': round(base_cost, 2),
+            'total_cost': round(total_cost, 2),
+            'profit_percent': profit_percent,
+            'profit_amount': round(profit_amount, 2),
+            'price_before_vat': round(price_before_vat, 2),
+            'vat_percent': settings['vat_percent'],
+            'vat_amount': round(vat_amount, 2),
+            'final_price': round(final_price, 2),
+            'rounded_price': round(rounded_price, 2),
+            'currency': settings['currency'],
+            'chair_hourly_rate': round(chair_hourly_rate, 2),
+            'effective_hours': round(effective_hours, 2),
+            'current_price': service.get('current_price'),
+            'monthly_fixed_costs': round(total_fixed, 2),
+            'monthly_salaries': round(total_salaries_val, 2),
+            'monthly_depreciation': round(fixed_depreciation, 2),
+            'total_monthly_fixed': round(total_monthly_fixed, 2)
+        })
 
     return results
 
