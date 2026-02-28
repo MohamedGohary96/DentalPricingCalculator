@@ -1387,7 +1387,13 @@ def record_payment(clinic_id, amount, payment_date, payment_method, months_paid,
     if current_expiry:
         from datetime import datetime
         try:
-            expiry_date = datetime.strptime(current_expiry, '%Y-%m-%d').date()
+            # MySQL returns datetime/date objects; handle both
+            if hasattr(current_expiry, 'date'):
+                expiry_date = current_expiry.date()
+            elif isinstance(current_expiry, str):
+                expiry_date = datetime.strptime(current_expiry, '%Y-%m-%d').date()
+            else:
+                expiry_date = current_expiry  # already a date object
             if expiry_date < datetime.now().date():
                 expiry_date = datetime.now().date()
         except:
@@ -1514,12 +1520,17 @@ def get_subscription_status(clinic_id):
     trial_days_remaining = 0
     if clinic.get('created_at'):
         try:
-            # Handle different datetime formats
-            created_str = clinic['created_at']
-            if ' ' in created_str:
-                created_date = datetime.strptime(created_str.split('.')[0], '%Y-%m-%d %H:%M:%S').date()
+            created_val = clinic['created_at']
+            # MySQL returns datetime objects; handle both datetime and string
+            if hasattr(created_val, 'date'):
+                created_date = created_val.date()
+            elif isinstance(created_val, str):
+                if ' ' in created_val:
+                    created_date = datetime.strptime(created_val.split('.')[0], '%Y-%m-%d %H:%M:%S').date()
+                else:
+                    created_date = datetime.strptime(created_val, '%Y-%m-%d').date()
             else:
-                created_date = datetime.strptime(created_str, '%Y-%m-%d').date()
+                created_date = created_val  # already a date object
             trial_end_date = created_date + timedelta(days=TRIAL_DAYS)
             trial_days_remaining = (trial_end_date - datetime.now().date()).days
             trial_days_remaining = max(0, trial_days_remaining)
@@ -1577,7 +1588,13 @@ def get_subscription_status(clinic_id):
     days_remaining = 0
     if expires_at:
         try:
-            expiry_date = datetime.strptime(expires_at, '%Y-%m-%d').date()
+            # MySQL returns datetime/date objects; handle both
+            if hasattr(expires_at, 'date'):
+                expiry_date = expires_at.date()
+            elif isinstance(expires_at, str):
+                expiry_date = datetime.strptime(expires_at, '%Y-%m-%d').date()
+            else:
+                expiry_date = expires_at  # already a date object
             days_remaining = (expiry_date - datetime.now().date()).days
         except:
             pass
