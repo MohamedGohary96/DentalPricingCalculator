@@ -966,7 +966,7 @@ window.addConsumableRow = function(preselectedId = null, preselectedQty = 1, pre
                 <polyline points="6 9 12 15 18 9"/>
             </svg>
         </div>
-        <input type="number" class="form-input" style="width:70px;" placeholder="${t('services.qty')}" value="${preselectedQty}" data-consumable-quantity min="0.1" step="0.1" required>
+        <input type="number" class="form-input" style="width:70px;" placeholder="${t('services.qty')}" value="${preselectedQty}" data-consumable-quantity min="0.1" step="0.01" required>
         <input type="number" class="form-input" style="width:90px;" placeholder="${t('services.unitPrice')}" value="${displayUnitPrice}" data-consumable-unit-price step="0.01" min="0">
         <span data-consumable-cost style="width:80px;text-align:right;font-weight:500;color:var(--gray-600);">-</span>
         <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove(); window.updateLivePricePreview();" title="${t('common.delete')}">✕</button>
@@ -1250,7 +1250,7 @@ window.addMaterialRow = function(preselectedId = null, preselectedQty = 1, prese
                 <polyline points="6 9 12 15 18 9"/>
             </svg>
         </div>
-        <input type="number" class="form-input" style="width:70px;" placeholder="${t('services.qty')}" value="${preselectedQty}" data-material-quantity min="0.1" step="0.1" required>
+        <input type="number" class="form-input" style="width:70px;" placeholder="${t('services.qty')}" value="${preselectedQty}" data-material-quantity min="0.1" step="0.01" required>
         <input type="number" class="form-input" style="width:90px;" placeholder="${t('services.unitPrice')}" value="${displayUnitPrice}" data-material-unit-price step="0.01" min="0">
         <span data-material-cost style="width:80px;text-align:right;font-weight:500;color:var(--gray-600);">-</span>
         <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove(); window.updateLivePricePreview();" title="${t('common.delete')}">✕</button>
@@ -1474,7 +1474,7 @@ window.addEquipmentRow = function(preselectedId = null, preselectedHours = 0.25)
             ).join('')}
         </select>
         <div class="input-with-unit" style="flex:1;">
-            <input type="number" class="form-input" style="width:100%;" data-equipment-hours value="${preselectedHours}" step="0.1" min="0.1" placeholder="0.25">
+            <input type="number" class="form-input" style="width:100%;" data-equipment-hours value="${preselectedHours}" step="0.01" min="0.1" placeholder="0.25">
             <span class="input-unit">${t('services.hours')}</span>
         </div>
         <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentElement.remove(); window.updateLivePricePreview();" title="${t('common.delete')}">✕</button>
@@ -1965,7 +1965,7 @@ const Pages = {
                         </div>
                         <div class="form-group">
                             <label class="form-label">${t('settings.vatPercent')}</label>
-                            <input type="number" class="form-input" name="vat_percent" value="${settings.vat_percent}" step="0.1" min="0" max="100" placeholder="e.g., 14">
+                            <input type="number" class="form-input" name="vat_percent" value="${settings.vat_percent}" step="0.01" min="0" max="100" placeholder="e.g., 14">
                             <small style="color:var(--gray-600);">${t('settings.vatHelp')}</small>
                         </div>
                         <div class="form-group">
@@ -2379,7 +2379,7 @@ const Pages = {
                     </div>
                     <div class="form-group" id="usageHoursGroup" style="display:${equipment?.allocation_type==='per-hour'?'block':'none'}">
                         <label class="form-label">${t('settings.monthlyUsageHours')}</label>
-                        <input type="number" class="form-input" name="monthly_usage_hours" value="${equipment?.monthly_usage_hours||''}" step="0.1" placeholder="e.g., 20">
+                        <input type="number" class="form-input" name="monthly_usage_hours" value="${equipment?.monthly_usage_hours||''}" step="0.01" placeholder="e.g., 20">
                         <small style="color:var(--gray-600);">${t('settings.monthlyUsageHelp')}</small>
                     </div>
                 </div>
@@ -3178,7 +3178,7 @@ const Pages = {
                         <div class="form-group" id="doctorPercentageGroup" style="display:${service?.doctor_fee_type === 'percentage' ? 'block' : 'none'}">
                             <label class="form-label required">${t('services.doctorFeePercentage')}</label>
                             <div class="input-with-unit">
-                                <input type="number" class="form-input" name="doctor_percentage" value="${service?.doctor_percentage||''}" step="0.1" placeholder="e.g., 30" min="0" max="100">
+                                <input type="number" class="form-input" name="doctor_percentage" value="${service?.doctor_percentage||''}" step="0.01" placeholder="e.g., 30" min="0" max="100">
                                 <span class="input-unit">%</span>
                             </div>
                             <small style="color:var(--gray-500);font-size:0.8125rem;">${t('services.doctorFeePercentageHelp')}</small>
