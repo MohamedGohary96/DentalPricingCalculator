@@ -135,7 +135,20 @@
                     <span class="nav-text">Price List</span>
                 </a>
 
-                <div class="nav-section" id="accountSection">Account</div>
+                <div class="nav-section" id="accountSection">Clinic</div>
+                <a href="/case-tracker" class="nav-link" id="caseTrackerLink" onclick="event.preventDefault(); APP.loadPage('case-tracker')">
+                    <span class="nav-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                            <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/>
+                        </svg>
+                    </span>
+                    <span class="nav-text" id="caseTrackerText">Case Tracker</span>
+                    <span class="nav-badge" id="caseTrackerBadge">New</span>
+                </a>
                 <a href="/subscription" class="nav-link" id="subscriptionLink" onclick="event.preventDefault(); APP.loadPage('subscription')">
                     <span class="nav-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -158,6 +171,19 @@
                 </a>
             </nav>
 
+            <!-- Upgrade CTA — shown for free/expired plans -->
+            <div class="sidebar-upgrade-cta" id="sidebarUpgradeCta" style="display:none;">
+                <a href="#" onclick="event.preventDefault(); APP.loadPage('subscription')" class="sidebar-upgrade-btn">
+                    <div class="sidebar-upgrade-top">
+                        <span id="sidebarUpgradeCtaText">Upgrade to Pro →</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                    </div>
+                    <p class="sidebar-upgrade-sub" id="sidebarUpgradeSub"></p>
+                </a>
+            </div>
+
             <div class="sidebar-footer">
                 <!-- Language Toggle -->
                 <button class="lang-toggle" onclick="toggleLanguage()" title="Switch Language">
@@ -170,15 +196,12 @@
                 </button>
 
                 <div class="user-menu">
-                    <div class="user-avatar" style="background: linear-gradient(135deg, var(--primary-400), var(--primary-600));">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                            <circle cx="12" cy="7" r="4"/>
-                        </svg>
+                    <div class="user-avatar user-avatar-initials" id="userAvatar" style="background: linear-gradient(135deg, var(--primary-400), var(--primary-600));">
+                        <span id="userInitials">AU</span>
                     </div>
                     <div class="user-info">
                         <div class="user-name" id="userName">Admin User</div>
-                        <div class="user-role">Administrator</div>
+                        <div class="user-role user-email" id="userEmailDisplay"></div>
                     </div>
                     <a href="/logout" class="btn btn-sm btn-ghost" id="logoutBtn" title="Logout" aria-label="Log out">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

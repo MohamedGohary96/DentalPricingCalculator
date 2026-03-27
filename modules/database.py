@@ -378,6 +378,21 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS case_tracker_entries (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            month VARCHAR(7) NOT NULL,
+            service_id INT NOT NULL,
+            case_count INT NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_clinic_month_service (clinic_id, month, service_id),
+            FOREIGN KEY (clinic_id) REFERENCES clinics(id),
+            FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
     # Migration: Add is_super_admin to users if it doesn't exist
     user_columns = _get_table_columns(cursor, 'users')
     if 'is_super_admin' not in user_columns:

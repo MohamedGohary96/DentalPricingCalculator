@@ -45,7 +45,9 @@ from modules.models import (
     # Email verification & Password reset
     get_user_by_email, get_user_by_id, create_email_verification_token, verify_email_token,
     is_email_verified, create_password_reset_token, verify_password_reset_token,
-    reset_password_with_token, create_user_unverified, resend_verification_email
+    reset_password_with_token, create_user_unverified, resend_verification_email,
+    # Case Tracker
+    get_case_tracker_month, save_case_tracker_month, get_case_tracker_history
 )
 
 # Import email service
@@ -194,10 +196,20 @@ def get_current_user():
     clinic_id = session.get('clinic_id')
     subscription = get_subscription_status(clinic_id) if clinic_id else None
     language = get_clinic_language(clinic_id) if clinic_id else 'en'
+    # Fetch email for display
+    user_email = None
+    user_id = session.get('user_id')
+    if user_id:
+        from modules.models import get_user_by_id
+        db_user = get_user_by_id(user_id)
+        if db_user:
+            user_email = db_user.get('email')
+
     return jsonify({
-        'id': session.get('user_id'),
+        'id': user_id,
         'username': session.get('username'),
         'name': session.get('user_name'),
+        'email': user_email,
         'clinic_id': clinic_id,
         'clinic_name': session.get('clinic_name'),
         'role': session.get('role'),
@@ -656,6 +668,41 @@ def api_get_price_list():
     """Get complete price list for all services"""
     clinic_id = get_clinic_id()
     return jsonify(calculate_all_services(clinic_id))
+
+
+# ============== Case Tracker ==============
+
+@app.route('/api/case-tracker')
+@login_required
+def api_get_case_tracker():
+    """Get case counts for a given month (YYYY-MM). Defaults to current month."""
+    clinic_id = get_clinic_id()
+    month = request.args.get('month', datetime.now().strftime('%Y-%m'))
+    data = get_case_tracker_month(clinic_id, month)
+    return jsonify({'month': month, 'counts': data})
+
+
+@app.route('/api/case-tracker', methods=['POST'])
+@login_required
+def api_save_case_tracker():
+    """Save/update case counts for a month."""
+    clinic_id = get_clinic_id()
+    body = request.get_json() or {}
+    month = body.get('month', datetime.now().strftime('%Y-%m'))
+    counts = body.get('counts', {})
+    if not counts:
+        return jsonify({'error': 'counts required'}), 400
+    save_case_tracker_month(clinic_id, month, counts)
+    return jsonify({'success': True, 'month': month})
+
+
+@app.route('/api/case-tracker/history')
+@login_required
+def api_case_tracker_history():
+    """Get last 12 months of case tracker summaries."""
+    clinic_id = get_clinic_id()
+    history = get_case_tracker_history(clinic_id, months=12)
+    return jsonify(history)
 
 
 # ============== Subscription Status ==============

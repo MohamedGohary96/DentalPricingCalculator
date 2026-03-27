@@ -106,7 +106,7 @@ def update_clinic(clinic_id, **kwargs):
 # ============== Authentication ==============
 
 def authenticate_user(username, password):
-    """Authenticate user and return user dict with clinic info or None
+    """Authenticate user by email or username, return user dict with clinic info or None.
 
     Note: Clinic active status is now handled through subscription system,
     not authentication. Deactivated clinics can still login but see limited views.
@@ -117,8 +117,8 @@ def authenticate_user(username, password):
         SELECT u.*, c.name as clinic_name, c.slug as clinic_slug, c.is_active as clinic_is_active
         FROM users u
         LEFT JOIN clinics c ON u.clinic_id = c.id
-        WHERE u.username = %s AND u.is_active = 1
-    ''', (username,))
+        WHERE (u.username = %s OR u.email = %s) AND u.is_active = 1
+    ''', (username, username))
     row = cursor.fetchone()
     conn.close()
 
@@ -126,6 +126,16 @@ def authenticate_user(username, password):
         user = dict_from_row(row)
         return user
     return None
+
+
+def get_user_by_id(user_id):
+    """Return user dict for the given user_id, or None."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM users WHERE id = %s', (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict_from_row(row) if row else None
 
 
 def create_user(clinic_id, username, password, first_name, last_name, email, role='staff'):
@@ -1899,3 +1909,63 @@ def resend_verification_email(user_id):
         return False, "Please wait before requesting another verification email"
 
     return True, "Can resend"
+
+# ============================================
+# Case Tracker
+# ============================================
+
+def get_case_tracker_month(clinic_id, month):
+    """Return {service_id: case_count} for the given YYYY-MM month."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT service_id, case_count
+        FROM case_tracker_entries
+        WHERE clinic_id = %s AND month = %s
+    ''', (clinic_id, month))
+    rows = cursor.fetchall()
+    conn.close()
+    return {str(row['service_id']): row['case_count'] for row in rows}
+
+
+def save_case_tracker_month(clinic_id, month, counts):
+    """Upsert case counts for a month.
+
+    counts — dict of {service_id: case_count}
+    Only services with count > 0 are stored; zero-count rows are deleted.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    for service_id, count in counts.items():
+        count = int(count)
+        if count > 0:
+            cursor.execute('''
+                INSERT INTO case_tracker_entries (clinic_id, month, service_id, case_count)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE case_count = %s, updated_at = NOW()
+            ''', (clinic_id, month, int(service_id), count, count))
+        else:
+            cursor.execute('''
+                DELETE FROM case_tracker_entries
+                WHERE clinic_id = %s AND month = %s AND service_id = %s
+            ''', (clinic_id, month, int(service_id)))
+    conn.commit()
+    conn.close()
+
+
+def get_case_tracker_history(clinic_id, months=12):
+    """Return last N months with total cases and total_revenue estimate."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT e.month,
+               SUM(e.case_count) AS total_cases
+        FROM case_tracker_entries e
+        WHERE e.clinic_id = %s
+        GROUP BY e.month
+        ORDER BY e.month DESC
+        LIMIT %s
+    ''', (clinic_id, months))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

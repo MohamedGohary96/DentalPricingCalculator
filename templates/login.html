@@ -279,6 +279,30 @@
             z-index: 1;
         }
 
+        .password-toggle {
+            position: absolute;
+            right: 1rem;
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            color: #9fb3d1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+            transition: color 0.2s;
+        }
+
+        .password-toggle:hover {
+            color: #3f67a3;
+        }
+
+        .password-toggle svg {
+            width: 18px;
+            height: 18px;
+        }
+
         .form-input {
             width: 100%;
             padding: 0.875rem 1rem 0.875rem 2.75rem;
@@ -498,6 +522,28 @@
             text-align: right;
         }
 
+        html[dir="rtl"] .password-toggle {
+            right: auto;
+            left: 1rem;
+        }
+
+        .form-input.has-toggle {
+            padding-right: 2.75rem;
+        }
+
+        html[dir="rtl"] .form-input.has-toggle {
+            padding-right: 2.75rem;
+            padding-left: 2.75rem;
+        }
+
+        .trust-signal {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #9fb3d1;
+            margin-top: 1rem;
+            padding-top: 1rem;
+        }
+
         html[dir="rtl"] .lang-toggle-btn {
             right: auto;
             left: 2rem;
@@ -573,13 +619,13 @@
 
                 <form id="loginForm" class="login-form">
                     <div class="form-group">
-                        <label class="form-label required" id="usernameLabel">Username</label>
+                        <label class="form-label required" id="usernameLabel">Email or Username</label>
                         <div class="input-group">
                             <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                                 <circle cx="12" cy="7" r="4"></circle>
                             </svg>
-                            <input type="text" class="form-input" id="username" name="username" required autofocus>
+                            <input type="text" class="form-input" id="username" name="username" required autofocus dir="ltr" autocomplete="username">
                         </div>
                     </div>
 
@@ -590,7 +636,13 @@
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                             </svg>
-                            <input type="password" class="form-input" id="password" name="password" required>
+                            <input type="password" class="form-input has-toggle" id="password" name="password" required autocomplete="current-password">
+                            <button type="button" class="password-toggle" id="passwordToggle" onclick="togglePasswordVisibility()" aria-label="Show/hide password">
+                                <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
                         </div>
                     </div>
 
@@ -625,6 +677,7 @@
                         </svg>
                     </a>
                 </div>
+                <p class="trust-signal" id="trustSignal">+300 clinics use Dental Pricing Calculator</p>
             </div>
         </div>
     </div>
@@ -644,13 +697,14 @@
                 feature3Desc: 'Compare current prices vs calculated optimal prices',
                 welcome: 'Welcome Back',
                 signIn: 'Sign in to your account',
-                username: 'Username',
+                username: 'Email or Username',
                 password: 'Password',
                 rememberMe: 'Remember me',
                 forgotPassword: 'Forgot password?',
                 signInBtn: 'Sign In',
                 newClinic: "Don't have an account?",
-                register: 'Register your clinic'
+                register: 'Register your clinic',
+                trustSignal: '+300 clinics use Dental Pricing Calculator'
             },
             ar: {
                 langToggle: 'English',
@@ -664,13 +718,14 @@
                 feature3Desc: 'مقارنة الأسعار الحالية بالأسعار المثلى المحسوبة',
                 welcome: 'مرحباً بعودتك',
                 signIn: 'سجّل الدخول إلى حسابك',
-                username: 'اسم المستخدم',
+                username: 'البريد الإلكتروني أو اسم المستخدم',
                 password: 'كلمة المرور',
                 rememberMe: 'تذكرني',
                 forgotPassword: 'نسيت كلمة المرور؟',
-                signInBtn: 'تسجيل الدخول',
+                signInBtn: 'الدخول إلى لوحة التسعير',
                 newClinic: 'ليس لديك حساب؟',
-                register: 'سجّل عيادتك'
+                register: 'سجّل عيادتك',
+                trustSignal: '+٣٠٠ عيادة تستخدم حاسبة أسعار الأسنان'
             }
         };
 
@@ -684,7 +739,7 @@
                 const saved = localStorage.getItem(REMEMBER_KEY);
                 if (saved) {
                     const data = JSON.parse(saved);
-                    document.getElementById('username').value = data.username || '';
+                    document.getElementById('username').value = data.email || data.username || '';
                     document.getElementById('remember').checked = true;
                 }
             } catch {
@@ -693,10 +748,10 @@
         }
 
         // Save login info if remember is checked
-        function saveRememberedLogin(username) {
+        function saveRememberedLogin(email) {
             const remember = document.getElementById('remember').checked;
             if (remember) {
-                localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username }));
+                localStorage.setItem(REMEMBER_KEY, JSON.stringify({ email }));
             } else {
                 localStorage.removeItem(REMEMBER_KEY);
             }
@@ -746,6 +801,22 @@
             document.getElementById('signInBtnText').textContent = t.signInBtn;
             document.getElementById('newClinicText').textContent = t.newClinic;
             document.getElementById('registerText').textContent = t.register;
+            document.getElementById('trustSignal').textContent = t.trustSignal;
+
+            // Email field is always LTR
+            document.getElementById('username').dir = 'ltr';
+        }
+
+        // Toggle password visibility
+        function togglePasswordVisibility() {
+            const input = document.getElementById('password');
+            const icon = document.getElementById('eyeIcon');
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            // Eye vs eye-off icon
+            icon.innerHTML = isPassword
+                ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>'
+                : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
         }
 
         // Login form handler
@@ -755,29 +826,37 @@
             const errorDiv = document.getElementById('errorMessage');
             errorDiv.style.display = 'none';
 
-            const username = document.getElementById('username').value;
+            const email = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const btnText = document.getElementById('signInBtnText');
+            const originalText = btnText.textContent;
+
+            submitBtn.disabled = true;
+            btnText.textContent = currentLang === 'ar' ? 'جارٍ التحقق...' : 'Signing in...';
 
             try {
                 const response = await fetch('/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ username, password })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: email, password })
                 });
 
                 if (response.ok) {
-                    saveRememberedLogin(username);
+                    saveRememberedLogin(email);
                     window.location.href = '/';
                 } else {
                     const data = await response.json();
-                    errorDiv.textContent = data.error || (currentLang === 'ar' ? 'بيانات الاعتماد غير صالحة' : 'Invalid credentials');
+                    errorDiv.textContent = data.error || (currentLang === 'ar' ? 'بيانات الدخول غير صحيحة' : 'Invalid username/email or password');
                     errorDiv.style.display = 'block';
+                    submitBtn.disabled = false;
+                    btnText.textContent = originalText;
                 }
             } catch (error) {
                 errorDiv.textContent = currentLang === 'ar' ? 'خطأ في الاتصال. حاول مرة أخرى.' : 'Connection error. Please try again.';
                 errorDiv.style.display = 'block';
+                submitBtn.disabled = false;
+                btnText.textContent = originalText;
             }
         });
     </script>

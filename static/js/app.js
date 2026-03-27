@@ -630,6 +630,69 @@ function setupRealtimeValidation(formId, validationRules = {}) {
 }
 
 // ============================================
+// First Visit Hook — Dismissable Explainer Blocks
+// ============================================
+const firstVisit = {
+    _key(pageKey) { return `dbd_visited_${pageKey}`; },
+
+    isFirstVisit(pageKey) {
+        return !localStorage.getItem(this._key(pageKey));
+    },
+
+    markVisited(pageKey) {
+        localStorage.setItem(this._key(pageKey), '1');
+    },
+
+    /** Returns dismissable explainer HTML or compact help link HTML */
+    getHTML(pageKey, title, bodyHTML) {
+        if (this.isFirstVisit(pageKey)) {
+            return `
+                <div class="explainer-banner" id="explainer-${pageKey}">
+                    <button type="button" class="explainer-dismiss" onclick="firstVisit.dismiss('${pageKey}')" aria-label="Dismiss">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                    <h4 class="explainer-title">${title}</h4>
+                    <div class="explainer-body">${bodyHTML}</div>
+                    <button type="button" class="explainer-got-it" onclick="firstVisit.dismiss('${pageKey}')">
+                        ${i18n.currentLang === 'ar' ? 'فهمت، لا تظهر مجدداً ✓' : 'Got it, don\'t show again ✓'}
+                    </button>
+                </div>`;
+        }
+        return '';
+    },
+
+    dismiss(pageKey) {
+        this.markVisited(pageKey);
+        const banner = document.getElementById(`explainer-${pageKey}`);
+        if (banner) {
+            banner.style.opacity = '0';
+            banner.style.transform = 'translateY(-8px)';
+            setTimeout(() => {
+                banner.remove();
+            }, 200);
+        }
+    },
+
+    showHelp(pageKey, title, bodyHTML) {
+        // Show help in a small modal
+        const modal = document.createElement('div');
+        modal.className = 'explainer-modal-overlay';
+        modal.innerHTML = `
+            <div class="explainer-modal">
+                <div class="explainer-modal-header">
+                    <h4>${title}</h4>
+                    <button onclick="this.closest('.explainer-modal-overlay').remove()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+                <div class="explainer-modal-body">${bodyHTML}</div>
+            </div>`;
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+        document.body.appendChild(modal);
+    }
+};
+
+// ============================================
 // Skeleton Loading Helpers
 // ============================================
 function getSkeletonHTML(type = 'dashboard') {
@@ -1549,6 +1612,31 @@ const APP = {
         this.subscription = this.user.subscription || {};
         document.getElementById('userName').textContent = this.user.name;
 
+        // Set user initials in avatar
+        const initials = (this.user.name || '').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        const initialsEl = document.getElementById('userInitials');
+        if (initialsEl) initialsEl.textContent = initials || '?';
+
+        // Show user email below name
+        const emailEl = document.getElementById('userEmailDisplay');
+        if (emailEl && this.user.email) emailEl.textContent = this.user.email;
+
+        // Show/hide upgrade CTA based on subscription
+        const upgradeCta = document.getElementById('sidebarUpgradeCta');
+        if (upgradeCta) {
+            const sub = this.subscription;
+            const isFreeTier = !sub || sub.status === 'trial' || sub.status === 'expired' || sub.status === 'none';
+            if (isFreeTier) {
+                upgradeCta.style.display = 'block';
+                const subEl = document.getElementById('sidebarUpgradeSub');
+                if (subEl && sub) {
+                    const visible = sub.free_services_visible || 3;
+                    const total = sub.total_services || 0;
+                    subEl.textContent = `${visible}/${total} ${t('nav.servicesVisible')}`;
+                }
+            }
+        }
+
         // Show super admin nav if user is super admin
         if (this.user.is_super_admin) {
             document.getElementById('superAdminSection').style.display = 'block';
@@ -1594,6 +1682,7 @@ const APP = {
             'consumablesLink': 'nav.consumables',
             'servicesLink': 'nav.services',
             'priceListLink': 'nav.priceList',
+            'caseTrackerLink': 'nav.caseTracker',
             'subscriptionLink': 'nav.subscription',
             'superAdminLink': 'nav.manageClinics'
         };
@@ -1607,6 +1696,10 @@ const APP = {
                 }
             }
         }
+
+        // Update Case Tracker badge text
+        const caseTrackerBadge = document.getElementById('caseTrackerBadge');
+        if (caseTrackerBadge) caseTrackerBadge.textContent = t('nav.badgeNew');
 
         // Update section headers
         const sections = {
@@ -1632,6 +1725,10 @@ const APP = {
                 textSpan.textContent = t('nav.logout');
             }
         }
+
+        // Update upgrade CTA text
+        const upgradeCtaText = document.getElementById('sidebarUpgradeCtaText');
+        if (upgradeCtaText) upgradeCtaText.textContent = t('nav.upgradeCta');
     },
 
     async loadPage(page, scrollToSection = null, updateURL = true) {
@@ -1745,9 +1842,15 @@ const Pages = {
             </div>
         ` : '';
 
+        // KPI context computations
+        const servicesWithPrices = priceList.filter(s => s.current_price && s.current_price > 0).length;
+        const pricingPercent = stats.total_services > 0 ? Math.round((servicesWithPrices / stats.total_services) * 100) : 0;
+        const healthStatus = isFullyRestricted ? 'locked' : underpriced > 0 ? 'warning' : 'success';
+
         return `
             ${subscriptionBanner}
             <div class="metrics-grid">
+                <!-- KPI: Total Services -->
                 <div class="metric-card">
                     <div class="metric-header">
                         <span class="metric-icon" style="background: var(--primary-100); color: var(--primary-600);">
@@ -1760,10 +1863,16 @@ const Pages = {
                     </div>
                     <div class="metric-value">${stats.total_services}</div>
                     <div class="metric-footer">
-                        <span class="metric-subtext">${t('dashboard.activeProcedures')}</span>
+                        ${!isFullyRestricted && stats.total_services > 0 ? `
+                            <span class="metric-subtext">${servicesWithPrices}/${stats.total_services} ${t('dashboard.withPricesSet') || 'with prices set'}</span>
+                        ` : `
+                            <span class="metric-subtext">${t('dashboard.activeProcedures')}</span>
+                        `}
+                        <span class="metric-action" onclick="APP.loadPage('services')">${t('common.manage') || 'Manage'} →</span>
                     </div>
                 </div>
 
+                <!-- KPI: Pricing Health -->
                 ${isFullyRestricted ? `
                 <div class="metric-card metric-locked">
                     <div class="metric-header">
@@ -1789,14 +1898,20 @@ const Pages = {
                             </svg>
                         </span>
                         <span class="metric-label">${t('dashboard.needsAttention')}</span>
+                        <span class="kpi-trend kpi-trend-down">↓ ${underpriced}</span>
                     </div>
                     <div class="metric-value">${underpriced}</div>
+                    ${potentialRevenue > 0 ? `
+                    <div class="kpi-benchmark">
+                        <span>${t('dashboard.potentialGain') || 'Potential gain'}</span>
+                        <span class="kpi-benchmark-val kpi-benchmark-positive">+${formatCurrency(potentialRevenue)}</span>
+                    </div>` : ''}
                     <div class="metric-footer">
                         <span class="metric-action" onclick="APP.loadPage('price-list')">${t('dashboard.servicesUnderpriced')} →</span>
                     </div>
                 </div>
                 ` : `
-                <div class="metric-card">
+                <div class="metric-card metric-card-success">
                     <div class="metric-header">
                         <span class="metric-icon" style="background: #d1fae5; color: var(--success);">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1804,14 +1919,17 @@ const Pages = {
                             </svg>
                         </span>
                         <span class="metric-label">${t('dashboard.pricingHealth')}</span>
+                        <span class="kpi-trend kpi-trend-up">✓</span>
                     </div>
                     <div class="metric-value" style="color: var(--success);">${t('dashboard.good')}</div>
                     <div class="metric-footer">
-                        <span class="metric-subtext">${t('dashboard.allProperlyPriced')}</span>
+                        <span class="metric-subtext">${pricingPercent}% ${t('dashboard.servicesOptimized') || 'optimized'}</span>
+                        <span class="metric-action" onclick="APP.loadPage('price-list')">${t('dashboard.viewPriceList') || 'View list'} →</span>
                     </div>
                 </div>
                 `}
 
+                <!-- KPI: Chair Hourly Rate -->
                 <div class="metric-card">
                     <div class="metric-header">
                         <span class="metric-icon" style="background: #dbeafe; color: var(--primary-600);">
@@ -1825,9 +1943,11 @@ const Pages = {
                     <div class="metric-value currency ${isTrial ? 'trial-blur' : ''}">${formatCurrency(stats.chair_hourly_rate)}</div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('dashboard.effectiveHoursMonth', {hours: stats.effective_hours.toFixed(0)})}</span>
+                        <span class="metric-action" onclick="APP.loadPage('settings')">${t('dashboard.adjustSettings') || 'Adjust'} →</span>
                     </div>
                 </div>
 
+                <!-- KPI: Monthly Fixed Costs -->
                 <div class="metric-card metric-card-wide">
                     <div class="metric-header">
                         <span class="metric-icon" style="background: #fce7f3; color: #db2777;">
@@ -1924,22 +2044,18 @@ const Pages = {
         const equipment = await API.get('/api/equipment');
         const capacity = await API.get('/api/capacity');
 
+        const settingsExplainerBody = `
+            <p style="margin-bottom:0.75rem;"><strong>${t('settings.pricingSteps')}</strong></p>
+            <ol style="margin-${i18n.currentLang === 'ar' ? 'right' : 'left'}:1.25rem;line-height:1.8;">
+                <li>${t('settings.step1')}</li>
+                <li>${t('settings.step2')}</li>
+                <li>${t('settings.step3')}</li>
+                <li>${t('settings.step4')}</li>
+            </ol>
+            <p style="margin-top:0.75rem;color:var(--gray-700);"><em>${t('settings.pricingNote')}</em></p>`;
+
         return `
-            <div class="card" style="background:#e0f2fe;border-color:#38bdf8;">
-                <div class="card-header" style="background:#7dd3fc;">
-                    <h3 class="card-title">💡 ${t('settings.howPricingWorks')}</h3>
-                </div>
-                <div class="card-body">
-                    <p style="margin-bottom:0.75rem;"><strong>${t('settings.pricingSteps')}</strong></p>
-                    <ol style="margin-left:1.25rem;line-height:1.8;">
-                        <li>${t('settings.step1')}</li>
-                        <li>${t('settings.step2')}</li>
-                        <li>${t('settings.step3')}</li>
-                        <li>${t('settings.step4')}</li>
-                    </ol>
-                    <p style="margin-top:0.75rem;color:var(--gray-700);"><em>${t('settings.pricingNote')}</em></p>
-                </div>
-            </div>
+            ${firstVisit.getHTML('settings', '💡 ' + t('settings.howPricingWorks'), settingsExplainerBody)}
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
@@ -2438,19 +2554,15 @@ const Pages = {
         const consumables = await API.get('/api/consumables');
         const materials = await API.get('/api/materials');
 
+        const consumablesExplainerBody = `
+            <p><strong>${t('consumables.aboutDescription')}</strong></p>
+            <p style="margin-top:0.5rem;margin-bottom:0.5rem;">${t('consumables.aboutExamples')}</p>
+            <p style="margin-bottom:0;color:var(--gray-700);">
+                <strong>${t('consumables.howItWorks')}</strong> ${t('consumables.howItWorksDesc')}
+            </p>`;
+
         return `
-            <div class="card" style="background:#fef3c7;border-color:#fbbf24;">
-                <div class="card-header" style="background:#fde68a;">
-                    <h3 class="card-title">📦 ${t('consumables.aboutTitle')}</h3>
-                </div>
-                <div class="card-body">
-                    <p><strong>${t('consumables.aboutDescription')}</strong></p>
-                    <p style="margin-top:0.5rem;margin-bottom:0.5rem;">${t('consumables.aboutExamples')}</p>
-                    <p style="margin-bottom:0;color:var(--gray-700);">
-                        <strong>${t('consumables.howItWorks')}</strong> ${t('consumables.howItWorksDesc')}
-                    </p>
-                </div>
-            </div>
+            ${firstVisit.getHTML('consumables', '📦 ' + t('consumables.aboutTitle'), consumablesExplainerBody)}
 
             <!-- Card-style Tabs for Consumables and Materials -->
             <div style="margin-top:1.5rem;">
@@ -2928,25 +3040,21 @@ const Pages = {
             `;
         }
 
+        const servicesExplainerBody = `
+            <p><strong>${t('services.aboutDescription')}</strong></p>
+            <p style="margin-top:0.75rem;margin-bottom:0.5rem;"><strong>${t('services.configureWhat')}</strong></p>
+            <ul style="margin-${i18n.currentLang === 'ar' ? 'right' : 'left'}:1.25rem;line-height:1.6;">
+                <li>${t('services.configChairTime')}</li>
+                <li>${t('services.configDoctorFee')}</li>
+                <li>${t('services.configEquipment')}</li>
+                <li>${t('services.configConsumables')}</li>
+            </ul>
+            <p style="margin-top:0.5rem;color:var(--gray-700);"><em>${t('services.priceButtonHint')}</em></p>`;
+
         return `
             ${bannerHtml}
 
-            <div class="card" style="background:#e0e7ff;border-color:#818cf8;">
-                <div class="card-header" style="background:#c7d2fe;">
-                    <h3 class="card-title">🦷 ${t('services.aboutTitle')}</h3>
-                </div>
-                <div class="card-body">
-                    <p><strong>${t('services.aboutDescription')}</strong></p>
-                    <p style="margin-top:0.75rem;margin-bottom:0.5rem;"><strong>${t('services.configureWhat')}</strong></p>
-                    <ul style="margin-left:1.25rem;line-height:1.6;">
-                        <li>${t('services.configChairTime')}</li>
-                        <li>${t('services.configDoctorFee')}</li>
-                        <li>${t('services.configEquipment')}</li>
-                        <li>${t('services.configConsumables')}</li>
-                    </ul>
-                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>${t('services.priceButtonHint')}</em></p>
-                </div>
-            </div>
+            ${firstVisit.getHTML('services', '🦷 ' + t('services.aboutTitle'), servicesExplainerBody)}
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
@@ -4349,6 +4457,202 @@ const Pages = {
         `;
     },
 
+    // ── Case Tracker ──────────────────────────────────────────────────────────
+    async caseTracker() {
+        const sub = APP.subscription || {};
+        const blockedLevels = ['trial', 'readonly', 'lockout'];
+        const isActive = !blockedLevels.includes(sub.restriction_level);
+
+        // Subscription wall for non-paid users
+        if (!isActive) {
+            return `
+                <div class="ct-upgrade-wall">
+                    <div class="ct-upgrade-icon">📅</div>
+                    <h2 class="ct-upgrade-title">${i18n.currentLang === 'ar' ? 'متتبع الحالات الشهري' : 'Monthly Case Tracker'}</h2>
+                    <p class="ct-upgrade-desc">${i18n.currentLang === 'ar'
+                        ? 'سجّل حالاتك الشهرية واعرف كم تصرف على الخامات فعلاً — متاح للمشتركين'
+                        : 'Record your monthly cases and track real materials spend — available for subscribers'}</p>
+                    <div class="ct-upgrade-features">
+                        <div class="ct-upgrade-feature">
+                            <span>📊</span>
+                            <span>${i18n.currentLang === 'ar' ? 'نسبة الخامات الفعلية شهرياً' : 'Actual materials % per month'}</span>
+                        </div>
+                        <div class="ct-upgrade-feature">
+                            <span>💰</span>
+                            <span>${i18n.currentLang === 'ar' ? 'الإيراد المقدّر لكل شهر' : 'Estimated revenue per month'}</span>
+                        </div>
+                        <div class="ct-upgrade-feature">
+                            <span>📈</span>
+                            <span>${i18n.currentLang === 'ar' ? 'مقارنة آخر ١٢ شهراً' : 'Last 12-month history'}</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="APP.loadPage('subscription')">
+                        ${i18n.currentLang === 'ar' ? 'الترقية للوصول ←' : 'Upgrade for Access ←'}
+                    </button>
+                </div>`;
+        }
+
+        // Fetch services and saved data for current month
+        const now = new Date();
+        const currentMonth = now.toISOString().slice(0, 7); // YYYY-MM
+        const [services, priceList, savedData, history] = await Promise.all([
+            API.get('/api/services'),
+            API.get('/api/price-list'),
+            API.get(`/api/case-tracker?month=${currentMonth}`),
+            API.get('/api/case-tracker/history'),
+        ]);
+
+        // Build a map of service pricing: id → {materials_cost, current_price, rounded_price}
+        const pricingMap = {};
+        for (const p of priceList) {
+            pricingMap[p.id] = p;
+        }
+
+        const savedCounts = savedData.counts || {};
+
+        // Generate month options (current month + 5 months back)
+        const monthOptions = [];
+        for (let i = 0; i < 6; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const val = d.toISOString().slice(0, 7);
+            const label = d.toLocaleDateString(i18n.currentLang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'long' });
+            monthOptions.push({ val, label });
+        }
+
+        // Group services by category
+        const grouped = {};
+        for (const s of services) {
+            const cat = s.category_name || (i18n.currentLang === 'ar' ? 'غير مصنّف' : 'Uncategorized');
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(s);
+        }
+
+        const servicesRows = Object.entries(grouped).map(([cat, items]) => `
+            <tr class="ct-category-row">
+                <td colspan="3">${cat}</td>
+            </tr>
+            ${items.map(s => {
+                const count = savedCounts[s.id] || 0;
+                const pricing = pricingMap[s.id];
+                const price = pricing ? (pricing.current_price || pricing.rounded_price || 0) : 0;
+                const matCost = pricing ? (pricing.materials_cost || 0) : 0;
+                return `
+                <tr class="ct-service-row">
+                    <td class="ct-service-name">${i18n.currentLang === 'ar' && s.name_ar ? s.name_ar : s.name}</td>
+                    <td class="ct-price-cell">${formatCurrency(price)}</td>
+                    <td class="ct-input-cell">
+                        <input
+                            type="number"
+                            class="ct-count-input"
+                            min="0"
+                            step="1"
+                            value="${count}"
+                            data-service-id="${s.id}"
+                            data-price="${price}"
+                            data-mat-cost="${matCost}"
+                            oninput="caseTrackerUpdate()"
+                        >
+                    </td>
+                </tr>`;
+            }).join('')}
+        `).join('');
+
+        // History rows
+        const historyRows = history.length > 0
+            ? history.map(h => {
+                const d = new Date(h.month + '-01');
+                const label = d.toLocaleDateString(i18n.currentLang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short' });
+                return `<div class="ct-history-row">
+                    <span class="ct-history-month">${label}</span>
+                    <span class="ct-history-cases">${h.total_cases} ${i18n.currentLang === 'ar' ? 'حالة' : 'cases'}</span>
+                </div>`;
+            }).join('')
+            : `<p class="ct-history-empty">${i18n.currentLang === 'ar' ? 'لا توجد بيانات سابقة' : 'No previous data'}</p>`;
+
+        const dir = i18n.currentLang === 'ar' ? 'rtl' : 'ltr';
+
+        return `
+        <div class="ct-page" id="caseTrackerPage">
+            <!-- Page Header -->
+            <div class="ct-header">
+                <div>
+                    <h1 class="ct-title">${i18n.currentLang === 'ar' ? 'متتبع الحالات الشهري' : 'Monthly Case Tracker'}</h1>
+                    <p class="ct-subtitle">${i18n.currentLang === 'ar' ? 'سجّل حالاتك واعرف كم تصرف على الخامات فعلاً' : 'Record your cases and track actual materials spend'}</p>
+                </div>
+                <div class="ct-month-selector">
+                    <label class="ct-month-label">${i18n.currentLang === 'ar' ? 'الشهر' : 'Month'}</label>
+                    <select class="ct-month-select" id="ctMonthSelect" onchange="caseTrackerChangeMonth(this.value)">
+                        ${monthOptions.map(m => `<option value="${m.val}" ${m.val === currentMonth ? 'selected' : ''}>${m.label}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+
+            <div class="ct-layout">
+                <!-- Input Grid -->
+                <div class="ct-grid-card card">
+                    <div class="ct-grid-header">
+                        <span>${i18n.currentLang === 'ar' ? 'عدد الحالات' : 'Case Counts'}</span>
+                        <span id="ctMonthLabel">${monthOptions[0].label}</span>
+                    </div>
+                    <div class="ct-grid-wrap">
+                        <table class="ct-table">
+                            <thead>
+                                <tr>
+                                    <th>${i18n.currentLang === 'ar' ? 'الخدمة' : 'Service'}</th>
+                                    <th>${i18n.currentLang === 'ar' ? 'السعر' : 'Price'}</th>
+                                    <th>${i18n.currentLang === 'ar' ? 'عدد الحالات' : 'Cases'}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ctServiceRows">
+                                ${servicesRows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Results Panel -->
+                <div class="ct-results-panel">
+
+                    <!-- Metrics -->
+                    <div class="ct-metrics card" id="ctMetrics">
+                        <div class="ct-metric">
+                            <span class="ct-metric-label">${i18n.currentLang === 'ar' ? 'إجمالي الحالات' : 'Total Cases'}</span>
+                            <span class="ct-metric-value" id="ctTotalCases">0</span>
+                        </div>
+                        <div class="ct-metric">
+                            <span class="ct-metric-label">${i18n.currentLang === 'ar' ? 'الإيراد التقديري' : 'Est. Revenue'}</span>
+                            <span class="ct-metric-value" id="ctRevenue">—</span>
+                        </div>
+                        <div class="ct-metric">
+                            <span class="ct-metric-label">${i18n.currentLang === 'ar' ? 'تكلفة الخامات' : 'Materials Cost'}</span>
+                            <span class="ct-metric-value" id="ctMatCost">—</span>
+                        </div>
+                        <div class="ct-metric ct-metric-highlight">
+                            <span class="ct-metric-label">${i18n.currentLang === 'ar' ? 'نسبة الخامات' : 'Materials %'}</span>
+                            <span class="ct-metric-value" id="ctMatPct">—</span>
+                        </div>
+                    </div>
+
+                    <!-- Insight -->
+                    <div class="ct-insight" id="ctInsight" style="display:none;"></div>
+
+                    <!-- Save Button -->
+                    <button class="btn btn-primary ct-save-btn" id="ctSaveBtn" onclick="caseTrackerSave()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        ${i18n.currentLang === 'ar' ? 'حفظ بيانات الشهر' : 'Save Month Data'}
+                    </button>
+
+                    <!-- History -->
+                    <div class="ct-history card">
+                        <div class="ct-history-header">${i18n.currentLang === 'ar' ? 'السجل الشهري' : 'Monthly History'}</div>
+                        <div class="ct-history-list" id="ctHistoryList">${historyRows}</div>
+                    </div>
+
+                </div>
+            </div>
+        </div>`;
+    },
+
     // Subscription Status page - Show subscription info for all users
     async subscription() {
         const sub = APP.subscription || {};
@@ -4902,6 +5206,134 @@ const Pages = {
         }
     }
 };
+
+// ============================================
+// Case Tracker Helpers
+// ============================================
+
+function caseTrackerUpdate() {
+    const inputs = document.querySelectorAll('.ct-count-input');
+    let totalCases = 0, totalRevenue = 0, totalMatCost = 0;
+
+    inputs.forEach(inp => {
+        const count = parseInt(inp.value) || 0;
+        const price = parseFloat(inp.dataset.price) || 0;
+        const mat = parseFloat(inp.dataset.matCost) || 0;
+        totalCases += count;
+        totalRevenue += count * price;
+        totalMatCost += count * mat;
+    });
+
+    const matPct = totalRevenue > 0 ? (totalMatCost / totalRevenue) * 100 : 0;
+
+    const fmt = (v) => formatCurrency(Math.round(v));
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+    setEl('ctTotalCases', totalCases);
+    setEl('ctRevenue', totalRevenue > 0 ? fmt(totalRevenue) : '—');
+    setEl('ctMatCost', totalMatCost > 0 ? fmt(totalMatCost) : '—');
+    setEl('ctMatPct', matPct > 0 ? matPct.toFixed(1) + '%' : '—');
+
+    // Insight
+    const insightEl = document.getElementById('ctInsight');
+    if (insightEl && matPct > 0) {
+        let type, title, body;
+        const isAr = i18n.currentLang === 'ar';
+        if (matPct < 8) {
+            type = 'info';
+            title = isAr ? 'نسبة خامات منخفضة جداً' : 'Very low materials ratio';
+            body = isAr ? 'أقل من ٨٪ — تأكد من أن جميع الخدمات مسجّلة بشكل صحيح' : 'Under 8% — verify all services are recorded correctly';
+        } else if (matPct <= 14) {
+            type = 'success';
+            title = isAr ? 'نسبة الخامات ضمن المعدل الطبيعي' : 'Materials ratio within normal range';
+            body = isAr ? `نسبتك ${matPct.toFixed(1)}٪ — المتوسط لعيادات مشابهة ٨–١٢٪` : `Your ratio is ${matPct.toFixed(1)}% — industry avg for similar clinics is 8–12%`;
+        } else if (matPct <= 20) {
+            type = 'warning';
+            title = isAr ? 'نسبة خامات أعلى من المعتاد' : 'Materials ratio above average';
+            body = isAr ? `نسبتك ${matPct.toFixed(1)}٪ — المعدل ٨–١٢٪. راجع أسعار الموردين` : `Your ratio is ${matPct.toFixed(1)}% — target is 8–12%. Review supplier prices`;
+        } else {
+            type = 'danger';
+            title = isAr ? 'تنبيه — نسبة خامات مرتفعة جداً' : 'Alert — very high materials ratio';
+            body = isAr ? `${matPct.toFixed(1)}٪ من إيراداتك تذهب في الخامات. هذا يؤثر بشكل كبير على صافي الربح` : `${matPct.toFixed(1)}% of your revenue goes to materials — this significantly impacts net profit`;
+        }
+
+        const colorMap = { info: '#dbeafe:#1e40af', success: '#d1fae5:#065f46', warning: '#fef3c7:#92400e', danger: '#fee2e2:#991b1b' };
+        const [bg, color] = colorMap[type].split(':');
+        insightEl.style.display = 'block';
+        insightEl.style.background = bg;
+        insightEl.style.color = color;
+        insightEl.innerHTML = `<strong>${title}</strong><p style="margin:0.25rem 0 0;font-size:0.8125rem;opacity:0.85;">${body}</p>`;
+    } else if (insightEl) {
+        insightEl.style.display = 'none';
+    }
+}
+
+async function caseTrackerChangeMonth(month) {
+    const btn = document.getElementById('ctSaveBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
+    try {
+        const data = await API.get(`/api/case-tracker?month=${month}`);
+        const counts = data.counts || {};
+        document.querySelectorAll('.ct-count-input').forEach(inp => {
+            inp.value = counts[inp.dataset.serviceId] || 0;
+        });
+
+        // Update month label
+        const d = new Date(month + '-01');
+        const label = d.toLocaleDateString(i18n.currentLang === 'ar' ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'long' });
+        const lbl = document.getElementById('ctMonthLabel');
+        if (lbl) lbl.textContent = label;
+
+        caseTrackerUpdate();
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> ${i18n.currentLang === 'ar' ? 'حفظ بيانات الشهر' : 'Save Month Data'}`;
+        }
+    }
+}
+
+async function caseTrackerSave() {
+    const select = document.getElementById('ctMonthSelect');
+    const month = select ? select.value : new Date().toISOString().slice(0, 7);
+    const counts = {};
+
+    document.querySelectorAll('.ct-count-input').forEach(inp => {
+        const count = parseInt(inp.value) || 0;
+        if (count >= 0) counts[inp.dataset.serviceId] = count;
+    });
+
+    const btn = document.getElementById('ctSaveBtn');
+    const isAr = i18n.currentLang === 'ar';
+    if (btn) { btn.disabled = true; btn.textContent = isAr ? 'جارٍ الحفظ...' : 'Saving...'; }
+
+    try {
+        await API.post('/api/case-tracker', { month, counts });
+        showToast(isAr ? `تم حفظ بيانات ${month} ✓` : `Saved ${month} data ✓`, 'success');
+
+        // Refresh history
+        const history = await API.get('/api/case-tracker/history');
+        const listEl = document.getElementById('ctHistoryList');
+        if (listEl && history.length > 0) {
+            listEl.innerHTML = history.map(h => {
+                const d = new Date(h.month + '-01');
+                const label = d.toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short' });
+                return `<div class="ct-history-row">
+                    <span class="ct-history-month">${label}</span>
+                    <span class="ct-history-cases">${h.total_cases} ${isAr ? 'حالة' : 'cases'}</span>
+                </div>`;
+            }).join('');
+        }
+    } catch (e) {
+        showToast(isAr ? 'خطأ في الحفظ' : 'Save failed', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> ${isAr ? 'حفظ بيانات الشهر' : 'Save Month Data'}`;
+        }
+    }
+}
 
 // Initialize app when loaded
 window.addEventListener('DOMContentLoaded', () => APP.init());
