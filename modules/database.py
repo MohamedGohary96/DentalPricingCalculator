@@ -429,6 +429,8 @@ def init_database():
         cursor.execute('ALTER TABLE clinics ADD COLUMN grace_period_start DATE')
     if 'language' not in clinic_columns:
         cursor.execute("ALTER TABLE clinics ADD COLUMN language VARCHAR(50) DEFAULT 'en'")
+    if 'onboarding_completed' not in clinic_columns:
+        cursor.execute('ALTER TABLE clinics ADD COLUMN onboarding_completed TINYINT(1) DEFAULT 0')
 
     # Add name_ar column to services table
     service_columns = _get_table_columns(cursor, 'services')

@@ -47,7 +47,9 @@ from modules.models import (
     is_email_verified, create_password_reset_token, verify_password_reset_token,
     reset_password_with_token, create_user_unverified, resend_verification_email,
     # Case Tracker
-    get_case_tracker_month, save_case_tracker_month, get_case_tracker_history
+    get_case_tracker_month, save_case_tracker_month, get_case_tracker_history,
+    # Onboarding
+    mark_onboarding_complete, apply_clinic_template
 )
 
 # Import email service
@@ -146,6 +148,12 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/welcome')
+def welcome():
+    """Public landing page"""
+    return render_template('welcome.html')
+
+
 @app.route('/login', methods=['POST'])
 def login():
     """Handle login"""
@@ -205,6 +213,12 @@ def get_current_user():
         if db_user:
             user_email = db_user.get('email')
 
+    onboarding_completed = 1  # default safe: don't trigger for existing users
+    if clinic_id:
+        clinic_row = get_clinic_by_id(clinic_id)
+        if clinic_row:
+            onboarding_completed = clinic_row.get('onboarding_completed', 1)
+
     return jsonify({
         'id': user_id,
         'username': session.get('username'),
@@ -215,7 +229,8 @@ def get_current_user():
         'role': session.get('role'),
         'is_super_admin': session.get('is_super_admin', False),
         'subscription': subscription,
-        'language': language
+        'language': language,
+        'onboarding_completed': onboarding_completed
     })
 
 
@@ -703,6 +718,27 @@ def api_case_tracker_history():
     clinic_id = get_clinic_id()
     history = get_case_tracker_history(clinic_id, months=12)
     return jsonify(history)
+
+
+# ============== Onboarding ==============
+
+@app.route('/api/onboarding/apply-template', methods=['POST'])
+@login_required
+def api_onboarding_apply_template():
+    """Apply a clinic template to bulk-update fixed costs and capacity"""
+    clinic_id = get_clinic_id()
+    data = request.get_json()
+    apply_clinic_template(clinic_id, data)
+    return jsonify({'success': True})
+
+
+@app.route('/api/onboarding/complete', methods=['POST'])
+@login_required
+def api_onboarding_complete():
+    """Mark onboarding as completed"""
+    clinic_id = get_clinic_id()
+    mark_onboarding_complete(clinic_id)
+    return jsonify({'success': True})
 
 
 # ============== Subscription Status ==============

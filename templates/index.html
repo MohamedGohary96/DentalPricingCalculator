@@ -158,6 +158,18 @@
                     <span class="nav-text">Subscription</span>
                 </a>
 
+                <!-- Onboarding (hidden once completed) -->
+                <a href="/onboarding" class="nav-link" id="onboardingNavLink" onclick="event.preventDefault(); APP.loadPage('onboarding')" style="display:none;">
+                    <span class="nav-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                    </span>
+                    <span class="nav-text" id="onboardingNavText">Setup Wizard</span>
+                    <span class="nav-badge" id="onboardingNavBadge">!</span>
+                </a>
+
                 <!-- Super Admin Section (visible only to super admins) -->
                 <div class="nav-section" id="superAdminSection" style="display:none;">Super Admin</div>
                 <a href="/super-admin" class="nav-link" id="superAdminLink" onclick="event.preventDefault(); APP.loadPage('super-admin')" style="display:none;">

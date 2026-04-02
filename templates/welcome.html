@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dental Pricing Calculator – Know Your Real Cost Per Chair</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Rubik:wght@300;400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #3f67a3;
+            --primary-dark: #1e3a5f;
+            --primary-light: #5c7eb1;
+            --teal: #14b8a6;
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-400: #94a3b8;
+            --gray-500: #64748b;
+            --gray-700: #334155;
+            --gray-900: #0f172a;
+            --white: #ffffff;
+            --success: #10B981;
+            --danger: #F43F5E;
+        }
+
+        body {
+            font-family: 'Rubik', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--white);
+            color: var(--gray-900);
+            line-height: 1.6;
+        }
+
+        /* ── NAV ───────────────────────────────────────── */
+        .wl-nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 2rem;
+            background: rgba(30, 58, 95, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .wl-nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            color: var(--white);
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            text-decoration: none;
+        }
+        .wl-nav-brand span.icon { font-size: 1.4rem; }
+        .wl-nav-actions { display: flex; align-items: center; gap: 0.75rem; }
+        .wl-btn-ghost {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--white);
+            padding: 0.5rem 1.1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+            font-family: inherit;
+        }
+        .wl-btn-ghost:hover { background: rgba(255,255,255,0.22); }
+        .wl-btn-primary {
+            background: var(--teal);
+            border: none;
+            color: var(--white);
+            padding: 0.5rem 1.25rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: opacity 0.2s;
+            font-family: inherit;
+        }
+        .wl-btn-primary:hover { opacity: 0.88; }
+        .wl-lang-btn {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--white);
+            padding: 0.4rem 0.9rem;
+            border-radius: 8px;
+            font-size: 0.825rem;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+        .wl-lang-btn:hover { background: rgba(255,255,255,0.22); }
+
+        /* ── HERO ──────────────────────────────────────── */
+        .wl-hero {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1e3a5f 0%, #1e4976 50%, #2563eb 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 7rem 2rem 4rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .wl-hero::before {
+            content: '';
+            position: absolute;
+            width: 800px; height: 800px;
+            background: radial-gradient(circle, rgba(59,130,246,0.3) 0%, transparent 70%);
+            top: -400px; right: -400px;
+            animation: wl-float 20s ease-in-out infinite;
+            pointer-events: none;
+        }
+        .wl-hero::after {
+            content: '';
+            position: absolute;
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(20,184,166,0.2) 0%, transparent 70%);
+            bottom: -300px; left: -300px;
+            animation: wl-float 15s ease-in-out infinite reverse;
+            pointer-events: none;
+        }
+        @keyframes wl-float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(50px, 50px) scale(1.1); }
+        }
+        .wl-hero-inner {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+            max-width: 1100px;
+            width: 100%;
+        }
+        .wl-hero-text { color: var(--white); }
+        .wl-hero-badge {
+            display: inline-block;
+            background: rgba(20,184,166,0.2);
+            border: 1px solid rgba(20,184,166,0.4);
+            color: #5eead4;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.35rem 0.9rem;
+            border-radius: 999px;
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.04em;
+        }
+        .wl-hero-headline {
+            font-family: 'Poppins', sans-serif;
+            font-size: 2.75rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 1.25rem;
+            letter-spacing: -0.02em;
+        }
+        .wl-hero-headline .accent { color: #5eead4; }
+        .wl-hero-subtext {
+            font-size: 1.1rem;
+            opacity: 0.85;
+            margin-bottom: 2rem;
+            line-height: 1.7;
+        }
+        .wl-hero-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            background: var(--teal);
+            color: var(--white);
+            padding: 0.9rem 2rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.2s;
+            font-family: 'Poppins', sans-serif;
+        }
+        .wl-hero-cta:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(20,184,166,0.4); }
+        .wl-hero-cta svg { width: 18px; height: 18px; }
+
+        /* ── MINI CALCULATOR ───────────────────────────── */
+        .wl-calc-card {
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 20px;
+            padding: 2rem;
+            color: var(--white);
+        }
+        .wl-calc-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .wl-calc-row {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            margin-bottom: 1rem;
+        }
+        .wl-calc-label {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            font-weight: 500;
+        }
+        .wl-calc-input {
+            width: 100%;
+            padding: 0.7rem 1rem;
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: var(--white);
+            font-size: 1rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .wl-calc-input::placeholder { color: rgba(255,255,255,0.45); }
+        .wl-calc-input:focus { border-color: #5eead4; }
+        .wl-calc-btn {
+            width: 100%;
+            padding: 0.8rem;
+            background: linear-gradient(135deg, var(--teal), #0d9488);
+            border: none;
+            border-radius: 8px;
+            color: var(--white);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            margin-top: 0.5rem;
+            transition: opacity 0.2s;
+        }
+        .wl-calc-btn:hover { opacity: 0.9; }
+        .wl-calc-result {
+            display: none;
+            margin-top: 1.25rem;
+            background: rgba(20,184,166,0.15);
+            border: 1px solid rgba(20,184,166,0.3);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+            animation: wl-fadeIn 0.4s ease;
+        }
+        @keyframes wl-fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .wl-calc-result-label { font-size: 0.8rem; opacity: 0.75; margin-bottom: 0.4rem; }
+        .wl-calc-result-value { font-family: 'Poppins', sans-serif; font-size: 2rem; font-weight: 800; color: #5eead4; }
+        .wl-calc-result-sub { font-size: 0.78rem; opacity: 0.7; margin-top: 0.4rem; }
+
+        /* ── FEATURES SECTION ──────────────────────────── */
+        .wl-features {
+            padding: 5rem 2rem;
+            background: var(--gray-50);
+        }
+        .wl-section-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .wl-section-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        .wl-section-header h2 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 0.75rem;
+        }
+        .wl-section-header p {
+            font-size: 1rem;
+            color: var(--gray-500);
+            max-width: 560px;
+            margin: 0 auto;
+        }
+        .wl-features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+        .wl-feature-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 16px;
+            padding: 1.75rem;
+            transition: all 0.3s;
+        }
+        .wl-feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(30,58,95,0.1);
+            border-color: var(--primary-light);
+        }
+        .wl-feature-icon {
+            width: 52px; height: 52px;
+            background: linear-gradient(135deg, var(--gray-100), var(--gray-50));
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.6rem;
+            margin-bottom: 1rem;
+        }
+        .wl-feature-card h3 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--primary-dark);
+            margin-bottom: 0.5rem;
+        }
+        .wl-feature-card p {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+            line-height: 1.6;
+        }
+
+        /* ── TRUST SECTION ─────────────────────────────── */
+        .wl-trust {
+            padding: 4rem 2rem;
+            background: linear-gradient(135deg, #1e3a5f, #2563eb);
+            color: var(--white);
+            text-align: center;
+        }
+        .wl-trust h2 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+        }
+        .wl-trust .wl-trust-sub {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-bottom: 2.5rem;
+        }
+        .wl-trust-stats {
+            display: flex;
+            justify-content: center;
+            gap: 4rem;
+            flex-wrap: wrap;
+        }
+        .wl-stat { text-align: center; }
+        .wl-stat-num {
+            font-family: 'Poppins', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #5eead4;
+            display: block;
+        }
+        .wl-stat-label { font-size: 0.875rem; opacity: 0.75; }
+
+        /* ── FOOTER ────────────────────────────────────── */
+        .wl-footer {
+            padding: 2rem;
+            background: var(--gray-900);
+            text-align: center;
+            color: var(--gray-400);
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        .wl-footer a {
+            color: var(--gray-400);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .wl-footer a:hover { color: var(--white); }
+
+        /* ── RESPONSIVE ────────────────────────────────── */
+        @media (max-width: 900px) {
+            .wl-hero-inner { grid-template-columns: 1fr; gap: 2.5rem; }
+            .wl-hero { padding-bottom: 3rem; }
+            .wl-hero-headline { font-size: 2rem; }
+            .wl-features-grid { grid-template-columns: 1fr 1fr; }
+            .wl-trust-stats { gap: 2rem; }
+        }
+        @media (max-width: 600px) {
+            .wl-features-grid { grid-template-columns: 1fr; }
+            .wl-hero-headline { font-size: 1.75rem; }
+            .wl-nav { padding: 0.75rem 1rem; }
+            .wl-nav-brand { font-size: 0.95rem; }
+        }
+
+        /* ── RTL ───────────────────────────────────────── */
+        html[dir="rtl"] body { font-family: 'IBM Plex Sans Arabic', 'Rubik', sans-serif; }
+        html[dir="rtl"] .wl-hero-headline,
+        html[dir="rtl"] .wl-calc-title,
+        html[dir="rtl"] .wl-feature-card h3,
+        html[dir="rtl"] .wl-section-header h2,
+        html[dir="rtl"] .wl-trust h2 { font-family: 'IBM Plex Sans Arabic', 'Poppins', sans-serif; }
+        html[dir="rtl"] .wl-nav-brand { font-family: 'IBM Plex Sans Arabic', 'Poppins', sans-serif; }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="wl-nav">
+        <a href="/welcome" class="wl-nav-brand">
+            <span class="icon">🦷</span>
+            <span id="navBrand">Dental Pricing Calculator</span>
+        </a>
+        <div class="wl-nav-actions">
+            <button class="wl-lang-btn" onclick="wlToggleLang()" type="button" id="langBtn">عربي</button>
+            <a href="/" class="wl-btn-ghost" id="navLogin">Login</a>
+            <a href="/register" class="wl-btn-primary" id="navRegister">Register Free →</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="wl-hero">
+        <div class="wl-hero-inner">
+            <div class="wl-hero-text">
+                <div class="wl-hero-badge" id="heroBadge">Cost-Plus Pricing for Dental Clinics</div>
+                <h1 class="wl-hero-headline">
+                    <span id="heroHeadline1">Do you know what each</span>
+                    <br><span class="accent" id="heroHeadline2">chair costs per hour?</span>
+                </h1>
+                <p class="wl-hero-subtext" id="heroSub">
+                    Most dental clinics price services by gut-feel — and lose money without knowing it. Dental Pricing Calculator computes your real cost per chair per hour and shows you the right price for every procedure.
+                </p>
+                <a href="/register" class="wl-hero-cta" id="heroCta">
+                    <span id="heroCtaText">Start for free</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                </a>
+            </div>
+
+            <!-- Mini Calculator -->
+            <div class="wl-calc-card">
+                <div class="wl-calc-title">
+                    <span>🧮</span>
+                    <span id="calcTitle">Quick cost calculator</span>
+                </div>
+                <div class="wl-calc-row">
+                    <label class="wl-calc-label" id="calcLabel1">Monthly rent (EGP)</label>
+                    <input type="number" class="wl-calc-input" id="calcRent" placeholder="25,000" min="0" step="500">
+                </div>
+                <div class="wl-calc-row">
+                    <label class="wl-calc-label" id="calcLabel2">Total monthly salaries (EGP)</label>
+                    <input type="number" class="wl-calc-input" id="calcSalaries" placeholder="20,000" min="0" step="500">
+                </div>
+                <div class="wl-calc-row">
+                    <label class="wl-calc-label" id="calcLabel3">Number of chairs</label>
+                    <input type="number" class="wl-calc-input" id="calcChairs" placeholder="2" min="1" max="20" step="1" value="2">
+                </div>
+                <button class="wl-calc-btn" onclick="wlCalculate()" id="calcBtn">Calculate →</button>
+                <div class="wl-calc-result" id="calcResult">
+                    <div class="wl-calc-result-label" id="calcResultLabel">Cost per chair per hour</div>
+                    <div class="wl-calc-result-value" id="calcResultValue">–</div>
+                    <div class="wl-calc-result-sub" id="calcResultSub">Register to get exact prices for all your services</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="wl-features">
+        <div class="wl-section-inner">
+            <div class="wl-section-header">
+                <h2 id="featTitle">Everything you need to price right</h2>
+                <p id="featSub">Built specifically for dental practices in Egypt and the Gulf</p>
+            </div>
+            <div class="wl-features-grid">
+                <div class="wl-feature-card">
+                    <div class="wl-feature-icon">📊</div>
+                    <h3 id="f1Title">Real cost analysis</h3>
+                    <p id="f1Desc">Track rent, salaries, equipment, and consumables. See the true cost of every chair per hour.</p>
+                </div>
+                <div class="wl-feature-card">
+                    <div class="wl-feature-icon">💰</div>
+                    <h3 id="f2Title">Instant price calculation</h3>
+                    <p id="f2Desc">Enter chair time, doctor fee, and materials — get the calculated price instantly with full breakdown.</p>
+                </div>
+                <div class="wl-feature-card">
+                    <div class="wl-feature-icon">📈</div>
+                    <h3 id="f3Title">Spot underpriced services</h3>
+                    <p id="f3Desc">Compare your current market prices against the calculated minimum. Never lose money on a procedure again.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Trust Section -->
+    <section class="wl-trust">
+        <div class="wl-section-inner">
+            <h2 id="trustTitle">Trusted by dental clinics</h2>
+            <p class="wl-trust-sub" id="trustSub">across Egypt and the Gulf</p>
+            <div class="wl-trust-stats">
+                <div class="wl-stat">
+                    <span class="wl-stat-num">+300</span>
+                    <span class="wl-stat-label" id="stat1">Clinics registered</span>
+                </div>
+                <div class="wl-stat">
+                    <span class="wl-stat-num">+15k</span>
+                    <span class="wl-stat-label" id="stat2">Services priced</span>
+                </div>
+                <div class="wl-stat">
+                    <span class="wl-stat-num">EGY &amp; KSA</span>
+                    <span class="wl-stat-label" id="stat3">Countries covered</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="wl-footer">
+        <span id="footerCopy">© 2026 Dental Pricing Calculator</span>
+        <a href="/" id="footerLogin">Already have an account? Login →</a>
+        <a href="/register" id="footerRegister">Register your clinic →</a>
+    </footer>
+
+    <script>
+        // ── Translations ──────────────────────────────────────────
+        const WL_T = {
+            en: {
+                langBtn: 'عربي',
+                navBrand: 'Dental Pricing Calculator',
+                navLogin: 'Login',
+                navRegister: 'Register Free →',
+                heroBadge: 'Cost-Plus Pricing for Dental Clinics',
+                heroHeadline1: 'Do you know what each',
+                heroHeadline2: 'chair costs per hour?',
+                heroSub: 'Most dental clinics price services by gut-feel — and lose money without knowing it. Dental Pricing Calculator computes your real cost per chair per hour and shows you the right price for every procedure.',
+                heroCtaText: 'Start for free',
+                calcTitle: 'Quick cost calculator',
+                calcLabel1: 'Monthly rent (EGP)',
+                calcLabel2: 'Total monthly salaries (EGP)',
+                calcLabel3: 'Number of chairs',
+                calcBtn: 'Calculate →',
+                calcResultLabel: 'Cost per chair per hour',
+                calcResultSub: 'Register to get exact prices for all your services',
+                featTitle: 'Everything you need to price right',
+                featSub: 'Built specifically for dental practices in Egypt and the Gulf',
+                f1Title: 'Real cost analysis',
+                f1Desc: 'Track rent, salaries, equipment, and consumables. See the true cost of every chair per hour.',
+                f2Title: 'Instant price calculation',
+                f2Desc: 'Enter chair time, doctor fee, and materials — get the calculated price instantly with full breakdown.',
+                f3Title: 'Spot underpriced services',
+                f3Desc: 'Compare your current market prices against the calculated minimum. Never lose money on a procedure again.',
+                trustTitle: 'Trusted by dental clinics',
+                trustSub: 'across Egypt and the Gulf',
+                stat1: 'Clinics registered',
+                stat2: 'Services priced',
+                stat3: 'Countries covered',
+                footerCopy: '© 2026 Dental Pricing Calculator',
+                footerLogin: 'Already have an account? Login →',
+                footerRegister: 'Register your clinic →',
+            },
+            ar: {
+                langBtn: 'English',
+                navBrand: 'حاسبة أسعار الأسنان',
+                navLogin: 'تسجيل الدخول',
+                navRegister: 'سجّل مجاناً ←',
+                heroBadge: 'تسعير التكلفة الإضافية لعيادات الأسنان',
+                heroHeadline1: 'هل تعرف كم يكلّفك',
+                heroHeadline2: 'كل كرسي في الساعة؟',
+                heroSub: 'معظم عيادات الأسنان تُسعّر خدماتها بالتخمين — وتخسر دون أن تعلم. حاسبة أسعار الأسنان تحسب تكلفة الكرسي الحقيقية وتحدد السعر الصحيح لكل إجراء.',
+                heroCtaText: 'ابدأ مجاناً',
+                calcTitle: 'احسب تكلفتك الآن',
+                calcLabel1: 'الإيجار الشهري (ج.م.)',
+                calcLabel2: 'إجمالي الرواتب الشهرية (ج.م.)',
+                calcLabel3: 'عدد الكراسي',
+                calcBtn: 'احسب ←',
+                calcResultLabel: 'تكلفة الكرسي في الساعة',
+                calcResultSub: 'سجّل للحصول على أسعار دقيقة لجميع خدماتك',
+                featTitle: 'كل ما تحتاجه للتسعير الصحيح',
+                featSub: 'مصمم خصيصاً لعيادات الأسنان في مصر والخليج',
+                f1Title: 'تحليل تكاليف حقيقية',
+                f1Desc: 'تتبع الإيجار والرواتب والمعدات والمستهلكات. اعرف التكلفة الفعلية لكل كرسي في الساعة.',
+                f2Title: 'حساب سعر فوري',
+                f2Desc: 'أدخل وقت الكرسي وأتعاب الطبيب والمواد — احصل على السعر المحسوب فوراً مع تفصيل كامل.',
+                f3Title: 'اكتشف الخدمات ذات التسعير المنخفض',
+                f3Desc: 'قارن أسعارك الحالية بالسعر الأدنى المحسوب. لا تخسر على أي إجراء مرة أخرى.',
+                trustTitle: 'موثوق لدى عيادات الأسنان',
+                trustSub: 'في مصر والخليج العربي',
+                stat1: 'عيادة مسجّلة',
+                stat2: 'خدمة مُسعَّرة',
+                stat3: 'دول مدعومة',
+                footerCopy: '© ٢٠٢٦ حاسبة أسعار الأسنان',
+                footerLogin: 'لديك حساب بالفعل؟ سجّل الدخول ←',
+                footerRegister: 'سجّل عيادتك ←',
+            }
+        };
+
+        let wlLang = localStorage.getItem('dental_lang') || 'en';
+
+        function wlApplyLang() {
+            const t = WL_T[wlLang];
+            const html = document.documentElement;
+            html.lang = wlLang;
+            html.dir = wlLang === 'ar' ? 'rtl' : 'ltr';
+            Object.keys(t).forEach(k => {
+                const el = document.getElementById(k);
+                if (el) el.textContent = t[k];
+            });
+            // Update calc input placeholder directions
+            ['calcRent','calcSalaries','calcChairs'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.dir = 'ltr';
+            });
+        }
+
+        function wlToggleLang() {
+            wlLang = wlLang === 'en' ? 'ar' : 'en';
+            localStorage.setItem('dental_lang', wlLang);
+            wlApplyLang();
+        }
+
+        // ── Mini Calculator ───────────────────────────────────────
+        function wlCalculate() {
+            const rent = parseFloat(document.getElementById('calcRent').value) || 0;
+            const salaries = parseFloat(document.getElementById('calcSalaries').value) || 0;
+            const chairs = Math.max(1, parseInt(document.getElementById('calcChairs').value) || 1);
+
+            // Simple model: rent + salaries + 15% overhead, 8h/day, 24 days/month
+            const totalFixed = rent + salaries + (rent + salaries) * 0.15;
+            const totalHours = chairs * 8 * 24;
+            const costPerHour = totalFixed / totalHours;
+
+            const resultEl = document.getElementById('calcResult');
+            const valueEl = document.getElementById('calcResultValue');
+            valueEl.textContent = costPerHour > 0
+                ? Math.round(costPerHour).toLocaleString() + ' ' + (wlLang === 'ar' ? 'ج.م.' : 'EGP')
+                : '–';
+            resultEl.style.display = 'block';
+        }
+
+        // Enter key triggers calculation
+        ['calcRent','calcSalaries','calcChairs'].forEach(id => {
+            document.getElementById(id).addEventListener('keydown', e => {
+                if (e.key === 'Enter') wlCalculate();
+            });
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', wlApplyLang);
+    </script>
+</body>
+</html>

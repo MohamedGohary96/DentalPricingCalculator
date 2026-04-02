@@ -1953,6 +1953,74 @@ def save_case_tracker_month(clinic_id, month, counts):
     conn.close()
 
 
+def mark_onboarding_complete(clinic_id):
+    """Mark onboarding as completed for a clinic"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE clinics SET onboarding_completed = 1 WHERE id = %s', (clinic_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def apply_clinic_template(clinic_id, template_data):
+    """Apply a clinic template — upserts key fixed costs and updates capacity settings"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Map template keys to fixed_cost categories used at registration
+    cost_map = {
+        'rent': 'Rent',
+        'salaries': 'Salaries',
+        'utilities': 'Utilities',
+        'equipment': 'Equipment & Maintenance',
+    }
+
+    for key, category in cost_map.items():
+        amount = template_data.get(key)
+        if amount is None:
+            continue
+        # Try to update existing row first
+        cursor.execute(
+            'SELECT id FROM fixed_costs WHERE clinic_id = %s AND category = %s LIMIT 1',
+            (clinic_id, category)
+        )
+        row = cursor.fetchone()
+        if row:
+            cursor.execute(
+                'UPDATE fixed_costs SET monthly_amount = %s WHERE id = %s',
+                (amount, row['id'])
+            )
+        else:
+            cursor.execute(
+                'INSERT INTO fixed_costs (clinic_id, category, monthly_amount, included) VALUES (%s, %s, %s, 1)',
+                (clinic_id, category, amount)
+            )
+
+    # Update capacity settings
+    capacity_fields = {}
+    if template_data.get('chairs') is not None:
+        capacity_fields['chairs'] = template_data['chairs']
+    if template_data.get('hours') is not None:
+        capacity_fields['hours_per_day'] = template_data['hours']
+    if template_data.get('days') is not None:
+        capacity_fields['days_per_month'] = template_data['days']
+    if template_data.get('util') is not None:
+        capacity_fields['utilization_percent'] = template_data['util']
+
+    if capacity_fields:
+        set_clause = ', '.join(f'{k} = %s' for k in capacity_fields)
+        values = list(capacity_fields.values()) + [clinic_id]
+        cursor.execute(
+            f'UPDATE clinic_capacity SET {set_clause} WHERE clinic_id = %s',
+            values
+        )
+
+    conn.commit()
+    conn.close()
+    return True
+
+
 def get_case_tracker_history(clinic_id, months=12):
     """Return last N months with total cases and total_revenue estimate."""
     conn = get_connection()
