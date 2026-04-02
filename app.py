@@ -144,7 +144,7 @@ def super_admin_required(f):
 def index():
     """Main application page"""
     if 'user_id' not in session:
-        return render_template('login.html')
+        return render_template('welcome.html')
     return render_template('index.html')
 
 
@@ -152,6 +152,14 @@ def index():
 def welcome():
     """Public landing page"""
     return render_template('welcome.html')
+
+
+@app.route('/login')
+def login_page():
+    """Login page"""
+    if 'user_id' in session:
+        return redirect(url_for('index'))
+    return render_template('login.html')
 
 
 @app.route('/login', methods=['POST'])
