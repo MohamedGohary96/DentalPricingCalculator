@@ -1803,12 +1803,12 @@ const OB = {
 };
 
 const CLINIC_TEMPLATES = {
-    cairo_small:  { label: 'Cairo – Small (1 chair)',      labelAr: 'القاهرة – صغير (كرسي واحد)',   icon: '🏥', rent: 15000, salaries: 14000, utilities: 2000, equipment: 1500, chairs: 1, hours: 8, days: 24, util: 65 },
-    cairo_medium: { label: 'Cairo – Medium (2 chairs)',    labelAr: 'القاهرة – متوسط (كرسيان)',      icon: '🏥', rent: 25000, salaries: 20000, utilities: 3000, equipment: 2500, chairs: 2, hours: 8, days: 26, util: 70 },
-    alex_medium:  { label: 'Alexandria – Medium',          labelAr: 'الإسكندرية – متوسط',           icon: '🌊', rent: 18000, salaries: 16000, utilities: 2500, equipment: 2000, chairs: 2, hours: 8, days: 25, util: 68 },
-    delta_medium: { label: 'Delta / Upper Egypt – Medium', labelAr: 'الدلتا / الصعيد – متوسط',      icon: '🌾', rent: 12000, salaries: 12000, utilities: 2000, equipment: 2000, chairs: 2, hours: 8, days: 25, util: 68 },
-    gulf_medium:  { label: 'Gulf – Medium (SAR)',          labelAr: 'الخليج – متوسط (ر.س.)',         icon: '🌙', rent:  8000, salaries:  7000, utilities: 1500, equipment: 2000, chairs: 2, hours: 8, days: 24, util: 72 },
-    other:        { label: 'Other / Custom',               labelAr: 'أخرى / مخصص',                 icon: '⚙️', rent:     0, salaries:     0, utilities:    0, equipment:    0, chairs: 1, hours: 8, days: 25, util: 68 },
+    cairo_small:  { label: 'Cairo – Small',      labelAr: 'القاهرة – صغير',   icon: '🏥', rent: 15000, salaries: 18000, utilities: 2000, equipment: 1500, hours: 8, days: 24, util: 65, currency: 'EGP', vat: 14, profit: 40 },
+    cairo_medium: { label: 'Cairo – Medium',     labelAr: 'القاهرة – متوسط',  icon: '🏥', rent: 25000, salaries: 30000, utilities: 3000, equipment: 2500, hours: 8, days: 26, util: 70, currency: 'EGP', vat: 14, profit: 40 },
+    alex_medium:  { label: 'Alexandria',         labelAr: 'الإسكندرية',       icon: '🌊', rent: 18000, salaries: 22000, utilities: 2500, equipment: 2000, hours: 8, days: 25, util: 68, currency: 'EGP', vat: 14, profit: 40 },
+    delta_medium: { label: 'Delta / Upper Egypt',labelAr: 'الدلتا / الصعيد',  icon: '🌾', rent: 12000, salaries: 16000, utilities: 2000, equipment: 2000, hours: 8, days: 25, util: 68, currency: 'EGP', vat: 14, profit: 40 },
+    gulf_medium:  { label: 'Gulf (SAR)',         labelAr: 'الخليج (ر.س.)',    icon: '🌙', rent: 10000, salaries: 12000, utilities: 1500, equipment: 2000, hours: 8, days: 24, util: 72, currency: 'SAR', vat: 15, profit: 35 },
+    other:        { label: 'Other / Custom',     labelAr: 'أخرى / مخصص',     icon: '⚙️', rent:     0, salaries:     0, utilities:    0, equipment:    0, hours: 8, days: 25, util: 68, currency: 'EGP', vat:  0, profit: 40 },
 };
 
 function obSetStep(n) {
@@ -1827,17 +1827,30 @@ function obSelectTemplate(id) {
     const tpl = CLINIC_TEMPLATES[id];
     document.querySelectorAll('.ob-tpl-card').forEach(c => c.classList.remove('ob-tpl-selected'));
     document.getElementById(`ob-tpl-${id}`)?.classList.add('ob-tpl-selected');
+
+    // Fill cost fields (not chairs — user sets that independently)
     ['rent', 'salaries', 'utilities', 'equipment'].forEach(k => {
         const el = document.getElementById(`ob-cost-${k}`);
         if (el) el.value = tpl[k] || 0;
     });
-    ['chairs', 'hours', 'days', 'util'].forEach(k => {
+    // Fill capacity except chairs
+    ['hours', 'days', 'util'].forEach(k => {
         const el = document.getElementById(`ob-cap-${k}`);
         if (el) el.value = tpl[k] || 0;
     });
-    OB.costs = { rent: tpl.rent, salaries: tpl.salaries, utilities: tpl.utilities, equipment: tpl.equipment };
-    OB.capacity = { chairs: tpl.chairs, hours: tpl.hours, days: tpl.days, util: tpl.util };
-    API.post('/api/onboarding/apply-template', { ...tpl }).catch(() => {});
+
+    // Pre-fill settings step with template currency/VAT/profit
+    const currEl = document.getElementById('ob-currency');
+    const vatEl  = document.getElementById('ob-vat');
+    const profEl = document.getElementById('ob-profit');
+    if (currEl) currEl.value = tpl.currency || 'EGP';
+    if (vatEl)  vatEl.value  = tpl.vat  ?? 0;
+    if (profEl) profEl.value = tpl.profit ?? 40;
+
+    const chairs = parseInt(document.getElementById('ob-cap-chairs')?.value) || 1;
+    OB.costs    = { rent: tpl.rent, salaries: tpl.salaries, utilities: tpl.utilities, equipment: tpl.equipment };
+    OB.capacity = { chairs, hours: tpl.hours, days: tpl.days, util: tpl.util };
+    OB.settings = { currency: tpl.currency || 'EGP', vat: tpl.vat ?? 0, profit: tpl.profit ?? 40 };
 }
 
 function obReadCosts() {
@@ -1849,12 +1862,45 @@ function obReadCosts() {
     });
 }
 
+// Task 1: Save Step 3 costs + capacity to DB
+function obSaveCosts() {
+    obReadCosts();
+    API.post('/api/onboarding/apply-template', { ...OB.costs, ...OB.capacity }).catch(() => {});
+}
+
+// Task 2: Save first service to DB
+function obSaveService() {
+    const name = document.getElementById('ob-svc-name')?.value?.trim();
+    if (!name) return;
+    API.post('/api/onboarding/create-service', {
+        name,
+        chair_time: parseFloat(document.getElementById('ob-svc-time')?.value) || 0.5,
+        doctor_fee: parseFloat(document.getElementById('ob-svc-fee')?.value) || 0,
+        current_price: parseFloat(document.getElementById('ob-svc-price')?.value) || 0
+    }).catch(() => {});
+}
+
+// Task 3: Save settings (currency, VAT, profit) to DB
+function obSaveSettings() {
+    const currency = document.getElementById('ob-currency')?.value || 'EGP';
+    const vat      = parseFloat(document.getElementById('ob-vat')?.value)    || 0;
+    const profit   = parseFloat(document.getElementById('ob-profit')?.value) || 40;
+    const rounding = parseInt(document.getElementById('ob-rounding')?.value) || 5;
+    OB.settings = { currency, vat, profit, rounding };
+    API.put('/api/settings/global', {
+        currency,
+        vat_percent: vat,
+        default_profit_percent: profit,
+        rounding_nearest: rounding
+    }).catch(() => {});
+}
+
 function obCalculateAha() {
     obReadCosts();
     const chairTime = parseFloat(document.getElementById('ob-svc-time')?.value) || 0.5;
     const doctorFee = parseFloat(document.getElementById('ob-svc-fee')?.value) || 0;
     const currentPrice = parseFloat(document.getElementById('ob-svc-price')?.value) || 0;
-    const defaultMargin = APP.settings?.default_profit_percent || 40;
+    const defaultMargin = OB.settings?.profit ?? APP.settings?.default_profit_percent ?? 40;
     const { rent, salaries, utilities, equipment } = OB.costs;
     const { chairs, hours, days, util } = OB.capacity;
     const totalFixed = rent + salaries + utilities + equipment;
@@ -1926,9 +1972,9 @@ const Pages = {
 
         return `
         <div class="ob-wrapper">
-            <!-- Step indicator -->
+            <!-- Step indicator (6 steps) -->
             <div class="ob-step-bar">
-                ${[1,2,3,4,5].map(i => `<div class="ob-step-dot" onclick="obSetStep(${i})">${i}</div>`).join('<div class="ob-step-line"></div>')}
+                ${[1,2,3,4,5,6].map(i => `<div class="ob-step-dot" onclick="obSetStep(${i})">${i}</div>`).join('<div class="ob-step-line"></div>')}
             </div>
 
             <!-- Step 1: Welcome -->
@@ -1940,8 +1986,9 @@ const Pages = {
                     <div class="ob-steps-preview">
                         <div class="ob-preview-item">📊 ${t('onboarding.step2label')}</div>
                         <div class="ob-preview-item">✏️ ${t('onboarding.step3label')}</div>
-                        <div class="ob-preview-item">🦷 ${t('onboarding.step4label')}</div>
-                        <div class="ob-preview-item">💡 ${t('onboarding.step5label')}</div>
+                        <div class="ob-preview-item">💱 ${t('onboarding.step4label')}</div>
+                        <div class="ob-preview-item">🦷 ${t('onboarding.step5label')}</div>
+                        <div class="ob-preview-item">💡 ${t('onboarding.step6label')}</div>
                     </div>
                     <button class="btn btn-primary ob-next-btn" onclick="obSetStep(2)">${t('onboarding.letsStart')} →</button>
                 </div>
@@ -1955,7 +2002,10 @@ const Pages = {
                     <div class="ob-tpl-grid">${templateCards}</div>
                     <div class="ob-step-actions">
                         <button class="btn btn-secondary" onclick="obSetStep(1)">← ${t('common.back')}</button>
-                        <button class="btn btn-primary" onclick="obSetStep(3)">${t('common.next')} →</button>
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem;">
+                            <button class="btn btn-primary" onclick="obSetStep(3)">${t('common.next')} →</button>
+                            <button type="button" class="ob-skip-btn" onclick="obSetStep(3)">${t('onboarding.skipTemplate')}</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1965,6 +2015,7 @@ const Pages = {
                 <div class="ob-step-content">
                     <h2 class="ob-step-title">${t('onboarding.costsTitle')}</h2>
                     <p class="ob-step-sub">${t('onboarding.costsSub')}</p>
+                    <p class="ob-section-label">${t('onboarding.monthlyCosts')}</p>
                     <div class="ob-costs-grid">
                         <div class="ob-cost-row">
                             <label>${t('onboarding.rent')}</label>
@@ -1983,10 +2034,11 @@ const Pages = {
                             <input type="number" id="ob-cost-equipment" class="form-input" min="0" step="100" value="0" oninput="obReadCosts()">
                         </div>
                     </div>
+                    <p class="ob-section-label">${t('onboarding.clinicCapacity')}</p>
                     <div class="ob-cap-grid">
                         <div class="ob-cost-row">
                             <label>${t('settings.dentalChairs')}</label>
-                            <input type="number" id="ob-cap-chairs" class="form-input" min="1" max="20" step="1" value="2" oninput="obReadCosts()">
+                            <input type="number" id="ob-cap-chairs" class="form-input" min="1" max="20" step="1" value="1" oninput="obReadCosts()">
                         </div>
                         <div class="ob-cost-row">
                             <label>${t('settings.workingHours')}</label>
@@ -2003,12 +2055,60 @@ const Pages = {
                     </div>
                     <div class="ob-step-actions">
                         <button class="btn btn-secondary" onclick="obSetStep(2)">← ${t('common.back')}</button>
-                        <button class="btn btn-primary" onclick="obSetStep(4)">${t('common.next')} →</button>
+                        <button class="btn btn-primary" onclick="obSaveCosts();obSetStep(4)">${t('common.next')} →</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Step 4: First service -->
+            <!-- Step 4: Currency & Pricing Defaults -->
+            <div class="ob-step-panel" style="display:none;">
+                <div class="ob-step-content">
+                    <h2 class="ob-step-title">${t('onboarding.settingsTitle')}</h2>
+                    <p class="ob-step-sub">${t('onboarding.settingsSub')}</p>
+                    <div class="ob-costs-grid">
+                        <div class="ob-cost-row">
+                            <label>${t('settings.currency')}</label>
+                            <select id="ob-currency" class="form-input">
+                                <option value="EGP">EGP – Egyptian Pound</option>
+                                <option value="SAR">SAR – Saudi Riyal</option>
+                                <option value="AED">AED – UAE Dirham</option>
+                                <option value="KWD">KWD – Kuwaiti Dinar</option>
+                                <option value="QAR">QAR – Qatari Riyal</option>
+                                <option value="USD">USD – US Dollar</option>
+                            </select>
+                        </div>
+                        <div class="ob-cost-row">
+                            <label>${t('settings.vatPercent')} %
+                                <span class="ob-field-hint">${t('onboarding.vatHint')}</span>
+                            </label>
+                            <input type="number" id="ob-vat" class="form-input" min="0" max="30" step="0.5" value="0">
+                        </div>
+                        <div class="ob-cost-row">
+                            <label>${t('settings.defaultProfit')} %
+                                <span class="ob-field-hint">${t('onboarding.profitHint')}</span>
+                            </label>
+                            <input type="number" id="ob-profit" class="form-input" min="0" max="200" step="5" value="40">
+                        </div>
+                        <div class="ob-cost-row">
+                            <label>${t('settings.roundingNearest')}
+                                <span class="ob-field-hint">${t('onboarding.roundingHint')}</span>
+                            </label>
+                            <select id="ob-rounding" class="form-input">
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="50">50</option>
+                                <option value="1">${t('onboarding.noRounding')}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="ob-step-actions">
+                        <button class="btn btn-secondary" onclick="obSetStep(3)">← ${t('common.back')}</button>
+                        <button class="btn btn-primary" onclick="obSaveSettings();obSetStep(5)">${t('common.next')} →</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5: First service -->
             <div class="ob-step-panel" style="display:none;">
                 <div class="ob-step-content">
                     <h2 class="ob-step-title">${t('onboarding.serviceTitle')}</h2>
@@ -2038,13 +2138,16 @@ const Pages = {
                         </div>
                     </div>
                     <div class="ob-step-actions">
-                        <button class="btn btn-secondary" onclick="obSetStep(3)">← ${t('common.back')}</button>
-                        <button class="btn btn-primary" onclick="obUpdateAhaStep();obSetStep(5)">${t('onboarding.seeResult')} →</button>
+                        <button class="btn btn-secondary" onclick="obSetStep(4)">← ${t('common.back')}</button>
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem;">
+                            <button class="btn btn-primary" onclick="obSaveService();obUpdateAhaStep();obSetStep(6)">${t('onboarding.seeResult')} →</button>
+                            <button type="button" class="ob-skip-btn" onclick="obUpdateAhaStep();obSetStep(6)">${t('onboarding.skipService')}</button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Step 5: Aha moment -->
+            <!-- Step 6: Aha moment -->
             <div class="ob-step-panel" style="display:none;">
                 <div class="ob-step-content ob-aha-content">
                     <div class="ob-step-emoji">💡</div>
@@ -2062,7 +2165,7 @@ const Pages = {
                     <div class="ob-reveal-gap ob-gap-neutral" id="ob-reveal-gap">–</div>
                     <p class="ob-reveal-msg" id="ob-reveal-msg"></p>
                     <div class="ob-step-actions" style="justify-content:center;margin-top:2rem;">
-                        <button class="btn btn-secondary" onclick="obSetStep(4)">← ${t('common.back')}</button>
+                        <button class="btn btn-secondary" onclick="obSetStep(5)">← ${t('common.back')}</button>
                         <button class="btn btn-primary ob-complete-btn" id="ob-complete-btn" onclick="obComplete()">${t('onboarding.viewPriceList')} →</button>
                     </div>
                 </div>
@@ -4531,7 +4634,19 @@ const Pages = {
             </div>
         ` : '';
 
+        const postOnboardingBanner = (totalServices <= 1 && APP.user?.clinic?.onboarding_completed) ? `
+            <div class="ob-post-banner">
+                <div class="ob-post-banner-icon">🎉</div>
+                <div class="ob-post-banner-text">
+                    <strong>${t('onboarding.postBannerTitle')}</strong>
+                    <span>${t('onboarding.postBannerSub')}</span>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="APP.loadPage('services')">${t('onboarding.postBannerCta')}</button>
+            </div>
+        ` : '';
+
         return `
+            ${postOnboardingBanner}
             ${trialBannerHtml}
             ${simulatorHtml}
             <div class="card" style="background:#d1fae5;border-color:#34d399;">

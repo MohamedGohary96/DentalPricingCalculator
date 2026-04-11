@@ -740,6 +740,27 @@ def api_onboarding_apply_template():
     return jsonify({'success': True})
 
 
+@app.route('/api/onboarding/create-service', methods=['POST'])
+@login_required
+def api_onboarding_create_service():
+    """Save the first service entered during onboarding"""
+    clinic_id = get_clinic_id()
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'skipped': True})
+    service_id = create_service(
+        clinic_id=clinic_id,
+        name=name,
+        chair_time_hours=data.get('chair_time', 0.5),
+        doctor_hourly_fee=0,
+        doctor_fee_type='fixed',
+        doctor_fixed_fee=data.get('doctor_fee', 0),
+        current_price=data.get('current_price') or None
+    )
+    return jsonify({'success': True, 'service_id': service_id})
+
+
 @app.route('/api/onboarding/complete', methods=['POST'])
 @login_required
 def api_onboarding_complete():

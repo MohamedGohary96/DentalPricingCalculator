@@ -729,8 +729,9 @@
     "welcomeSub": "Let's set up your clinic in a few minutes so you can start calculating the right prices for your services.",
     "step2label": "Choose your clinic profile",
     "step3label": "Review your key costs",
-    "step4label": "Add your first service",
-    "step5label": "See your pricing gap",
+    "step4label": "Set currency & profit",
+    "step5label": "Add your first service",
+    "step6label": "See your pricing gap",
     "letsStart": "Let's start",
     "templateTitle": "Choose a clinic profile",
     "templateSub": "Pick the profile that best matches your clinic — we'll pre-fill the typical costs. You can edit them in the next step.",
@@ -755,6 +756,19 @@
     "underpricedMsg": "Your current price is below the calculated cost — you may be losing money on this service.",
     "wellPricedMsg": "Your pricing is healthy for this service. Keep it up!",
     "noCurrentPriceMsg": "Enter your current price in the previous step to see the comparison.",
-    "viewPriceList": "View full price list"
+    "viewPriceList": "View full price list",
+    "settingsTitle": "Set your pricing defaults",
+    "settingsSub": "These settings apply to all your services. You can change them later in Settings.",
+    "vatHint": "Egypt: 14% | Saudi: 15% | UAE: 5%",
+    "profitHint": "Typical: 30–60%",
+    "roundingHint": "e.g. 347 → 350",
+    "noRounding": "No rounding",
+    "skipTemplate": "Skip — I'll enter manually",
+    "skipService": "Skip — I'll add services later",
+    "monthlyCosts": "Monthly Costs",
+    "clinicCapacity": "Clinic Capacity",
+    "postBannerTitle": "Setup complete!",
+    "postBannerSub": "Add your dental services to see the full price list.",
+    "postBannerCta": "+ Add Service"
   }
 }

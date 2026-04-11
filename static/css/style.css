@@ -6442,3 +6442,40 @@ html[dir="rtl"] .kpi-trend {
     .ob-step-content { padding: 1.5rem; }
 }
 [dir="rtl"] .ob-step-actions { flex-direction: row-reverse; }
+.ob-skip-btn {
+    background: none;
+    border: none;
+    color: var(--gray-400);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.ob-skip-btn:hover { color: var(--gray-600); }
+.ob-field-hint {
+    font-size: 0.72rem;
+    color: var(--gray-400);
+    margin-top: 0.1rem;
+}
+.ob-section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--gray-400);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 1rem 0 0.25rem;
+}
+.ob-post-banner {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #ecfdf5;
+    border: 1px solid #6ee7b7;
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+.ob-post-banner-icon { font-size: 1.75rem; }
+.ob-post-banner-text { flex: 1; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; color: var(--gray-700); }
+.ob-post-banner-text strong { color: var(--gray-900); }
