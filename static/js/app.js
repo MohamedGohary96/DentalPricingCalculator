@@ -1667,13 +1667,10 @@ const APP = {
         // Setup HTML5 History API routing
         this.setupRouting();
 
-        // Auto-redirect new clinics to onboarding wizard
+        // Auto-redirect new clinics to onboarding wizard (regardless of current path)
         if (this.user.onboarding_completed === 0) {
-            const path = window.location.pathname.slice(1);
-            if (!path || path === 'dashboard') {
-                this.loadPage('onboarding', null, true);
-                return;
-            }
+            this.loadPage('onboarding', null, true);
+            return;
         }
 
         // Load page from URL path or default to dashboard
