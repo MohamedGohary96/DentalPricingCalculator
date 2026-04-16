@@ -630,6 +630,69 @@ function setupRealtimeValidation(formId, validationRules = {}) {
 }
 
 // ============================================
+// Inline Editing for Table Cells
+// ============================================
+function inlineEdit(td, endpoint, field, type, rowId, onSaved) {
+    if (td.querySelector('input')) return;
+
+    const rawText = td.textContent.replace(/[^\d.]/g, '');
+    const originalVal = type === 'float' ? parseFloat(rawText) || 0 : parseInt(rawText) || 0;
+    const displayHTML = td.innerHTML;
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'inline-input';
+    input.value = originalVal;
+    input.min = '0';
+    input.step = type === 'float' ? '0.01' : '1';
+
+    td.textContent = '';
+    td.appendChild(input);
+    input.focus();
+    input.select();
+
+    let saved = false;
+
+    async function save() {
+        if (saved) return;
+        saved = true;
+        const val = type === 'float' ? parseFloat(input.value) : parseInt(input.value);
+        if (isNaN(val) || val < 0) { cancel(); return; }
+        if (val === originalVal) { cancel(); return; }
+
+        try {
+            await API.put(`${endpoint}/${rowId}`, { [field]: val });
+            td.innerHTML = type === 'float' ? `<strong>${formatCurrency(val)}</strong>` : String(val);
+            td.classList.add('inline-saved');
+            setTimeout(() => td.classList.remove('inline-saved'), 600);
+            if (onSaved) onSaved(val);
+        } catch(e) {
+            showToast(e.message, 'error');
+            cancel();
+        }
+    }
+
+    function cancel() {
+        td.innerHTML = displayHTML;
+    }
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.removeEventListener('blur', save); cancel(); }
+    });
+}
+
+function recalcConsumableRow(tr) {
+    const cells = tr.querySelectorAll('td');
+    const packCost = parseFloat(cells[1].textContent.replace(/[^\d.]/g, '')) || 0;
+    const cases = parseInt(cells[2].textContent) || 1;
+    const units = parseInt(cells[3].textContent) || 1;
+    const perUnit = packCost / cases / units;
+    cells[4].innerHTML = `<strong>${formatCurrency(perUnit)}</strong>`;
+}
+
+// ============================================
 // First Visit Hook — Dismissable Explainer Blocks
 // ============================================
 const firstVisit = {
@@ -2915,9 +2978,9 @@ const Pages = {
                                     return `
                                         <tr data-consumable-id="${c.id}">
                                             <td><strong>${getLocalizedName(c)}</strong></td>
-                                            <td>${formatCurrency(c.pack_cost)}</td>
-                                            <td>${c.cases_per_pack}</td>
-                                            <td>${c.units_per_case}</td>
+                                            <td class="inline-editable" onclick="inlineEdit(this,'/api/consumables','pack_cost','float',${c.id},()=>recalcConsumableRow(this.closest('tr')))"><strong>${formatCurrency(c.pack_cost)}</strong></td>
+                                            <td class="inline-editable" onclick="inlineEdit(this,'/api/consumables','cases_per_pack','int',${c.id},()=>recalcConsumableRow(this.closest('tr')))">${c.cases_per_pack}</td>
+                                            <td class="inline-editable" onclick="inlineEdit(this,'/api/consumables','units_per_case','int',${c.id},()=>recalcConsumableRow(this.closest('tr')))">${c.units_per_case}</td>
                                             <td><strong>${formatCurrency(perUnitCost)}</strong></td>
                                             <td>
                                                 <button class="btn btn-sm btn-ghost" onclick="Pages.showConsumableForm(${c.id})" title="${t('common.edit')}">✎</button>
@@ -2968,7 +3031,7 @@ const Pages = {
                                                 <tr data-material-id="${m.id}">
                                                     <td><strong>${getLocalizedName(m)}</strong></td>
                                                     <td>${m.lab_name || '-'}</td>
-                                                    <td><strong>${formatCurrency(m.unit_cost)}</strong></td>
+                                                    <td class="inline-editable" onclick="inlineEdit(this,'/api/materials','unit_cost','float',${m.id})"><strong>${formatCurrency(m.unit_cost)}</strong></td>
                                                     <td>
                                                         <button class="btn btn-sm btn-ghost" onclick="Pages.showMaterialForm(${m.id})" title="${t('common.edit')}">✎</button>
                                                         <button class="btn btn-sm btn-ghost" onclick="Pages.deleteMaterial(${m.id})" title="${t('common.delete')}">🗑️</button>

@@ -1774,6 +1774,37 @@ html[dir="rtl"] .equipment-row {
     font-style: italic;
 }
 
+/* Inline Editing */
+.inline-editable {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.inline-editable:hover {
+    background: var(--primary-50);
+}
+.inline-input {
+    width: 100%;
+    max-width: 120px;
+    padding: 0.25rem 0.5rem;
+    border: 2px solid var(--primary-400);
+    border-radius: 4px;
+    font-size: inherit;
+    font-family: inherit;
+    outline: none;
+    background: white;
+}
+.inline-input:focus {
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 3px rgba(15, 110, 86, 0.15);
+}
+.inline-saved {
+    animation: inlineSaveFlash 0.6s ease;
+}
+@keyframes inlineSaveFlash {
+    0% { background: #d1fae5; }
+    100% { background: transparent; }
+}
+
 /* Fee Type Badge */
 .fee-type-badge {
     display: inline-flex;
