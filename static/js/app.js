@@ -1793,19 +1793,21 @@ const APP = {
 // ── Onboarding wizard state ───────────────────────────────────────────────
 const OB = {
     step: 1,
-    templateId: null,
     costs: {},
     capacity: {},
-    service: {},
+    settings: {},
 };
 
-const CLINIC_TEMPLATES = {
-    cairo_small:  { label: 'Cairo – Small',      labelAr: 'القاهرة – صغير',   icon: '🏥', rent: 15000, salaries: 18000, utilities: 2000, equipment: 1500, hours: 8, days: 24, util: 65, currency: 'EGP', vat: 14, profit: 40 },
-    cairo_medium: { label: 'Cairo – Medium',     labelAr: 'القاهرة – متوسط',  icon: '🏥', rent: 25000, salaries: 30000, utilities: 3000, equipment: 2500, hours: 8, days: 26, util: 70, currency: 'EGP', vat: 14, profit: 40 },
-    alex_medium:  { label: 'Alexandria',         labelAr: 'الإسكندرية',       icon: '🌊', rent: 18000, salaries: 22000, utilities: 2500, equipment: 2000, hours: 8, days: 25, util: 68, currency: 'EGP', vat: 14, profit: 40 },
-    delta_medium: { label: 'Delta / Upper Egypt',labelAr: 'الدلتا / الصعيد',  icon: '🌾', rent: 12000, salaries: 16000, utilities: 2000, equipment: 2000, hours: 8, days: 25, util: 68, currency: 'EGP', vat: 14, profit: 40 },
-    gulf_medium:  { label: 'Gulf (SAR)',         labelAr: 'الخليج (ر.س.)',    icon: '🌙', rent: 10000, salaries: 12000, utilities: 1500, equipment: 2000, hours: 8, days: 24, util: 72, currency: 'SAR', vat: 15, profit: 35 },
-    other:        { label: 'Other / Custom',     labelAr: 'أخرى / مخصص',     icon: '⚙️', rent:     0, salaries:     0, utilities:    0, equipment:    0, hours: 8, days: 25, util: 68, currency: 'EGP', vat:  0, profit: 40 },
+const COUNTRY_DEFAULTS = {
+    'Egypt':         { currency: 'EGP', vat: 14 },
+    'Saudi Arabia':  { currency: 'SAR', vat: 15 },
+    'UAE':           { currency: 'AED', vat: 5 },
+    'Kuwait':        { currency: 'KWD', vat: 0 },
+    'Qatar':         { currency: 'QAR', vat: 0 },
+    'Bahrain':       { currency: 'BHD', vat: 10 },
+    'Oman':          { currency: 'OMR', vat: 5 },
+    'Jordan':        { currency: 'JOD', vat: 16 },
+    'Other':         { currency: 'USD', vat: 0 },
 };
 
 function obSetStep(n) {
@@ -1819,159 +1821,72 @@ function obSetStep(n) {
     });
 }
 
-function obSelectTemplate(id) {
-    OB.templateId = id;
-    const tpl = CLINIC_TEMPLATES[id];
-    document.querySelectorAll('.ob-tpl-card').forEach(c => c.classList.remove('ob-tpl-selected'));
-    document.getElementById(`ob-tpl-${id}`)?.classList.add('ob-tpl-selected');
-
-    // Fill cost fields (not chairs — user sets that independently)
-    ['rent', 'salaries', 'utilities', 'equipment'].forEach(k => {
-        const el = document.getElementById(`ob-cost-${k}`);
-        if (el) el.value = tpl[k] || 0;
-    });
-    // Fill capacity except chairs
-    ['hours', 'days', 'util'].forEach(k => {
-        const el = document.getElementById(`ob-cap-${k}`);
-        if (el) el.value = tpl[k] || 0;
-    });
-
-    // Pre-fill settings step with template currency/VAT/profit
+function obOnCountryChange() {
+    const country = document.getElementById('ob-country')?.value || 'Egypt';
+    const defaults = COUNTRY_DEFAULTS[country] || COUNTRY_DEFAULTS['Other'];
     const currEl = document.getElementById('ob-currency');
     const vatEl  = document.getElementById('ob-vat');
-    const profEl = document.getElementById('ob-profit');
-    if (currEl) currEl.value = tpl.currency || 'EGP';
-    if (vatEl)  vatEl.value  = tpl.vat  ?? 0;
-    if (profEl) profEl.value = tpl.profit ?? 40;
-
-    const chairs = parseInt(document.getElementById('ob-cap-chairs')?.value) || 1;
-    OB.costs    = { rent: tpl.rent, salaries: tpl.salaries, utilities: tpl.utilities, equipment: tpl.equipment };
-    OB.capacity = { chairs, hours: tpl.hours, days: tpl.days, util: tpl.util };
-    OB.settings = { currency: tpl.currency || 'EGP', vat: tpl.vat ?? 0, profit: tpl.profit ?? 40 };
+    if (currEl) currEl.value = defaults.currency;
+    if (vatEl)  vatEl.value  = defaults.vat;
 }
 
-function obReadCosts() {
-    ['rent', 'salaries', 'utilities', 'equipment'].forEach(k => {
-        OB.costs[k] = parseFloat(document.getElementById(`ob-cost-${k}`)?.value) || 0;
-    });
+function obSaveLocation() {
+    const country  = document.getElementById('ob-country')?.value || 'Egypt';
+    const province = document.getElementById('ob-province')?.value?.trim() || '';
+    API.put('/api/onboarding/location', { country, province }).catch(() => {});
+}
+
+function obSaveCosts() {
+    const rent = parseFloat(document.getElementById('ob-cost-rent')?.value) || 0;
+    OB.costs = { rent };
     ['chairs', 'hours', 'days', 'util'].forEach(k => {
         OB.capacity[k] = parseFloat(document.getElementById(`ob-cap-${k}`)?.value) || 0;
     });
+    API.post('/api/onboarding/apply-template', { rent, ...OB.capacity }).catch(() => {});
 }
 
-// Task 1: Save Step 3 costs + capacity to DB
-function obSaveCosts() {
-    obReadCosts();
-    API.post('/api/onboarding/apply-template', { ...OB.costs, ...OB.capacity }).catch(() => {});
-}
-
-// Task 2: Save first service to DB
-function obSaveService() {
-    const name = document.getElementById('ob-svc-name')?.value?.trim();
-    if (!name) return;
-    API.post('/api/onboarding/create-service', {
-        name,
-        chair_time: parseFloat(document.getElementById('ob-svc-time')?.value) || 0.5,
-        doctor_fee: parseFloat(document.getElementById('ob-svc-fee')?.value) || 0,
-        current_price: parseFloat(document.getElementById('ob-svc-price')?.value) || 0
-    }).catch(() => {});
-}
-
-// Task 3: Save settings (currency, VAT, profit) to DB
 function obSaveSettings() {
     const currency = document.getElementById('ob-currency')?.value || 'EGP';
     const vat      = parseFloat(document.getElementById('ob-vat')?.value)    || 0;
     const profit   = parseFloat(document.getElementById('ob-profit')?.value) || 40;
     const rounding = parseInt(document.getElementById('ob-rounding')?.value) || 5;
     OB.settings = { currency, vat, profit, rounding };
-    API.put('/api/settings/global', {
+    return API.put('/api/settings/global', {
         currency,
         vat_percent: vat,
         default_profit_percent: profit,
         rounding_nearest: rounding
-    }).catch(() => {});
-}
-
-function obCalculateAha() {
-    obReadCosts();
-    const chairTime = parseFloat(document.getElementById('ob-svc-time')?.value) || 0.5;
-    const doctorFee = parseFloat(document.getElementById('ob-svc-fee')?.value) || 0;
-    const currentPrice = parseFloat(document.getElementById('ob-svc-price')?.value) || 0;
-    const defaultMargin = OB.settings?.profit ?? APP.settings?.default_profit_percent ?? 40;
-    const { rent, salaries, utilities, equipment } = OB.costs;
-    const { chairs, hours, days, util } = OB.capacity;
-    const totalFixed = rent + salaries + utilities + equipment;
-    const effectiveHours = chairs * hours * days * (util / 100);
-    const costPerHour = effectiveHours > 0 ? totalFixed / effectiveHours : 0;
-    const chairCost = chairTime * costPerHour;
-    const serviceCost = chairCost + doctorFee;
-    const suggestedPrice = serviceCost * (1 + defaultMargin / 100);
-    const gap = suggestedPrice - currentPrice;
-    OB.service = { chairTime, doctorFee, currentPrice, suggestedPrice, gap };
-    const preview = document.getElementById('ob-aha-preview');
-    if (preview) preview.textContent = `${t('onboarding.calculated')}: ${formatCurrency(suggestedPrice)}`;
-    return { suggestedPrice, gap, costPerHour };
-}
-
-function obUpdateAhaStep() {
-    const { suggestedPrice, gap } = obCalculateAha();
-    const currentPrice = OB.service.currentPrice || 0;
-    const calcEl = document.getElementById('ob-reveal-calc');
-    const marketEl = document.getElementById('ob-reveal-market');
-    const gapEl = document.getElementById('ob-reveal-gap');
-    const msgEl = document.getElementById('ob-reveal-msg');
-    if (calcEl) calcEl.textContent = formatCurrency(suggestedPrice);
-    if (marketEl) marketEl.textContent = currentPrice > 0 ? formatCurrency(currentPrice) : '–';
-    if (gapEl) {
-        if (currentPrice <= 0) {
-            gapEl.textContent = t('onboarding.noPriceSet');
-            gapEl.className = 'ob-reveal-gap ob-gap-neutral';
-        } else if (gap > 0) {
-            gapEl.textContent = `▼ ${formatCurrency(gap)} ${t('onboarding.perService')}`;
-            gapEl.className = 'ob-reveal-gap ob-gap-loss';
-        } else {
-            gapEl.textContent = `▲ ${formatCurrency(Math.abs(gap))} ${t('onboarding.perService')}`;
-            gapEl.className = 'ob-reveal-gap ob-gap-gain';
-        }
-    }
-    if (msgEl) {
-        msgEl.textContent = currentPrice <= 0 ? t('onboarding.noCurrentPriceMsg') :
-                            gap > 0 ? t('onboarding.underpricedMsg') : t('onboarding.wellPricedMsg');
-    }
+    });
 }
 
 async function obComplete() {
     const btn = document.getElementById('ob-complete-btn');
     if (btn) { btn.disabled = true; btn.textContent = t('common.saving'); }
     try {
+        await obSaveSettings();
         await API.post('/api/onboarding/complete', {});
         const navLink = document.getElementById('onboardingNavLink');
         if (navLink) navLink.style.display = 'none';
         if (APP.user) APP.user.onboarding_completed = 1;
-        APP.loadPage('price-list');
+        APP.loadPage('dashboard');
     } catch (e) {
-        if (btn) { btn.disabled = false; btn.textContent = t('onboarding.viewPriceList'); }
+        if (btn) { btn.disabled = false; btn.textContent = t('onboarding.completeSetup'); }
     }
 }
 
 const Pages = {
     async onboarding() {
         const clinicName = APP.user?.clinic_name || t('onboarding.yourClinic');
-        const lang = i18n.currentLang;
 
-        const templateCards = Object.entries(CLINIC_TEMPLATES).map(([id, tpl]) => `
-            <div class="ob-tpl-card" id="ob-tpl-${id}" onclick="obSelectTemplate('${id}')">
-                <span class="ob-tpl-icon">${tpl.icon}</span>
-                <span class="ob-tpl-label">${lang === 'ar' ? tpl.labelAr : tpl.label}</span>
-                <span class="ob-tpl-hint">${tpl.rent > 0 ? formatCurrency(tpl.rent) + ' ' + t('onboarding.rent') : t('onboarding.enterManually')}</span>
-            </div>
-        `).join('');
+        const countryOptions = Object.keys(COUNTRY_DEFAULTS).map(c =>
+            `<option value="${c}" ${c === 'Egypt' ? 'selected' : ''}>${t('country.' + c) || c}</option>`
+        ).join('');
 
         return `
         <div class="ob-wrapper">
-            <!-- Step indicator (6 steps) -->
+            <!-- Step indicator (4 steps) -->
             <div class="ob-step-bar">
-                ${[1,2,3,4,5,6].map(i => `<div class="ob-step-dot" onclick="obSetStep(${i})">${i}</div>`).join('<div class="ob-step-line"></div>')}
+                ${[1,2,3,4].map(i => `<div class="ob-step-dot" onclick="obSetStep(${i})">${i}</div>`).join('<div class="ob-step-line"></div>')}
             </div>
 
             <!-- Step 1: Welcome -->
@@ -1981,74 +1896,70 @@ const Pages = {
                     <h2 class="ob-step-title">${t('onboarding.welcomeTitle').replace('{clinic}', clinicName)}</h2>
                     <p class="ob-step-sub">${t('onboarding.welcomeSub')}</p>
                     <div class="ob-steps-preview">
-                        <div class="ob-preview-item">📊 ${t('onboarding.step2label')}</div>
-                        <div class="ob-preview-item">✏️ ${t('onboarding.step3label')}</div>
+                        <div class="ob-preview-item">📍 ${t('onboarding.step2label')}</div>
+                        <div class="ob-preview-item">🏥 ${t('onboarding.step3label')}</div>
                         <div class="ob-preview-item">💱 ${t('onboarding.step4label')}</div>
-                        <div class="ob-preview-item">🦷 ${t('onboarding.step5label')}</div>
-                        <div class="ob-preview-item">💡 ${t('onboarding.step6label')}</div>
                     </div>
                     <button class="btn btn-primary ob-next-btn" onclick="obSetStep(2)">${t('onboarding.letsStart')} →</button>
                 </div>
             </div>
 
-            <!-- Step 2: Template selection -->
+            <!-- Step 2: Country & Province -->
             <div class="ob-step-panel" style="display:none;">
                 <div class="ob-step-content">
-                    <h2 class="ob-step-title">${t('onboarding.templateTitle')}</h2>
-                    <p class="ob-step-sub">${t('onboarding.templateSub')}</p>
-                    <div class="ob-tpl-grid">${templateCards}</div>
+                    <h2 class="ob-step-title">${t('onboarding.locationTitle')}</h2>
+                    <p class="ob-step-sub">${t('onboarding.locationSub')}</p>
+                    <div class="ob-location-form">
+                        <div class="ob-cost-row">
+                            <label>${t('onboarding.country')}</label>
+                            <select id="ob-country" class="form-input" onchange="obOnCountryChange()">
+                                ${countryOptions}
+                            </select>
+                        </div>
+                        <div class="ob-cost-row">
+                            <label>${t('onboarding.province')}</label>
+                            <input type="text" id="ob-province" class="form-input" placeholder="${t('onboarding.provincePlaceholder')}">
+                        </div>
+                    </div>
                     <div class="ob-step-actions">
                         <button class="btn btn-secondary" onclick="obSetStep(1)">← ${t('common.back')}</button>
-                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem;">
-                            <button class="btn btn-primary" onclick="obSetStep(3)">${t('common.next')} →</button>
-                            <button type="button" class="ob-skip-btn" onclick="obSetStep(3)">${t('onboarding.skipTemplate')}</button>
-                        </div>
+                        <button class="btn btn-primary" onclick="obSaveLocation();obSetStep(3)">${t('common.next')} →</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Step 3: Review costs -->
+            <!-- Step 3: Rent + Clinic Capacity -->
             <div class="ob-step-panel" style="display:none;">
                 <div class="ob-step-content">
                     <h2 class="ob-step-title">${t('onboarding.costsTitle')}</h2>
                     <p class="ob-step-sub">${t('onboarding.costsSub')}</p>
-                    <p class="ob-section-label">${t('onboarding.monthlyCosts')}</p>
-                    <div class="ob-costs-grid">
+                    <div class="ob-costs-grid" style="grid-template-columns:1fr;">
                         <div class="ob-cost-row">
                             <label>${t('onboarding.rent')}</label>
-                            <input type="number" id="ob-cost-rent" class="form-input" min="0" step="500" value="0" oninput="obReadCosts()">
-                        </div>
-                        <div class="ob-cost-row">
-                            <label>${t('onboarding.salaries')}</label>
-                            <input type="number" id="ob-cost-salaries" class="form-input" min="0" step="500" value="0" oninput="obReadCosts()">
-                        </div>
-                        <div class="ob-cost-row">
-                            <label>${t('onboarding.utilities')}</label>
-                            <input type="number" id="ob-cost-utilities" class="form-input" min="0" step="100" value="0" oninput="obReadCosts()">
-                        </div>
-                        <div class="ob-cost-row">
-                            <label>${t('onboarding.equipment')}</label>
-                            <input type="number" id="ob-cost-equipment" class="form-input" min="0" step="100" value="0" oninput="obReadCosts()">
+                            <input type="number" id="ob-cost-rent" class="form-input" min="0" step="500" value="0">
                         </div>
                     </div>
                     <p class="ob-section-label">${t('onboarding.clinicCapacity')}</p>
                     <div class="ob-cap-grid">
                         <div class="ob-cost-row">
                             <label>${t('settings.dentalChairs')}</label>
-                            <input type="number" id="ob-cap-chairs" class="form-input" min="1" max="20" step="1" value="1" oninput="obReadCosts()">
+                            <input type="number" id="ob-cap-chairs" class="form-input" min="1" max="20" step="1" value="1">
                         </div>
                         <div class="ob-cost-row">
                             <label>${t('settings.workingHours')}</label>
-                            <input type="number" id="ob-cap-hours" class="form-input" min="1" max="24" step="1" value="8" oninput="obReadCosts()">
+                            <input type="number" id="ob-cap-hours" class="form-input" min="1" max="24" step="1" value="8">
                         </div>
                         <div class="ob-cost-row">
                             <label>${t('settings.workingDays')}</label>
-                            <input type="number" id="ob-cap-days" class="form-input" min="1" max="31" step="1" value="25" oninput="obReadCosts()">
+                            <input type="number" id="ob-cap-days" class="form-input" min="1" max="31" step="1" value="25">
                         </div>
                         <div class="ob-cost-row">
                             <label>${t('settings.utilizationRate')}</label>
-                            <input type="number" id="ob-cap-util" class="form-input" min="1" max="100" step="1" value="68" oninput="obReadCosts()">
+                            <input type="number" id="ob-cap-util" class="form-input" min="1" max="100" step="1" value="68">
                         </div>
+                    </div>
+                    <div class="ob-info-note">
+                        ℹ️ ${t('onboarding.costsNote')}
                     </div>
                     <div class="ob-step-actions">
                         <button class="btn btn-secondary" onclick="obSetStep(2)">← ${t('common.back')}</button>
@@ -2071,6 +1982,9 @@ const Pages = {
                                 <option value="AED">AED – UAE Dirham</option>
                                 <option value="KWD">KWD – Kuwaiti Dinar</option>
                                 <option value="QAR">QAR – Qatari Riyal</option>
+                                <option value="BHD">BHD – Bahraini Dinar</option>
+                                <option value="OMR">OMR – Omani Rial</option>
+                                <option value="JOD">JOD – Jordanian Dinar</option>
                                 <option value="USD">USD – US Dollar</option>
                             </select>
                         </div>
@@ -2100,70 +2014,7 @@ const Pages = {
                     </div>
                     <div class="ob-step-actions">
                         <button class="btn btn-secondary" onclick="obSetStep(3)">← ${t('common.back')}</button>
-                        <button class="btn btn-primary" onclick="obSaveSettings();obSetStep(5)">${t('common.next')} →</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Step 5: First service -->
-            <div class="ob-step-panel" style="display:none;">
-                <div class="ob-step-content">
-                    <h2 class="ob-step-title">${t('onboarding.serviceTitle')}</h2>
-                    <p class="ob-step-sub">${t('onboarding.serviceSub')}</p>
-                    <div class="ob-svc-form">
-                        <div class="ob-cost-row">
-                            <label>${t('services.serviceName')}</label>
-                            <input type="text" id="ob-svc-name" class="form-input" placeholder="${t('onboarding.sampleService')}" oninput="obCalculateAha()">
-                        </div>
-                        <div class="ob-cost-row">
-                            <label>${t('services.chairTimeHrs')}</label>
-                            <div class="time-chips-row">
-                                ${[0.25,0.5,0.75,1,1.5,2,3].map(v => `<button type="button" class="time-chip" onclick="document.getElementById('ob-svc-time').value=${v};document.querySelectorAll('.ob-time-chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');obCalculateAha()">${v < 1 ? Math.round(v*60)+'m' : v+'h'}</button>`).join('')}
-                            </div>
-                            <input type="number" id="ob-svc-time" class="form-input" min="0.1" step="0.25" value="0.5" oninput="obCalculateAha()">
-                        </div>
-                        <div class="ob-cost-row">
-                            <label>${t('services.doctorFee')} (${t('services.fixed')})</label>
-                            <input type="number" id="ob-svc-fee" class="form-input" min="0" step="50" value="0" oninput="obCalculateAha()">
-                        </div>
-                        <div class="ob-cost-row">
-                            <label>${t('services.currentPrice')} (${t('services.optional')})</label>
-                            <input type="number" id="ob-svc-price" class="form-input" min="0" step="50" value="0" oninput="obCalculateAha()">
-                        </div>
-                        <div class="ob-aha-live">
-                            <span id="ob-aha-preview">${t('onboarding.fillAbove')}</span>
-                        </div>
-                    </div>
-                    <div class="ob-step-actions">
-                        <button class="btn btn-secondary" onclick="obSetStep(4)">← ${t('common.back')}</button>
-                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem;">
-                            <button class="btn btn-primary" onclick="obSaveService();obUpdateAhaStep();obSetStep(6)">${t('onboarding.seeResult')} →</button>
-                            <button type="button" class="ob-skip-btn" onclick="obUpdateAhaStep();obSetStep(6)">${t('onboarding.skipService')}</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Step 6: Aha moment -->
-            <div class="ob-step-panel" style="display:none;">
-                <div class="ob-step-content ob-aha-content">
-                    <div class="ob-step-emoji">💡</div>
-                    <h2 class="ob-step-title">${t('onboarding.ahaTitle')}</h2>
-                    <div class="ob-reveal-grid">
-                        <div class="ob-reveal-card ob-reveal-calc-card">
-                            <div class="ob-reveal-label">${t('onboarding.calculatedPrice')}</div>
-                            <div class="ob-reveal-value" id="ob-reveal-calc">–</div>
-                        </div>
-                        <div class="ob-reveal-card ob-reveal-market-card">
-                            <div class="ob-reveal-label">${t('onboarding.yourCurrentPrice')}</div>
-                            <div class="ob-reveal-value" id="ob-reveal-market">–</div>
-                        </div>
-                    </div>
-                    <div class="ob-reveal-gap ob-gap-neutral" id="ob-reveal-gap">–</div>
-                    <p class="ob-reveal-msg" id="ob-reveal-msg"></p>
-                    <div class="ob-step-actions" style="justify-content:center;margin-top:2rem;">
-                        <button class="btn btn-secondary" onclick="obSetStep(5)">← ${t('common.back')}</button>
-                        <button class="btn btn-primary ob-complete-btn" id="ob-complete-btn" onclick="obComplete()">${t('onboarding.viewPriceList')} →</button>
+                        <button class="btn btn-primary ob-complete-btn" id="ob-complete-btn" onclick="obComplete()">✓ ${t('onboarding.completeSetup')}</button>
                     </div>
                 </div>
             </div>
@@ -2171,7 +2022,10 @@ const Pages = {
     },
 
     async dashboard() {
-        const stats = await API.get('/api/dashboard/stats');
+        const [stats, setupStatus] = await Promise.all([
+            API.get('/api/dashboard/stats'),
+            API.get('/api/setup-status')
+        ]);
 
         // Check subscription status
         const isSuspended = APP.subscription && APP.subscription.is_suspended;
@@ -2377,60 +2231,103 @@ const Pages = {
                 </div>
             </div>
 
-            <div class="card" style="margin-top: 1.5rem;">
-                <div class="card-header">
-                    <h3 class="card-title">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem; vertical-align: -4px;">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M12 16v-4"/>
-                            <path d="M12 8h.01"/>
-                        </svg>
-                        ${t('dashboard.quickStartGuide')}
-                    </h3>
-                </div>
-                <div class="card-body">
-                    <p style="color:var(--gray-700);margin-bottom:1.5rem;">
-                        ${t('dashboard.quickStartIntro')}
-                    </p>
-                    <div class="setup-steps">
-                        <div class="setup-step" onclick="APP.loadPage('settings')">
-                            <div class="step-number">1</div>
-                            <div class="step-icon">
-                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
-                                    <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
-                                    <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
-                                    <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+            ${(() => {
+                const items = [
+                    { key: 'location_set',    label: t('dashboard.cl_location'),    page: 'settings' },
+                    { key: 'rent_set',        label: t('dashboard.cl_rent'),        page: 'settings' },
+                    { key: 'settings_set',    label: t('dashboard.cl_currency'),    page: 'settings' },
+                    { key: 'salaries_set',    label: t('dashboard.cl_salaries'),    page: 'settings' },
+                    { key: 'other_costs_set', label: t('dashboard.cl_costs'),       page: 'settings' },
+                    { key: 'equipment_set',   label: t('dashboard.cl_equipment'),   page: 'settings' },
+                    { key: 'consumables_set', label: t('dashboard.cl_consumables'), page: 'consumables' },
+                    { key: 'services_set',    label: t('dashboard.cl_services'),    page: 'services' },
+                ];
+                const done = items.filter(i => setupStatus[i.key]).length;
+                const total = items.length;
+                const allDone = done === total;
+                const pct = Math.round((done / total) * 100);
+
+                if (allDone) {
+                    return `
+                    <div class="card" style="margin-top:1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.5rem;vertical-align:-4px;">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M12 16v-4"/><path d="M12 8h.01"/>
                                 </svg>
-                            </div>
-                            <h4>${t('dashboard.step1Title')}</h4>
-                            <p>${t('dashboard.step1Desc')}</p>
+                                ${t('dashboard.quickStartGuide')}
+                            </h3>
                         </div>
-                        <div class="setup-step" onclick="APP.loadPage('consumables')">
-                            <div class="step-number">2</div>
-                            <div class="step-icon">
-                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-                                </svg>
+                        <div class="card-body">
+                            <p style="color:var(--gray-700);margin-bottom:1.5rem;">
+                                ${t('dashboard.quickStartIntro')}
+                            </p>
+                            <div class="setup-steps">
+                                <div class="setup-step" onclick="APP.loadPage('settings')">
+                                    <div class="step-number">1</div>
+                                    <div class="step-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+                                            <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+                                            <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+                                            <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+                                        </svg>
+                                    </div>
+                                    <h4>${t('dashboard.step1Title')}</h4>
+                                    <p>${t('dashboard.step1Desc')}</p>
+                                </div>
+                                <div class="setup-step" onclick="APP.loadPage('consumables')">
+                                    <div class="step-number">2</div>
+                                    <div class="step-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+                                        </svg>
+                                    </div>
+                                    <h4>${t('dashboard.step2Title')}</h4>
+                                    <p>${t('dashboard.step2Desc')}</p>
+                                </div>
+                                <div class="setup-step" onclick="APP.loadPage('services')">
+                                    <div class="step-number">3</div>
+                                    <div class="step-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <path d="M12 2C8 2 6 5 6 8c0 2.5 1 4 2 5.5S10 16 10 18c0 1.5-.5 3-1.5 4h7c-1-1-1.5-2.5-1.5-4 0-2 1-3.5 2-5.5s2-3 2-5.5c0-3-2-6-6-6z"/>
+                                            <path d="M9 22h6"/>
+                                        </svg>
+                                    </div>
+                                    <h4>${t('dashboard.step3Title')}</h4>
+                                    <p>${t('dashboard.step3Desc')}</p>
+                                </div>
                             </div>
-                            <h4>${t('dashboard.step2Title')}</h4>
-                            <p>${t('dashboard.step2Desc')}</p>
                         </div>
-                        <div class="setup-step" onclick="APP.loadPage('services')">
-                            <div class="step-number">3</div>
-                            <div class="step-icon">
-                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M12 2C8 2 6 5 6 8c0 2.5 1 4 2 5.5S10 16 10 18c0 1.5-.5 3-1.5 4h7c-1-1-1.5-2.5-1.5-4 0-2 1-3.5 2-5.5s2-3 2-5.5c0-3-2-6-6-6z"/>
-                                    <path d="M9 22h6"/>
-                                </svg>
-                            </div>
-                            <h4>${t('dashboard.step3Title')}</h4>
-                            <p>${t('dashboard.step3Desc')}</p>
+                    </div>`;
+                }
+
+                return `
+                <div class="card" style="margin-top:1.5rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">📋 ${t('dashboard.setupChecklist')}</h3>
+                        <span style="font-size:0.85rem;color:var(--gray-500);">${done}/${total}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="setup-progress-bar">
+                            <div class="setup-progress-fill" style="width:${pct}%"></div>
+                        </div>
+                        <p style="font-size:0.8rem;color:var(--gray-500);margin-bottom:1rem;">${t('dashboard.setupProgress').replace('{done}', done).replace('{total}', total)}</p>
+                        <div class="setup-checklist">
+                            ${items.map(i => {
+                                const isDone = setupStatus[i.key];
+                                return `<div class="setup-checklist-item ${isDone ? 'setup-cl-done' : ''}" onclick="APP.loadPage('${i.page}')">
+                                    <span class="setup-cl-icon">${isDone ? '✅' : '⬜'}</span>
+                                    <span class="setup-cl-label">${i.label}</span>
+                                    ${!isDone ? '<span class="setup-cl-arrow">→</span>' : ''}
+                                </div>`;
+                            }).join('')}
                         </div>
                     </div>
-                </div>
-            </div>
+                </div>`;
+            })()}
 
         `;
     },
@@ -4631,19 +4528,7 @@ const Pages = {
             </div>
         ` : '';
 
-        const postOnboardingBanner = (totalServices <= 1 && APP.user?.clinic?.onboarding_completed) ? `
-            <div class="ob-post-banner">
-                <div class="ob-post-banner-icon">🎉</div>
-                <div class="ob-post-banner-text">
-                    <strong>${t('onboarding.postBannerTitle')}</strong>
-                    <span>${t('onboarding.postBannerSub')}</span>
-                </div>
-                <button class="btn btn-primary btn-sm" onclick="APP.loadPage('services')">${t('onboarding.postBannerCta')}</button>
-            </div>
-        ` : '';
-
         return `
-            ${postOnboardingBanner}
             ${trialBannerHtml}
             ${simulatorHtml}
             <div class="card" style="background:#d1fae5;border-color:#34d399;">

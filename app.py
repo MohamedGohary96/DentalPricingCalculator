@@ -17,7 +17,7 @@ load_dotenv()
 from config import config
 
 # Import database and models
-from modules.database import init_database, create_initial_admin, create_sample_data
+from modules.database import init_database, create_initial_admin, create_sample_data, get_connection
 from modules.models import (
     # Clinic management
     create_clinic, get_clinic_by_id, get_clinic_by_slug, update_clinic,
@@ -761,6 +761,23 @@ def api_onboarding_create_service():
     return jsonify({'success': True, 'service_id': service_id})
 
 
+@app.route('/api/onboarding/location', methods=['PUT'])
+@login_required
+def api_onboarding_location():
+    """Save clinic country and province during onboarding"""
+    clinic_id = get_clinic_id()
+    data = request.get_json()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'UPDATE clinics SET country = %s, province = %s WHERE id = %s',
+        (data.get('country', 'Egypt'), data.get('province', ''), clinic_id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
 @app.route('/api/onboarding/complete', methods=['POST'])
 @login_required
 def api_onboarding_complete():
@@ -768,6 +785,121 @@ def api_onboarding_complete():
     clinic_id = get_clinic_id()
     mark_onboarding_complete(clinic_id)
     return jsonify({'success': True})
+
+
+@app.route('/api/setup-status')
+@login_required
+def api_setup_status():
+    """Return setup completion status for dashboard checklist"""
+    clinic_id = get_clinic_id()
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT country, province FROM clinics WHERE id = %s', (clinic_id,))
+    clinic = cursor.fetchone() or {}
+
+    cursor.execute('SELECT COUNT(*) as cnt FROM fixed_costs WHERE clinic_id = %s', (clinic_id,))
+    fixed_costs_count = cursor.fetchone()['cnt']
+
+    cursor.execute('SELECT COUNT(*) as cnt FROM salaries WHERE clinic_id = %s', (clinic_id,))
+    salaries_count = cursor.fetchone()['cnt']
+
+    cursor.execute('SELECT COUNT(*) as cnt FROM equipment WHERE clinic_id = %s', (clinic_id,))
+    equipment_count = cursor.fetchone()['cnt']
+
+    cursor.execute('SELECT COUNT(*) as cnt FROM consumables WHERE clinic_id = %s', (clinic_id,))
+    consumables_count = cursor.fetchone()['cnt']
+
+    cursor.execute('SELECT COUNT(*) as cnt FROM lab_materials WHERE clinic_id = %s', (clinic_id,))
+    materials_count = cursor.fetchone()['cnt']
+
+    cursor.execute('SELECT COUNT(*) as cnt FROM services WHERE clinic_id = %s', (clinic_id,))
+    services_count = cursor.fetchone()['cnt']
+
+    conn.close()
+
+    return jsonify({
+        'location_set': bool(clinic.get('country')),
+        'rent_set': fixed_costs_count >= 1,
+        'settings_set': True,
+        'salaries_set': salaries_count >= 1,
+        'other_costs_set': fixed_costs_count >= 2,
+        'equipment_set': equipment_count >= 1,
+        'consumables_set': (consumables_count + materials_count) >= 1,
+        'services_set': services_count >= 1,
+    })
+
+
+# ============== Public Calculator ==============
+
+@app.route('/api/calculator/compute', methods=['POST'])
+def api_calculator_compute():
+    """Public endpoint: compute chair cost per hour from clinic template data"""
+    import json as _json
+    data = request.get_json()
+
+    size = data.get('size', 'small')
+    city = data.get('city', 'cairo')
+    rent = float(data.get('rent', 0))
+    hours = float(data.get('hours', 8))
+    session_id = data.get('session_id', '')
+
+    templates_path = os.path.join(os.path.dirname(__file__), 'data', 'clinic_templates.json')
+    with open(templates_path) as f:
+        templates = _json.load(f)
+
+    tpl = templates.get(size, {}).get(city)
+    if not tpl:
+        return jsonify({'error': 'Invalid size/city combination'}), 400
+
+    base_rent = tpl['rent']
+    base_overhead = tpl['overhead']
+    chairs = tpl['chairs']
+    currency = tpl.get('cur', 'ج')
+
+    # Use user-edited values if provided, otherwise template defaults
+    rent_ratio = rent / base_rent if base_rent > 0 else 1
+    overhead = data.get('overhead') if data.get('overhead') is not None else base_overhead * (rent_ratio * 0.6 + 0.4)
+    overhead = float(overhead)
+    staff = float(data.get('staff', tpl['staff']))
+    dep = float(data.get('dep', tpl['dep']))
+    total_costs = rent + overhead + staff + dep
+    avail_hours = chairs * hours * 24 * 0.7
+    cph = total_costs / avail_hours if avail_hours > 0 else 0
+
+    if session_id:
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO calculator_leads
+                    (session_id, size, city, rent, hours, cph_result, total_costs, currency)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    size = VALUES(size), city = VALUES(city),
+                    rent = VALUES(rent), hours = VALUES(hours),
+                    cph_result = VALUES(cph_result), total_costs = VALUES(total_costs),
+                    currency = VALUES(currency)
+            ''', (session_id, size, city, rent, hours, round(cph, 2),
+                  round(total_costs), 'SAR' if currency == 'ر.س' else 'EGP'))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    return jsonify({
+        'cph': round(cph, 2),
+        'total_costs': round(total_costs),
+        'available_hours': round(avail_hours, 1),
+        'breakdown': {
+            'rent': round(rent),
+            'overhead': round(overhead),
+            'staff': staff,
+            'dep': dep
+        },
+        'session_id': session_id,
+        'currency': 'SAR' if currency == 'ر.س' else 'EGP'
+    })
 
 
 # ============== Subscription Status ==============

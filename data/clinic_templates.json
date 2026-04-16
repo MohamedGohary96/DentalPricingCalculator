@@ -1,0 +1,23 @@
+{
+  "small": {
+    "cairo": { "rent": 15000, "overhead": 3500, "staff": 13000, "dep": 3000, "chairs": 1 },
+    "alex":  { "rent": 12000, "overhead": 3000, "staff": 11000, "dep": 3000, "chairs": 1 },
+    "delta": { "rent": 8000,  "overhead": 2500, "staff": 9000,  "dep": 3000, "chairs": 1 },
+    "upper": { "rent": 5000,  "overhead": 2000, "staff": 7000,  "dep": 2500, "chairs": 1 },
+    "gulf":  { "rent": 9000,  "overhead": 3000, "staff": 10000, "dep": 4000, "chairs": 1, "cur": "ر.س" }
+  },
+  "medium": {
+    "cairo": { "rent": 25000, "overhead": 5500, "staff": 22000, "dep": 4500, "chairs": 2 },
+    "alex":  { "rent": 18000, "overhead": 4500, "staff": 18000, "dep": 4500, "chairs": 2 },
+    "delta": { "rent": 12000, "overhead": 3500, "staff": 15000, "dep": 4000, "chairs": 2 },
+    "upper": { "rent": 8000,  "overhead": 2800, "staff": 12000, "dep": 3500, "chairs": 2 },
+    "gulf":  { "rent": 15000, "overhead": 5000, "staff": 18000, "dep": 6000, "chairs": 2, "cur": "ر.س" }
+  },
+  "large": {
+    "cairo": { "rent": 40000, "overhead": 8000, "staff": 40000, "dep": 7000, "chairs": 3 },
+    "alex":  { "rent": 30000, "overhead": 7000, "staff": 32000, "dep": 7000, "chairs": 3 },
+    "delta": { "rent": 20000, "overhead": 5000, "staff": 25000, "dep": 6000, "chairs": 3 },
+    "upper": { "rent": 14000, "overhead": 4000, "staff": 20000, "dep": 5500, "chairs": 3 },
+    "gulf":  { "rent": 25000, "overhead": 8000, "staff": 30000, "dep": 9000, "chairs": 3, "cur": "ر.س" }
+  }
+}

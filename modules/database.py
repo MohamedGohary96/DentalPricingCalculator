@@ -393,6 +393,25 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
+    # Calculator leads table (anonymous, public-facing)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS calculator_leads (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            session_id VARCHAR(255) NOT NULL,
+            size VARCHAR(20) NOT NULL,
+            city VARCHAR(20) NOT NULL,
+            rent DOUBLE NOT NULL,
+            hours DOUBLE NOT NULL DEFAULT 8,
+            cph_result DOUBLE,
+            total_costs DOUBLE,
+            currency VARCHAR(10) DEFAULT 'EGP',
+            converted TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_session (session_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
     # Migration: Add is_super_admin to users if it doesn't exist
     user_columns = _get_table_columns(cursor, 'users')
     if 'is_super_admin' not in user_columns:
@@ -431,6 +450,8 @@ def init_database():
         cursor.execute("ALTER TABLE clinics ADD COLUMN language VARCHAR(50) DEFAULT 'en'")
     if 'onboarding_completed' not in clinic_columns:
         cursor.execute('ALTER TABLE clinics ADD COLUMN onboarding_completed TINYINT(1) DEFAULT 0')
+    if 'province' not in clinic_columns:
+        cursor.execute('ALTER TABLE clinics ADD COLUMN province VARCHAR(255)')
 
     # Add name_ar column to services table
     service_columns = _get_table_columns(cursor, 'services')
@@ -528,16 +549,16 @@ def create_clinic_starter_data(clinic_id, conn=None):
     # ===== 10 ESSENTIAL DENTAL CONSUMABLES =====
     # (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case, name_ar)
     consumables = [
-        (clinic_id, 'Nitrile Gloves (Box of 100)', 180, 1, 100, 'قفازات نيتريل (علبة 100)'),
-        (clinic_id, 'Anesthetic Cartridge (Lidocaine)', 850, 1, 50, 'كارتريدج مخدر (ليدوكايين)'),
-        (clinic_id, 'Composite Resin A2 (4g)', 1200, 1, 1, 'كومبوزيت راتنج A2 (4 جرام)'),
-        (clinic_id, 'Bonding Agent (5ml)', 900, 1, 40, 'مادة لاصقة (5 مل)'),
-        (clinic_id, 'Etch Gel 37% (3ml)', 120, 1, 15, 'جل إتش 37% (3 مل)'),
-        (clinic_id, 'Cotton Rolls (Pack of 1000)', 250, 1, 1000, 'لفات قطن (عبوة 1000)'),
-        (clinic_id, 'Gauze 2x2 (Pack of 200)', 180, 1, 200, 'شاش 2×2 (عبوة 200)'),
-        (clinic_id, 'Diamond Bur (Pack of 5)', 350, 1, 5, 'سنبلة ماسية (عبوة 5)'),
-        (clinic_id, 'Disposable Bib', 200, 1, 100, 'مريلة للاستعمال مرة واحدة'),
-        (clinic_id, 'Temporary Filling Material', 280, 1, 25, 'مادة حشو مؤقت'),
+        (clinic_id, 'Nitrile Gloves (Box of 100)', 0, 1, 100, 'قفازات نيتريل (علبة 100)'),
+        (clinic_id, 'Anesthetic Cartridge (Lidocaine)', 0, 1, 50, 'كارتريدج مخدر (ليدوكايين)'),
+        (clinic_id, 'Composite Resin A2 (4g)', 0, 1, 1, 'كومبوزيت راتنج A2 (4 جرام)'),
+        (clinic_id, 'Bonding Agent (5ml)', 0, 1, 40, 'مادة لاصقة (5 مل)'),
+        (clinic_id, 'Etch Gel 37% (3ml)', 0, 1, 15, 'جل إتش 37% (3 مل)'),
+        (clinic_id, 'Cotton Rolls (Pack of 1000)', 0, 1, 1000, 'لفات قطن (عبوة 1000)'),
+        (clinic_id, 'Gauze 2x2 (Pack of 200)', 0, 1, 200, 'شاش 2×2 (عبوة 200)'),
+        (clinic_id, 'Diamond Bur (Pack of 5)', 0, 1, 5, 'سنبلة ماسية (عبوة 5)'),
+        (clinic_id, 'Disposable Bib', 0, 1, 100, 'مريلة للاستعمال مرة واحدة'),
+        (clinic_id, 'Temporary Filling Material', 0, 1, 25, 'مادة حشو مؤقت'),
     ]
     cursor.executemany('''
         INSERT INTO consumables (clinic_id, item_name, pack_cost, cases_per_pack, units_per_case, name_ar)
@@ -551,11 +572,11 @@ def create_clinic_starter_data(clinic_id, conn=None):
     # ===== 5 COMMON LAB MATERIALS =====
     # (clinic_id, material_name, lab_name, unit_cost, description, name_ar)
     materials = [
-        (clinic_id, 'Zirconia Crown', 'Premium Dental Lab', 3500, 'High-quality ceramic crown', 'تاج زركونيا'),
-        (clinic_id, 'PFM Crown', 'Premium Dental Lab', 2200, 'Porcelain-fused-to-metal crown', 'تاج بورسلين على معدن'),
-        (clinic_id, 'Porcelain Veneer', 'Elite Ceramics Lab', 3000, 'Thin ceramic veneer', 'قشرة بورسلين'),
-        (clinic_id, 'Full Denture (Acrylic)', 'Prosthetics Lab', 6000, 'Complete denture set', 'طقم أسنان كامل (أكريليك)'),
-        (clinic_id, 'Night Guard', 'Appliance Lab', 1200, 'Custom occlusal guard', 'واقي ليلي'),
+        (clinic_id, 'Zirconia Crown', 'Premium Dental Lab', 0, 'High-quality ceramic crown', 'تاج زركونيا'),
+        (clinic_id, 'PFM Crown', 'Premium Dental Lab', 0, 'Porcelain-fused-to-metal crown', 'تاج بورسلين على معدن'),
+        (clinic_id, 'Porcelain Veneer', 'Elite Ceramics Lab', 0, 'Thin ceramic veneer', 'قشرة بورسلين'),
+        (clinic_id, 'Full Denture (Acrylic)', 'Prosthetics Lab', 0, 'Complete denture set', 'طقم أسنان كامل (أكريليك)'),
+        (clinic_id, 'Night Guard', 'Appliance Lab', 0, 'Custom occlusal guard', 'واقي ليلي'),
     ]
     cursor.executemany('''
         INSERT INTO lab_materials (clinic_id, material_name, lab_name, unit_cost, description, name_ar)
@@ -569,9 +590,9 @@ def create_clinic_starter_data(clinic_id, conn=None):
     # ===== 3 FIXED MONTHLY COSTS =====
     # (clinic_id, category, monthly_amount, included, notes)
     fixed_costs = [
-        (clinic_id, 'Rent', 20000, 1, 'Monthly clinic rent / إيجار العيادة الشهري'),
-        (clinic_id, 'Utilities (Electricity/Water/Internet)', 2500, 1, 'Base utility costs / تكاليف المرافق الأساسية'),
-        (clinic_id, 'Insurance & Admin', 3000, 1, 'Insurance and administrative expenses / التأمين والمصاريف الإدارية'),
+        (clinic_id, 'Rent', 0, 1, 'Monthly clinic rent / إيجار العيادة الشهري'),
+        (clinic_id, 'Utilities (Electricity/Water/Internet)', 0, 1, 'Base utility costs / تكاليف المرافق الأساسية'),
+        (clinic_id, 'Insurance & Admin', 0, 1, 'Insurance and administrative expenses / التأمين والمصاريف الإدارية'),
     ]
     cursor.executemany('''
         INSERT INTO fixed_costs (clinic_id, category, monthly_amount, included, notes)
@@ -581,9 +602,9 @@ def create_clinic_starter_data(clinic_id, conn=None):
     # ===== 3 EQUIPMENT ITEMS (DEPRECIATION) =====
     # (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours)
     equipment = [
-        (clinic_id, 'Dental Chair / كرسي الأسنان', 100000, 10, 'fixed', None),
-        (clinic_id, 'Autoclave Sterilizer / جهاز التعقيم', 35000, 7, 'fixed', None),
-        (clinic_id, 'Dental X-Ray Unit / جهاز أشعة الأسنان', 80000, 8, 'per-hour', 40),
+        (clinic_id, 'Dental Chair / كرسي الأسنان', 0, 10, 'fixed', None),
+        (clinic_id, 'Autoclave Sterilizer / جهاز التعقيم', 0, 7, 'fixed', None),
+        (clinic_id, 'Dental X-Ray Unit / جهاز أشعة الأسنان', 0, 8, 'per-hour', 40),
     ]
     cursor.executemany('''
         INSERT INTO equipment (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours)
@@ -597,9 +618,9 @@ def create_clinic_starter_data(clinic_id, conn=None):
     # ===== 3 STAFF SALARIES =====
     # (clinic_id, role_name, monthly_salary, included, notes)
     salaries = [
-        (clinic_id, 'Receptionist / موظف استقبال', 8000, 1, 'Front desk staff'),
-        (clinic_id, 'Dental Assistant / مساعد طبيب أسنان', 12000, 1, 'Clinical assistant'),
-        (clinic_id, 'Cleaner / عامل نظافة', 4000, 1, 'Facility maintenance'),
+        (clinic_id, 'Receptionist / موظف استقبال', 0, 1, 'Front desk staff'),
+        (clinic_id, 'Dental Assistant / مساعد طبيب أسنان', 0, 1, 'Clinical assistant'),
+        (clinic_id, 'Cleaner / عامل نظافة', 0, 1, 'Facility maintenance'),
     ]
     cursor.executemany('''
         INSERT INTO salaries (clinic_id, role_name, monthly_salary, included, notes)
@@ -609,11 +630,11 @@ def create_clinic_starter_data(clinic_id, conn=None):
     # ===== 5 MAIN DENTAL SERVICES =====
     # (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent, current_price, name_ar)
     services = [
-        (clinic_id, 'Dental Checkup & Cleaning', 0.75, 400, 1, None, 400, 'فحص وتنظيف الأسنان'),
-        (clinic_id, 'Composite Filling', 0.75, 500, 1, None, 700, 'حشو كومبوزيت'),
-        (clinic_id, 'Root Canal Treatment', 2.0, 800, 1, None, 2500, 'علاج عصب'),
-        (clinic_id, 'Zirconia Crown', 2.0, 800, 1, None, 6000, 'تاج زركونيا'),
-        (clinic_id, 'Teeth Whitening', 1.5, 500, 1, None, 3000, 'تبييض الأسنان'),
+        (clinic_id, 'Dental Checkup & Cleaning', 0.75, 0, 1, None, 0, 'فحص وتنظيف الأسنان'),
+        (clinic_id, 'Composite Filling', 0.75, 0, 1, None, 0, 'حشو كومبوزيت'),
+        (clinic_id, 'Root Canal Treatment', 2.0, 0, 1, None, 0, 'علاج عصب'),
+        (clinic_id, 'Zirconia Crown', 2.0, 0, 1, None, 0, 'تاج زركونيا'),
+        (clinic_id, 'Teeth Whitening', 1.5, 0, 1, None, 0, 'تبييض الأسنان'),
     ]
     cursor.executemany('''
         INSERT INTO services (clinic_id, name, chair_time_hours, doctor_hourly_fee, use_default_profit, custom_profit_percent, current_price, name_ar)

@@ -188,79 +188,142 @@
         .wl-hero-cta:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(20,184,166,0.4); }
         .wl-hero-cta svg { width: 18px; height: 18px; }
 
-        /* ── MINI CALCULATOR ───────────────────────────── */
+        /* ── CALCULATOR WIDGET ────────────────────────── */
         .wl-calc-card {
             background: rgba(255,255,255,0.08);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255,255,255,0.15);
             border-radius: 20px;
-            padding: 2rem;
+            padding: 1.75rem;
             color: var(--white);
-        }
-        .wl-calc-title {
-            font-family: 'Poppins', sans-serif;
-            font-size: 1.1rem;
-            font-weight: 700;
-            margin-bottom: 1.25rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .wl-calc-row {
-            display: flex;
-            flex-direction: column;
-            gap: 0.4rem;
-            margin-bottom: 1rem;
-        }
-        .wl-calc-label {
-            font-size: 0.8rem;
-            opacity: 0.8;
-            font-weight: 500;
-        }
-        .wl-calc-input {
-            width: 100%;
-            padding: 0.7rem 1rem;
-            background: rgba(255,255,255,0.12);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 8px;
-            color: var(--white);
-            font-size: 1rem;
-            font-family: inherit;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        .wl-calc-input::placeholder { color: rgba(255,255,255,0.45); }
-        .wl-calc-input:focus { border-color: #5eead4; }
-        .wl-calc-btn {
-            width: 100%;
-            padding: 0.8rem;
-            background: linear-gradient(135deg, var(--teal), #0d9488);
-            border: none;
-            border-radius: 8px;
-            color: var(--white);
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: inherit;
-            margin-top: 0.5rem;
-            transition: opacity 0.2s;
-        }
-        .wl-calc-btn:hover { opacity: 0.9; }
-        .wl-calc-result {
-            display: none;
-            margin-top: 1.25rem;
-            background: rgba(20,184,166,0.15);
-            border: 1px solid rgba(20,184,166,0.3);
-            border-radius: 12px;
-            padding: 1.25rem;
-            text-align: center;
-            animation: wl-fadeIn 0.4s ease;
         }
         @keyframes wl-fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .wl-calc-result-label { font-size: 0.8rem; opacity: 0.75; margin-bottom: 0.4rem; }
-        .wl-calc-result-value { font-family: 'Poppins', sans-serif; font-size: 2rem; font-weight: 800; color: #5eead4; }
-        .wl-calc-result-sub { font-size: 0.78rem; opacity: 0.7; margin-top: 0.4rem; }
+
+        /* Progress bar */
+        .cw-progress { margin-bottom: 1rem; }
+        .cw-progress-text { display: flex; justify-content: space-between; font-size: 0.72rem; opacity: 0.7; margin-bottom: 0.4rem; }
+        .cw-progress-bar { height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden; }
+        .cw-progress-fill { height: 100%; background: #0F6E56; border-radius: 2px; transition: width 0.4s ease; }
+
+        /* Step panels */
+        .cw-step { animation: wl-fadeIn 0.35s ease; }
+        .cw-title { font-family: 'IBM Plex Sans Arabic', 'Poppins', sans-serif; font-size: 1.1rem; font-weight: 700; margin-bottom: 0.4rem; }
+        .cw-sub { font-size: 0.78rem; opacity: 0.72; margin-bottom: 1.1rem; line-height: 1.6; }
+
+        /* Chip groups */
+        .cw-chip-group { margin-bottom: 0.9rem; }
+        .cw-chip-label { display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.4rem; opacity: 0.85; }
+        .cw-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .cw-chip {
+            background: rgba(255,255,255,0.08);
+            border: 0.5px solid rgba(255,255,255,0.25);
+            border-radius: 10px;
+            padding: 0.45rem 0.75rem;
+            color: var(--white);
+            cursor: pointer;
+            font-family: 'IBM Plex Sans Arabic', inherit;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+            display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+        }
+        .cw-chip:hover { background: rgba(255,255,255,0.15); }
+        .cw-chip.cw-selected { background: #E1F5EE; border-color: #0F6E56; color: #085041; }
+        .cw-chip-main { font-weight: 600; }
+        .cw-chip-sub { font-size: 0.65rem; opacity: 0.7; }
+        .cw-chip.cw-selected .cw-chip-sub { opacity: 0.8; }
+
+        /* Buttons */
+        .cw-btn-primary {
+            width: 100%; padding: 0.75rem;
+            background: #0F6E56; border: none; border-radius: 10px;
+            color: var(--white); font-size: 0.88rem; font-weight: 600;
+            cursor: pointer; font-family: 'IBM Plex Sans Arabic', inherit;
+            margin-top: 0.6rem; transition: background 0.2s;
+        }
+        .cw-btn-primary:hover { background: #085041; }
+        .cw-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .cw-btn-secondary {
+            padding: 0.55rem 0.9rem;
+            background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px; color: var(--white); font-size: 0.82rem;
+            cursor: pointer; font-family: 'IBM Plex Sans Arabic', inherit;
+        }
+
+        /* Step 2: cost rows */
+        .cw-cost-rows { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.6rem; }
+        .cw-cost-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+        .cw-cost-row label { font-size: 0.78rem; flex: 1; min-width: 0; }
+        .cw-input {
+            width: 110px; padding: 0.45rem 0.65rem;
+            background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 8px; color: var(--white); font-size: 0.88rem;
+            font-family: inherit; outline: none; direction: ltr; text-align: right;
+        }
+        .cw-input:focus { border-color: #5eead4; }
+        .cw-hint { font-size: 0.67rem; opacity: 0.5; width: 100%; }
+        .cw-auto-badge {
+            display: inline-block; background: #E6F1FB; color: #185FA5;
+            font-size: 0.6rem; font-weight: 600; padding: 0.12rem 0.45rem;
+            border-radius: 999px; margin-inline-start: 0.25rem;
+        }
+        .cw-cost-value { font-weight: 600; font-size: 0.88rem; direction: ltr; white-space: nowrap; }
+        .cw-total { border-top: 1px solid rgba(255,255,255,0.2); padding-top: 0.5rem; margin-top: 0.2rem; }
+        .cw-total-value { font-size: 1rem; color: #5eead4; }
+        .cw-auto-note { font-size: 0.65rem; opacity: 0.5; margin-bottom: 0.6rem; }
+        .cw-step-actions { display: flex; gap: 0.6rem; }
+        .cw-step-actions .cw-btn-primary { flex: 1; }
+
+        /* Step 3: result */
+        .cw-result-hero { text-align: center; margin: 0.75rem 0; }
+        .cw-result-number { font-family: 'Poppins', sans-serif; font-size: 2.6rem; font-weight: 800; color: #5eead4; }
+        .cw-result-currency { font-size: 1.1rem; opacity: 0.8; margin-inline-start: 0.25rem; }
+        .cw-result-label { font-size: 0.8rem; opacity: 0.7; margin-top: 0.2rem; }
+
+        .cw-info-box {
+            background: #E6F1FB; border: 0.5px solid #B5D4F4; color: #0C447C;
+            border-radius: 10px; padding: 0.8rem; margin-bottom: 0.75rem;
+            font-size: 0.75rem; line-height: 1.6;
+        }
+        .cw-info-box strong { display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+
+        .cw-time-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; margin-bottom: 0.75rem; }
+        .cw-time-card {
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px; padding: 0.5rem; text-align: center;
+        }
+        .cw-time-label { display: block; font-size: 0.65rem; opacity: 0.65; margin-bottom: 0.2rem; }
+        .cw-time-value { display: block; font-weight: 700; font-size: 0.88rem; }
+
+        .cw-warning-box {
+            background: #FAEEDA; border: 0.5px solid #FAC775; color: #633806;
+            border-radius: 10px; padding: 0.8rem; margin-bottom: 0.75rem;
+            font-size: 0.75rem; line-height: 1.6;
+        }
+        .cw-warning-box strong { display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+
+        .cw-cta-box {
+            background: #E1F5EE; border: 1px solid rgba(15,110,86,0.3);
+            border-radius: 12px; padding: 0.9rem; text-align: center;
+            color: #085041; margin-bottom: 0.6rem;
+        }
+        .cw-cta-box strong { display: block; margin-bottom: 0.3rem; font-size: 0.82rem; }
+        .cw-cta-box p { font-size: 0.72rem; margin-bottom: 0.6rem; line-height: 1.6; opacity: 0.85; }
+        .cw-btn-cta {
+            display: inline-block; background: #0F6E56; color: var(--white);
+            padding: 0.65rem 1.3rem; border-radius: 10px; font-size: 0.88rem;
+            font-weight: 700; text-decoration: none;
+            font-family: 'IBM Plex Sans Arabic', inherit; transition: background 0.2s;
+        }
+        .cw-btn-cta:hover { background: #085041; }
+
+        .cw-restart-link {
+            display: block; text-align: center; background: none; border: none;
+            color: rgba(255,255,255,0.5); font-size: 0.75rem; cursor: pointer;
+            font-family: 'IBM Plex Sans Arabic', inherit; margin-top: 0.4rem;
+            text-decoration: underline;
+        }
+        .cw-restart-link:hover { color: rgba(255,255,255,0.8); }
 
         /* ── FEATURES SECTION ──────────────────────────── */
         .wl-features {
@@ -393,6 +456,8 @@
             .wl-hero-headline { font-size: 1.75rem; }
             .wl-nav { padding: 0.75rem 1rem; }
             .wl-nav-brand { font-size: 0.95rem; }
+            .cw-time-grid { grid-template-columns: repeat(2, 1fr); }
+            .cw-result-number { font-size: 2rem; }
         }
 
         /* ── RTL ───────────────────────────────────────── */
@@ -441,29 +506,120 @@
                 </a>
             </div>
 
-            <!-- Mini Calculator -->
-            <div class="wl-calc-card">
-                <div class="wl-calc-title">
-                    <span>🧮</span>
-                    <span id="calcTitle">Quick cost calculator</span>
+            <!-- 3-Step Calculator Widget -->
+            <div class="wl-calc-card" id="calcWidget">
+                <!-- Progress Bar -->
+                <div class="cw-progress">
+                    <div class="cw-progress-text">
+                        <span id="cwStepLabel">خطوة ١ من ٣</span>
+                        <span id="cwStepTime">⏱ دقيقتان تقريباً</span>
+                    </div>
+                    <div class="cw-progress-bar">
+                        <div class="cw-progress-fill" id="cwProgressFill" style="width:33%"></div>
+                    </div>
                 </div>
-                <div class="wl-calc-row">
-                    <label class="wl-calc-label" id="calcLabel1">Monthly rent (EGP)</label>
-                    <input type="number" class="wl-calc-input" id="calcRent" placeholder="25,000" min="0" step="500">
+
+                <!-- Step 1: Clinic Type -->
+                <div class="cw-step" id="cwStep1">
+                    <h3 class="cw-title" id="cwStep1Title">عيادتك من أي نوع؟</h3>
+                    <p class="cw-sub" id="cwStep1Sub">سؤالان بس — وسنملأ ٨٠٪ من البيانات تلقائياً من متوسطات عيادات مشابهة</p>
+                    <div class="cw-chip-group">
+                        <label class="cw-chip-label" id="cwSizeLabel">حجم العيادة</label>
+                        <div class="cw-chips" id="cwSizeChips">
+                            <button class="cw-chip" data-value="small" onclick="cwSelectChip(this,'size')">
+                                <span class="cw-chip-main" id="cwChipSmall">كرسي واحد</span>
+                                <span class="cw-chip-sub" id="cwChipSmallSub">طبيب ± مساعد</span>
+                            </button>
+                            <button class="cw-chip" data-value="medium" onclick="cwSelectChip(this,'size')">
+                                <span class="cw-chip-main" id="cwChipMedium">كرسيان</span>
+                                <span class="cw-chip-sub" id="cwChipMediumSub">طبيب + مساعد</span>
+                            </button>
+                            <button class="cw-chip" data-value="large" onclick="cwSelectChip(this,'size')">
+                                <span class="cw-chip-main" id="cwChipLarge">٣ كراسي+</span>
+                                <span class="cw-chip-sub" id="cwChipLargeSub">عيادة متكاملة</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="cw-chip-group">
+                        <label class="cw-chip-label" id="cwCityLabel">موقع العيادة</label>
+                        <div class="cw-chips" id="cwCityChips">
+                            <button class="cw-chip" data-value="cairo" onclick="cwSelectChip(this,'city')" id="cwChipCairo">القاهرة / الجيزة</button>
+                            <button class="cw-chip" data-value="alex" onclick="cwSelectChip(this,'city')" id="cwChipAlex">الإسكندرية</button>
+                            <button class="cw-chip" data-value="delta" onclick="cwSelectChip(this,'city')" id="cwChipDelta">الدلتا / المنصورة</button>
+                            <button class="cw-chip" data-value="upper" onclick="cwSelectChip(this,'city')" id="cwChipUpper">الصعيد</button>
+                            <button class="cw-chip" data-value="gulf" onclick="cwSelectChip(this,'city')" id="cwChipGulf">الخليج</button>
+                        </div>
+                    </div>
+                    <button class="cw-btn-primary" id="cwNextBtn1" disabled onclick="cwGoStep(2)">التالي — شوف بياناتك تتملأ ←</button>
                 </div>
-                <div class="wl-calc-row">
-                    <label class="wl-calc-label" id="calcLabel2">Total monthly salaries (EGP)</label>
-                    <input type="number" class="wl-calc-input" id="calcSalaries" placeholder="20,000" min="0" step="500">
+
+                <!-- Step 2: Confirm Costs -->
+                <div class="cw-step" id="cwStep2" style="display:none">
+                    <h3 class="cw-title" id="cwStep2Title">راجع بياناتك — عدّل لو فيه فرق</h3>
+                    <p class="cw-sub" id="cwStep2Sub">ملأنا الأرقام بناءً على متوسطات عيادات مشابهة لعيادتك. الرقم الوحيد اللي تعرفه بالضبط هو الإيجار.</p>
+                    <div class="cw-cost-rows">
+                        <div class="cw-cost-row cw-editable">
+                            <label id="cwRentLabel">إيجار العيادة</label>
+                            <input type="number" id="cwRent" class="cw-input" min="0" step="500" oninput="cwRecalc()">
+                        </div>
+                        <div class="cw-cost-row">
+                            <span class="cw-hint" id="cwRentHint">الرقم الوحيد اللي تعرفه بالضبط</span>
+                        </div>
+                        <div class="cw-cost-row cw-editable">
+                            <label id="cwHoursLabel">ساعات العمل يومياً</label>
+                            <input type="number" id="cwHours" class="cw-input" min="1" max="24" step="1" value="8" oninput="cwRecalc()">
+                        </div>
+                        <div class="cw-cost-row cw-editable">
+                            <label id="cwOverheadLabel">المرافق والتأمين والإدارة <span class="cw-auto-badge">✦ ملأناها تلقائياً</span></label>
+                            <input type="number" id="cwOverhead" class="cw-input" min="0" step="500" oninput="cwRecalcTotal()">
+                        </div>
+                        <div class="cw-cost-row cw-editable">
+                            <label id="cwStaffLabel">رواتب الموظفين <span class="cw-auto-badge">✦ ملأناها تلقائياً</span></label>
+                            <input type="number" id="cwStaff" class="cw-input" min="0" step="500" oninput="cwRecalcTotal()">
+                        </div>
+                        <div class="cw-cost-row cw-editable">
+                            <label id="cwDepLabel">إهلاك المعدات <span class="cw-auto-badge">✦ ملأناها تلقائياً</span></label>
+                            <input type="number" id="cwDep" class="cw-input" min="0" step="500" oninput="cwRecalcTotal()">
+                        </div>
+                        <div class="cw-cost-row cw-total">
+                            <label id="cwTotalLabel">إجمالي التكاليف الشهرية</label>
+                            <span class="cw-cost-value cw-total-value" id="cwTotal">0</span>
+                        </div>
+                    </div>
+                    <p class="cw-auto-note" id="cwAutoNote">أرقام الإهلاك والمرافق محسوبة من متوسطات ٣٠٠+ عيادة مشابهة</p>
+                    <div class="cw-step-actions">
+                        <button class="cw-btn-secondary" onclick="cwGoStep(1)" id="cwBackBtn">← رجوع</button>
+                        <button class="cw-btn-primary" id="cwComputeBtn" onclick="cwCompute()">أيوه، الأرقام قريبة — كمّل ←</button>
+                    </div>
                 </div>
-                <div class="wl-calc-row">
-                    <label class="wl-calc-label" id="calcLabel3">Number of chairs</label>
-                    <input type="number" class="wl-calc-input" id="calcChairs" placeholder="2" min="1" max="20" step="1" value="2">
-                </div>
-                <button class="wl-calc-btn" onclick="wlCalculate()" id="calcBtn">Calculate →</button>
-                <div class="wl-calc-result" id="calcResult">
-                    <div class="wl-calc-result-label" id="calcResultLabel">Cost per chair per hour</div>
-                    <div class="wl-calc-result-value" id="calcResultValue">–</div>
-                    <div class="wl-calc-result-sub" id="calcResultSub">Register to get exact prices for all your services</div>
+
+                <!-- Step 3: Result -->
+                <div class="cw-step" id="cwStep3" style="display:none">
+                    <div class="cw-result-hero">
+                        <span class="cw-result-number" id="cwCphValue">0</span>
+                        <span class="cw-result-currency" id="cwCphCurrency">ج</span>
+                        <div class="cw-result-label" id="cwResultLabel">الساعة التشغيلية للكرسي</div>
+                    </div>
+                    <div class="cw-info-box">
+                        <strong id="cwInfoTitle">هذا هو رقمك الأساسي — احفظه كويس</strong>
+                        <p id="cwInfoText"></p>
+                    </div>
+                    <div class="cw-time-grid">
+                        <div class="cw-time-card"><span class="cw-time-label">٣٠ دقيقة</span><span class="cw-time-value" id="cwT30">0</span></div>
+                        <div class="cw-time-card"><span class="cw-time-label">٤٥ دقيقة</span><span class="cw-time-value" id="cwT45">0</span></div>
+                        <div class="cw-time-card"><span class="cw-time-label">٦٠ دقيقة</span><span class="cw-time-value" id="cwT60">0</span></div>
+                        <div class="cw-time-card"><span class="cw-time-label">٩٠ دقيقة</span><span class="cw-time-value" id="cwT90">0</span></div>
+                    </div>
+                    <div class="cw-warning-box">
+                        <strong id="cwWarningTitle">بس ده مش السعر الكامل للخدمة</strong>
+                        <p id="cwWarningBody">السعر الصح = تكلفة الكرسي + خاماتك الفعلية + أتعاب الطبيب + هامش ربحك. الرقم ده بس هو الأساس.</p>
+                    </div>
+                    <div class="cw-cta-box">
+                        <strong id="cwCtaTitle">عايز تعرف بتكسب ولا بتخسر على كل خدمة؟</strong>
+                        <p id="cwCtaBody">سجّل مجاناً وأضف خدماتك بالتفصيل — التطبيق هيحسبلك تكلفة كل إجراء بدقة ويقولك السعر الصح اللي يغطي تكاليفك ويحقق ربحك.</p>
+                        <a href="/register" class="cw-btn-cta" id="cwCtaBtn">سجّل مجاناً وابدأ دلوقتي ←</a>
+                    </div>
+                    <button class="cw-restart-link" onclick="cwRestart()" id="cwRestartLink">↺ أعد التجربة من البداية</button>
                 </div>
             </div>
         </div>
@@ -538,13 +694,6 @@
                 heroHeadline2: 'chair costs per hour?',
                 heroSub: 'Most dental clinics price services by gut-feel — and lose money without knowing it. Dental Pricing Calculator computes your real cost per chair per hour and shows you the right price for every procedure.',
                 heroCtaText: 'Start for free',
-                calcTitle: 'Quick cost calculator',
-                calcLabel1: 'Monthly rent (EGP)',
-                calcLabel2: 'Total monthly salaries (EGP)',
-                calcLabel3: 'Number of chairs',
-                calcBtn: 'Calculate →',
-                calcResultLabel: 'Cost per chair per hour',
-                calcResultSub: 'Register to get exact prices for all your services',
                 featTitle: 'Everything you need to price right',
                 featSub: 'Built specifically for dental practices in Egypt and the Gulf',
                 f1Title: 'Real cost analysis',
@@ -561,6 +710,45 @@
                 footerCopy: '© 2026 Dental Pricing Calculator',
                 footerLogin: 'Already have an account? Login →',
                 footerRegister: 'Register your clinic →',
+                // Widget translations
+                cwStepLabel: 'Step 1 of 3',
+                cwStepTime: '⏱ About 2 minutes',
+                cwStep1Title: 'What type of clinic?',
+                cwStep1Sub: 'Just 2 questions — we\'ll auto-fill 80% of data from similar clinic averages',
+                cwSizeLabel: 'Clinic size',
+                cwCityLabel: 'Clinic location',
+                cwChipSmall: 'Single chair',
+                cwChipSmallSub: 'Doctor ± assistant',
+                cwChipMedium: 'Two chairs',
+                cwChipMediumSub: 'Doctor + assistant',
+                cwChipLarge: '3+ chairs',
+                cwChipLargeSub: 'Full clinic',
+                cwChipCairo: 'Cairo / Giza',
+                cwChipAlex: 'Alexandria',
+                cwChipDelta: 'Delta / Mansoura',
+                cwChipUpper: 'Upper Egypt',
+                cwChipGulf: 'Gulf',
+                cwNextBtn1: 'Next — see your data fill in →',
+                cwStep2Title: 'Review your data — edit if different',
+                cwStep2Sub: 'We filled numbers from similar clinic averages. The only number you know exactly is the rent.',
+                cwRentLabel: 'Clinic rent',
+                cwRentHint: 'The only number you know exactly',
+                cwHoursLabel: 'Working hours per day',
+                cwOverheadLabel: 'Utilities, insurance & admin',
+                cwStaffLabel: 'Staff salaries',
+                cwDepLabel: 'Equipment depreciation',
+                cwTotalLabel: 'Total monthly costs',
+                cwAutoNote: 'Depreciation and utilities from 300+ similar clinic averages',
+                cwBackBtn: '← Back',
+                cwComputeBtn: 'Yes, numbers look right — continue →',
+                cwResultLabel: 'Operating cost per chair per hour',
+                cwInfoTitle: 'This is your base number — remember it well',
+                cwWarningTitle: 'But this is not the full service price',
+                cwWarningBody: 'The right price = chair cost + your materials + doctor fees + your profit margin. This number is just the base.',
+                cwCtaTitle: 'Want to know if you profit or lose on each service?',
+                cwCtaBody: 'Register free and add your services in detail — the app will calculate each procedure\'s cost precisely and tell you the right price.',
+                cwCtaBtn: 'Register free and start now →',
+                cwRestartLink: '↺ Restart from the beginning',
             },
             ar: {
                 langBtn: 'English',
@@ -572,13 +760,6 @@
                 heroHeadline2: 'كل كرسي في الساعة؟',
                 heroSub: 'معظم عيادات الأسنان تُسعّر خدماتها بالتخمين — وتخسر دون أن تعلم. حاسبة أسعار الأسنان تحسب تكلفة الكرسي الحقيقية وتحدد السعر الصحيح لكل إجراء.',
                 heroCtaText: 'ابدأ مجاناً',
-                calcTitle: 'احسب تكلفتك الآن',
-                calcLabel1: 'الإيجار الشهري (ج.م.)',
-                calcLabel2: 'إجمالي الرواتب الشهرية (ج.م.)',
-                calcLabel3: 'عدد الكراسي',
-                calcBtn: 'احسب ←',
-                calcResultLabel: 'تكلفة الكرسي في الساعة',
-                calcResultSub: 'سجّل للحصول على أسعار دقيقة لجميع خدماتك',
                 featTitle: 'كل ما تحتاجه للتسعير الصحيح',
                 featSub: 'مصمم خصيصاً لعيادات الأسنان في مصر والخليج',
                 f1Title: 'تحليل تكاليف حقيقية',
@@ -595,6 +776,45 @@
                 footerCopy: '© ٢٠٢٦ حاسبة أسعار الأسنان',
                 footerLogin: 'لديك حساب بالفعل؟ سجّل الدخول ←',
                 footerRegister: 'سجّل عيادتك ←',
+                // Widget translations
+                cwStepLabel: 'خطوة ١ من ٣',
+                cwStepTime: '⏱ دقيقتان تقريباً',
+                cwStep1Title: 'عيادتك من أي نوع؟',
+                cwStep1Sub: 'سؤالان بس — وسنملأ ٨٠٪ من البيانات تلقائياً من متوسطات عيادات مشابهة',
+                cwSizeLabel: 'حجم العيادة',
+                cwCityLabel: 'موقع العيادة',
+                cwChipSmall: 'كرسي واحد',
+                cwChipSmallSub: 'طبيب ± مساعد',
+                cwChipMedium: 'كرسيان',
+                cwChipMediumSub: 'طبيب + مساعد',
+                cwChipLarge: '٣ كراسي+',
+                cwChipLargeSub: 'عيادة متكاملة',
+                cwChipCairo: 'القاهرة / الجيزة',
+                cwChipAlex: 'الإسكندرية',
+                cwChipDelta: 'الدلتا / المنصورة',
+                cwChipUpper: 'الصعيد',
+                cwChipGulf: 'الخليج',
+                cwNextBtn1: 'التالي — شوف بياناتك تتملأ ←',
+                cwStep2Title: 'راجع بياناتك — عدّل لو فيه فرق',
+                cwStep2Sub: 'ملأنا الأرقام بناءً على متوسطات عيادات مشابهة لعيادتك. الرقم الوحيد اللي تعرفه بالضبط هو الإيجار.',
+                cwRentLabel: 'إيجار العيادة',
+                cwRentHint: 'الرقم الوحيد اللي تعرفه بالضبط',
+                cwHoursLabel: 'ساعات العمل يومياً',
+                cwOverheadLabel: 'المرافق والتأمين والإدارة',
+                cwStaffLabel: 'رواتب الموظفين',
+                cwDepLabel: 'إهلاك المعدات',
+                cwTotalLabel: 'إجمالي التكاليف الشهرية',
+                cwAutoNote: 'أرقام الإهلاك والمرافق محسوبة من متوسطات ٣٠٠+ عيادة مشابهة',
+                cwBackBtn: '← رجوع',
+                cwComputeBtn: 'أيوه، الأرقام قريبة — كمّل ←',
+                cwResultLabel: 'الساعة التشغيلية للكرسي',
+                cwInfoTitle: 'هذا هو رقمك الأساسي — احفظه كويس',
+                cwWarningTitle: 'بس ده مش السعر الكامل للخدمة',
+                cwWarningBody: 'السعر الصح = تكلفة الكرسي + خاماتك الفعلية + أتعاب الطبيب + هامش ربحك. الرقم ده بس هو الأساس.',
+                cwCtaTitle: 'عايز تعرف بتكسب ولا بتخسر على كل خدمة؟',
+                cwCtaBody: 'سجّل مجاناً وأضف خدماتك بالتفصيل — التطبيق هيحسبلك تكلفة كل إجراء بدقة ويقولك السعر الصح اللي يغطي تكاليفك ويحقق ربحك.',
+                cwCtaBtn: 'سجّل مجاناً وابدأ دلوقتي ←',
+                cwRestartLink: '↺ أعد التجربة من البداية',
             }
         };
 
@@ -609,10 +829,16 @@
                 const el = document.getElementById(k);
                 if (el) el.textContent = t[k];
             });
-            // Update calc input placeholder directions
-            ['calcRent','calcSalaries','calcChairs'].forEach(id => {
+            // Keep number inputs LTR
+            ['cwRent','cwHours','cwOverhead','cwStaff','cwDep'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.dir = 'ltr';
+            });
+            // Re-inject auto-badge HTML for labels that have it (textContent strips it)
+            const badge = ' <span class="cw-auto-badge">✦ ' + (wlLang === 'ar' ? 'ملأناها تلقائياً' : 'Auto-filled') + '</span>';
+            ['cwOverheadLabel','cwStaffLabel','cwDepLabel'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = t[id] + badge;
             });
         }
 
@@ -622,31 +848,172 @@
             wlApplyLang();
         }
 
-        // ── Mini Calculator ───────────────────────────────────────
-        function wlCalculate() {
-            const rent = parseFloat(document.getElementById('calcRent').value) || 0;
-            const salaries = parseFloat(document.getElementById('calcSalaries').value) || 0;
-            const chairs = Math.max(1, parseInt(document.getElementById('calcChairs').value) || 1);
+        // ── TEMPLATES ─────────────────────────────────────────────
+        const TEMPLATES = {
+            small: {
+                cairo: { rent: 15000, overhead: 3500, staff: 13000, dep: 3000, chairs: 1 },
+                alex:  { rent: 12000, overhead: 3000, staff: 11000, dep: 3000, chairs: 1 },
+                delta: { rent: 8000,  overhead: 2500, staff: 9000,  dep: 3000, chairs: 1 },
+                upper: { rent: 5000,  overhead: 2000, staff: 7000,  dep: 2500, chairs: 1 },
+                gulf:  { rent: 9000,  overhead: 3000, staff: 10000, dep: 4000, chairs: 1, cur: 'ر.س' },
+            },
+            medium: {
+                cairo: { rent: 25000, overhead: 5500, staff: 22000, dep: 4500, chairs: 2 },
+                alex:  { rent: 18000, overhead: 4500, staff: 18000, dep: 4500, chairs: 2 },
+                delta: { rent: 12000, overhead: 3500, staff: 15000, dep: 4000, chairs: 2 },
+                upper: { rent: 8000,  overhead: 2800, staff: 12000, dep: 3500, chairs: 2 },
+                gulf:  { rent: 15000, overhead: 5000, staff: 18000, dep: 6000, chairs: 2, cur: 'ر.س' },
+            },
+            large: {
+                cairo: { rent: 40000, overhead: 8000, staff: 40000, dep: 7000, chairs: 3 },
+                alex:  { rent: 30000, overhead: 7000, staff: 32000, dep: 7000, chairs: 3 },
+                delta: { rent: 20000, overhead: 5000, staff: 25000, dep: 6000, chairs: 3 },
+                upper: { rent: 14000, overhead: 4000, staff: 20000, dep: 5500, chairs: 3 },
+                gulf:  { rent: 25000, overhead: 8000, staff: 30000, dep: 9000, chairs: 3, cur: 'ر.س' },
+            },
+        };
 
-            // Simple model: rent + salaries + 15% overhead, 8h/day, 24 days/month
-            const totalFixed = rent + salaries + (rent + salaries) * 0.15;
-            const totalHours = chairs * 8 * 24;
-            const costPerHour = totalFixed / totalHours;
+        // ── Widget State ──────────────────────────────────────────
+        const CW = { size: null, city: null, tpl: null, cph: 0, cur: 'ج' };
 
-            const resultEl = document.getElementById('calcResult');
-            const valueEl = document.getElementById('calcResultValue');
-            valueEl.textContent = costPerHour > 0
-                ? Math.round(costPerHour).toLocaleString() + ' ' + (wlLang === 'ar' ? 'ج.م.' : 'EGP')
-                : '–';
-            resultEl.style.display = 'block';
+        // ── Session ID ────────────────────────────────────────────
+        function cwGetSessionId() {
+            let sid = localStorage.getItem('dbd_sid');
+            if (!sid) {
+                sid = 'cw_' + Math.random().toString(36).substr(2, 12) + Date.now().toString(36);
+                localStorage.setItem('dbd_sid', sid);
+            }
+            return sid;
         }
 
-        // Enter key triggers calculation
-        ['calcRent','calcSalaries','calcChairs'].forEach(id => {
-            document.getElementById(id).addEventListener('keydown', e => {
-                if (e.key === 'Enter') wlCalculate();
+        // ── Chip Selection ────────────────────────────────────────
+        function cwSelectChip(el, group) {
+            const parent = el.closest('.cw-chips');
+            parent.querySelectorAll('.cw-chip').forEach(c => c.classList.remove('cw-selected'));
+            el.classList.add('cw-selected');
+            CW[group] = el.dataset.value;
+            document.getElementById('cwNextBtn1').disabled = !(CW.size && CW.city);
+        }
+
+        // ── Step Navigation ───────────────────────────────────────
+        const CW_STEPS = [
+            { label_ar: 'خطوة ١ من ٣', label_en: 'Step 1 of 3', time_ar: '⏱ دقيقتان تقريباً', time_en: '⏱ About 2 minutes', pct: 33 },
+            { label_ar: 'خطوة ٢ من ٣', label_en: 'Step 2 of 3', time_ar: '⏱ ٣٠ ثانية', time_en: '⏱ 30 seconds', pct: 66 },
+            { label_ar: 'نتيجتك جاهزة', label_en: 'Your result is ready', time_ar: '', time_en: '', pct: 100 },
+        ];
+
+        function cwGoStep(n) {
+            ['cwStep1','cwStep2','cwStep3'].forEach((id, i) => {
+                document.getElementById(id).style.display = (i + 1 === n) ? 'block' : 'none';
             });
-        });
+            const s = CW_STEPS[n - 1];
+            document.getElementById('cwProgressFill').style.width = s.pct + '%';
+            document.getElementById('cwStepLabel').textContent = wlLang === 'ar' ? s.label_ar : s.label_en;
+            document.getElementById('cwStepTime').textContent = wlLang === 'ar' ? s.time_ar : s.time_en;
+            if (n === 2) cwPrefill();
+        }
+
+        // ── Prefill Step 2 ────────────────────────────────────────
+        function cwPrefill() {
+            const tpl = TEMPLATES[CW.size]?.[CW.city];
+            if (!tpl) return;
+            CW.tpl = tpl;
+            CW.cur = tpl.cur || 'ج';
+            document.getElementById('cwRent').value = tpl.rent;
+            document.getElementById('cwStaff').value = tpl.staff;
+            document.getElementById('cwDep').value = tpl.dep;
+            cwRecalc();
+        }
+
+        // ── Live Recalc (on rent/hours change — also updates overhead) ──
+        function cwRecalc() {
+            if (!CW.tpl) return;
+            const rent = parseFloat(document.getElementById('cwRent').value) || 0;
+            const baseRent = CW.tpl.rent;
+            const rentRatio = baseRent > 0 ? rent / baseRent : 1;
+            const overhead = Math.round(CW.tpl.overhead * (rentRatio * 0.6 + 0.4));
+            document.getElementById('cwOverhead').value = overhead;
+            cwRecalcTotal();
+        }
+
+        // ── Recalc Total (runs when any cost field changes) ──────
+        function cwRecalcTotal() {
+            const rent = parseFloat(document.getElementById('cwRent').value) || 0;
+            const overhead = parseFloat(document.getElementById('cwOverhead').value) || 0;
+            const staff = parseFloat(document.getElementById('cwStaff').value) || 0;
+            const dep = parseFloat(document.getElementById('cwDep').value) || 0;
+            const total = rent + overhead + staff + dep;
+            document.getElementById('cwTotal').textContent = total.toLocaleString() + ' ' + CW.cur;
+        }
+
+        // ── Compute (API call) ────────────────────────────────────
+        async function cwCompute() {
+            const btn = document.getElementById('cwComputeBtn');
+            const origText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '...جاري الحساب';
+
+            const rent = parseFloat(document.getElementById('cwRent').value) || 0;
+            const hours = parseFloat(document.getElementById('cwHours').value) || 8;
+            const sessionId = cwGetSessionId();
+
+            let result;
+            try {
+                const resp = await fetch('/api/calculator/compute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        size: CW.size, city: CW.city, rent, hours, session_id: sessionId,
+                        overhead: parseFloat(document.getElementById('cwOverhead').value) || 0,
+                        staff: parseFloat(document.getElementById('cwStaff').value) || 0,
+                        dep: parseFloat(document.getElementById('cwDep').value) || 0
+                    })
+                });
+                if (resp.ok) result = await resp.json();
+            } catch (e) { /* fallback below */ }
+
+            if (!result) {
+                // Client-side fallback using actual field values
+                const overhead = parseFloat(document.getElementById('cwOverhead').value) || 0;
+                const staff = parseFloat(document.getElementById('cwStaff').value) || 0;
+                const dep = parseFloat(document.getElementById('cwDep').value) || 0;
+                const totalCosts = rent + overhead + staff + dep;
+                const availHours = CW.tpl.chairs * hours * 24 * 0.7;
+                result = { cph: availHours > 0 ? totalCosts / availHours : 0, currency: CW.cur === 'ر.س' ? 'SAR' : 'EGP' };
+            }
+
+            CW.cph = result.cph;
+            const cur = result.currency === 'SAR' ? 'ر.س' : 'ج';
+            const cphRound = Math.round(CW.cph);
+
+            document.getElementById('cwCphValue').textContent = cphRound.toLocaleString();
+            document.getElementById('cwCphCurrency').textContent = cur;
+            document.getElementById('cwInfoText').textContent =
+                wlLang === 'ar'
+                    ? `كل ساعة شغل على الكرسي بتكلّفك ${cphRound.toLocaleString()} ${cur} قبل ما تحسب أي خامة أو أتعاب. ده بناءً على تكاليف عيادتك الثابتة فقط.`
+                    : `Every hour on the chair costs you ${cphRound.toLocaleString()} ${cur} before any materials or fees. This is based on your fixed costs only.`;
+
+            document.getElementById('cwT30').textContent = Math.round(CW.cph * 0.5).toLocaleString() + ' ' + cur;
+            document.getElementById('cwT45').textContent = Math.round(CW.cph * 0.75).toLocaleString() + ' ' + cur;
+            document.getElementById('cwT60').textContent = Math.round(CW.cph * 1.0).toLocaleString() + ' ' + cur;
+            document.getElementById('cwT90').textContent = Math.round(CW.cph * 1.5).toLocaleString() + ' ' + cur;
+
+            btn.disabled = false;
+            btn.textContent = origText;
+            cwGoStep(3);
+        }
+
+        // ── Restart ───────────────────────────────────────────────
+        function cwRestart() {
+            CW.size = null;
+            CW.city = null;
+            CW.tpl = null;
+            CW.cph = 0;
+            CW.cur = 'ج';
+            document.querySelectorAll('.cw-chip').forEach(c => c.classList.remove('cw-selected'));
+            document.getElementById('cwNextBtn1').disabled = true;
+            cwGoStep(1);
+        }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', wlApplyLang);
