@@ -6,260 +6,606 @@
     <title>Register Your Clinic - Dental Pricing Calculator</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Rubik:wght@300;400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
-        .register-container {
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Rubik', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #1e3a5f;
+        }
+
+        .register-wrapper {
             min-height: 100vh;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, var(--primary-800), var(--primary-900));
-            padding: 2rem;
+            background: linear-gradient(135deg, #1e3a5f 0%, #1e4976 50%, #2563eb 100%);
+            position: relative;
+            overflow: hidden;
         }
 
-        .register-box {
-            background: white;
+        .register-wrapper::before {
+            content: '';
+            position: absolute;
+            width: 800px; height: 800px;
+            background: radial-gradient(circle, rgba(59,130,246,0.3) 0%, transparent 70%);
+            top: -400px; right: -400px;
+            animation: float 20s ease-in-out infinite;
+            pointer-events: none; z-index: 0;
+        }
+
+        .register-wrapper::after {
+            content: '';
+            position: absolute;
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(20,184,166,0.2) 0%, transparent 70%);
+            bottom: -300px; left: -300px;
+            animation: float 15s ease-in-out infinite reverse;
+            pointer-events: none; z-index: 0;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0,0) scale(1); }
+            50% { transform: translate(50px,50px) scale(1.1); }
+        }
+
+        /* Language Toggle */
+        .lang-toggle-btn {
+            position: absolute;
+            top: 2rem; right: 2rem;
+            z-index: 1000;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.25);
+            color: white;
+            padding: 0.625rem 1.25rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex; align-items: center; gap: 0.5rem;
+            font-size: 0.9rem; font-weight: 500; font-family: inherit;
+        }
+        .lang-toggle-btn:hover { background: rgba(255,255,255,0.25); transform: translateY(-1px); }
+        .lang-toggle-btn svg { width: 18px; height: 18px; }
+
+        /* Left side */
+        .register-left {
+            flex: 1;
+            display: flex; flex-direction: column; justify-content: center;
+            padding: 4rem;
+            color: white; position: relative; z-index: 1;
+        }
+
+        .register-brand { margin-bottom: 3rem; }
+
+        .register-brand h1 {
+            font-size: 2.75rem; font-weight: 800; color: white;
+            margin-bottom: 1rem;
+            display: flex; align-items: center; gap: 1rem;
+            font-family: 'Poppins', sans-serif;
+            letter-spacing: -0.02em;
+        }
+
+        .register-brand-icon {
+            width: 64px; height: 64px;
+            background: rgba(255,255,255,0.2);
             border-radius: 16px;
-            padding: 2.5rem;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 600px;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .register-brand-icon svg { width: 32px; height: 32px; }
+
+        .register-brand p {
+            font-size: 1.15rem; opacity: 0.9; font-weight: 400;
+            margin-left: 0.5rem; line-height: 1.5;
+        }
+
+        .register-value-list {
+            display: flex; flex-direction: column; gap: 1.25rem;
+            max-width: 480px;
+        }
+
+        .register-value-item {
+            display: flex; align-items: flex-start; gap: 1rem;
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 14px;
+            padding: 1.25rem 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .register-value-item:hover {
+            background: rgba(255,255,255,0.14);
+            transform: translateY(-3px);
+            box-shadow: 0 16px 32px rgba(0,0,0,0.2);
+        }
+
+        .register-value-icon {
+            width: 44px; height: 44px; min-width: 44px;
+            background: rgba(20,184,166,0.2);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .register-value-icon svg { width: 22px; height: 22px; }
+
+        .register-value-item h4 {
+            color: white; font-size: 1rem; font-weight: 600;
+            margin-bottom: 0.25rem; margin-top: 0;
+        }
+
+        .register-value-item p {
+            font-size: 0.875rem; opacity: 0.75; margin: 0; line-height: 1.5;
+        }
+
+        /* Right side */
+        .register-right {
+            width: 540px;
+            display: flex; align-items: center; justify-content: center;
+            padding: 2rem;
+            position: relative; z-index: 1;
+            overflow-y: auto;
+        }
+
+        .register-card {
             width: 100%;
+            background: white;
+            border-radius: 24px;
+            padding: 2.25rem;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.3);
+            margin: auto 0;
         }
 
-        .register-header {
+        .register-card-header {
             text-align: center;
-            margin-bottom: 2rem;
+            margin-bottom: 1.75rem;
         }
 
-        .register-icon {
-            font-size: 3rem;
-            margin-bottom: 0.75rem;
+        .register-card-header h2 {
+            font-size: 1.6rem; font-weight: 700;
+            color: #1e3a5f; margin-bottom: 0.4rem;
+            font-family: 'Poppins', sans-serif;
         }
 
-        .register-header h1 {
-            color: var(--primary);
-            font-size: 1.6rem;
-            margin-bottom: 0.5rem;
+        .register-card-header p {
+            color: #5c7eb1; font-size: 0.9rem; margin: 0;
         }
 
-        .register-header p {
-            color: var(--gray-600);
-            font-size: 0.9rem;
-        }
-
+        /* Section titles */
         .section-title {
-            font-size: 1rem;
+            font-size: 0.8rem;
             font-weight: 600;
-            color: var(--primary);
-            margin: 1.5rem 0 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid var(--gray-200);
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin: 1.25rem 0 0.75rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px solid #e2e8f0;
         }
+
+        /* Form */
+        .register-form { display: flex; flex-direction: column; gap: 0; }
 
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1rem;
+            gap: 0.75rem;
         }
 
-        .form-group {
-            margin-bottom: 1rem;
-        }
+        .form-group { margin-bottom: 0.875rem; }
 
         .form-label {
             display: block;
-            margin-bottom: 0.4rem;
-            color: var(--gray-700);
+            margin-bottom: 0.375rem;
+            color: #1e3a5f;
             font-weight: 500;
-            font-size: 0.9rem;
+            font-size: 0.875rem;
         }
+
+        .form-label.required::after { content: ' *'; color: #FF5470; }
 
         .form-input {
             width: 100%;
-            padding: 0.75rem 1rem;
-            border: 2px solid var(--gray-200);
-            border-radius: 8px;
+            padding: 0.8rem 1rem;
+            border: 2px solid #c5d1e3;
+            border-radius: 10px;
             font-size: 0.95rem;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            background: #f8fafc;
+            font-family: inherit;
+            color: #1e293b;
         }
+
+        .form-input:hover { border-color: #9fb3d1; }
 
         .form-input:focus {
             outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #14b8a6;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(20,184,166,0.12);
         }
 
+        .form-input::placeholder { color: #9fb3d1; }
+
+        /* Error / Success */
+        .error-message {
+            background: #fef2f2; color: #dc2626;
+            padding: 0.875rem 1rem; border-radius: 10px;
+            font-size: 0.875rem; display: none;
+            border: 1px solid #fecaca; margin-bottom: 1rem;
+        }
+
+        .success-message {
+            background: #f0fdf4; color: #16a34a;
+            padding: 0.875rem 1rem; border-radius: 10px;
+            font-size: 0.875rem; display: none;
+            border: 1px solid #bbf7d0; margin-bottom: 1rem;
+        }
+
+        /* Submit button */
         .btn-register {
             width: 100%;
-            padding: 1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-            margin-top: 1rem;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+            color: white; border: none; border-radius: 10px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+            font-family: inherit; margin-top: 0.5rem;
         }
 
         .btn-register:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 8px 25px rgba(20,184,166,0.4);
         }
+
+        .btn-register:active { transform: translateY(0); }
 
         .btn-register:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
+            opacity: 0.6; cursor: not-allowed; transform: none;
         }
 
-        .register-footer {
-            margin-top: 1.5rem;
+        .btn-register svg { width: 20px; height: 20px; }
+
+        /* Footer */
+        .register-card-footer {
             text-align: center;
-            color: var(--gray-600);
-            font-size: 0.875rem;
+            margin-top: 1.25rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid #c5d1e3;
         }
 
-        .register-footer a {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 500;
+        .register-card-footer p {
+            font-size: 0.875rem; color: #5c7eb1; margin-bottom: 0.5rem;
         }
 
-        .error-message {
-            background: #fee;
-            color: #c33;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            display: none;
+        .login-link {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            color: #3f67a3; font-weight: 600; font-size: 0.9rem;
+            text-decoration: none; transition: all 0.2s;
         }
 
-        .success-message {
-            background: #efe;
-            color: #363;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            display: none;
+        .login-link:hover { color: #1e3a5f; gap: 0.6rem; }
+        .login-link svg { width: 16px; height: 16px; }
+
+        .trust-signal {
+            text-align: center; font-size: 0.8rem;
+            color: #9fb3d1; margin-top: 0.875rem;
         }
 
-        .required::after {
-            content: ' *';
-            color: #c33;
+        /* Responsive */
+        @media (max-width: 1100px) {
+            .register-left { padding: 3rem; }
+            .register-brand h1 { font-size: 2.25rem; }
         }
 
-        @media (max-width: 600px) {
-            .form-row {
-                grid-template-columns: 1fr;
-            }
+        @media (max-width: 900px) {
+            .register-left { display: none; }
+            .register-right { width: 100%; padding: 1.5rem; }
+            .register-card { padding: 2rem; }
+            .lang-toggle-btn { position: fixed; top: 1rem; right: 1rem; }
+        }
+
+        @media (max-width: 520px) {
+            .form-row { grid-template-columns: 1fr; gap: 0; }
+        }
+
+        /* RTL Support */
+        html[dir="rtl"] body { font-family: 'IBM Plex Sans Arabic', 'Rubik', sans-serif; }
+        html[dir="rtl"] .register-brand h1 { font-family: 'IBM Plex Sans Arabic', 'Poppins', sans-serif; }
+        html[dir="rtl"] .register-card-header h2 { font-family: 'IBM Plex Sans Arabic', 'Poppins', sans-serif; }
+        html[dir="rtl"] .lang-toggle-btn { right: auto; left: 2rem; }
+        html[dir="rtl"] .register-brand p { margin-left: 0; margin-right: 0.5rem; }
+        @media (max-width: 900px) {
+            html[dir="rtl"] .lang-toggle-btn { left: 1rem; right: auto; }
         }
     </style>
 </head>
 <body>
-    <div class="register-container">
-        <div class="register-box">
-            <div class="register-header">
-                <div class="register-icon">🏥</div>
-                <h1>Register Your Dental Clinic</h1>
-                <p>Start calculating service prices with our Cost-Plus pricing model</p>
+    <div class="register-wrapper">
+        <!-- Language Toggle -->
+        <button class="lang-toggle-btn" onclick="toggleLanguage()" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span id="langToggleText">عربي</span>
+        </button>
+
+        <!-- Left Side - Branding & Value Props -->
+        <div class="register-left">
+            <div class="register-brand">
+                <h1>
+                    <div class="register-brand-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2C8 2 6 5 6 8c0 2.5 1 4 2 5.5S10 16 10 18c0 1.5-.5 3-1.5 4h7c-1-1-1.5-2.5-1.5-4 0-2 1-3.5 2-5.5s2-3 2-5.5c0-3-2-6-6-6z"/>
+                            <path d="M9 22h6"/>
+                        </svg>
+                    </div>
+                    <span id="brandName">Dental Pricing Calculator</span>
+                </h1>
+                <p id="brandTagline">Set up your clinic in 3 minutes — and start pricing with confidence</p>
             </div>
 
-            <div id="errorMessage" class="error-message"></div>
-            <div id="successMessage" class="success-message"></div>
-
-            <form id="registerForm">
-                <div class="section-title">Clinic Information</div>
-
-                <div class="form-group">
-                    <label class="form-label required">Clinic Name</label>
-                    <input type="text" class="form-input" id="clinic_name" name="clinic_name" required
-                           placeholder="e.g. Cairo Dental Center">
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Clinic Email (Optional)</label>
-                        <input type="email" class="form-input" id="clinic_email" name="clinic_email"
-                               placeholder="clinic@example.com">
+            <div class="register-value-list">
+                <div class="register-value-item">
+                    <div class="register-value-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+                        </svg>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Phone Number</label>
-                        <input type="tel" class="form-input" id="clinic_phone" name="clinic_phone"
-                               placeholder="+20 100 000 0000">
+                    <div>
+                        <h4 id="val1Title">Know your real chair cost</h4>
+                        <p id="val1Desc">We calculate your exact cost per chair per hour from your rent, staff, and equipment — automatically</p>
                     </div>
                 </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">City</label>
-                        <input type="text" class="form-input" id="clinic_city" name="clinic_city"
-                               placeholder="e.g. Cairo">
+                <div class="register-value-item">
+                    <div class="register-value-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Address</label>
-                        <input type="text" class="form-input" id="clinic_address" name="clinic_address"
-                               placeholder="Street address">
+                    <div>
+                        <h4 id="val2Title">Price any procedure in seconds</h4>
+                        <p id="val2Desc">Enter chair time, doctor fee, and materials — get the exact minimum price and your profit margin instantly</p>
                     </div>
                 </div>
-
-                <div class="section-title">Owner Account</div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label required">First Name</label>
-                        <input type="text" class="form-input" id="owner_first_name" name="owner_first_name" required>
+                <div class="register-value-item">
+                    <div class="register-value-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+                        </svg>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label required">Last Name</label>
-                        <input type="text" class="form-input" id="owner_last_name" name="owner_last_name" required>
+                    <div>
+                        <h4 id="val3Title">Spot losing services immediately</h4>
+                        <p id="val3Desc">See which procedures are priced below cost — and fix them before they drain your clinic's profits</p>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="form-group">
-                    <label class="form-label required">Email Address</label>
-                    <input type="email" class="form-input" id="owner_email" name="owner_email" required
-                           placeholder="your@email.com">
+        <!-- Right Side - Registration Form -->
+        <div class="register-right">
+            <div class="register-card">
+                <div class="register-card-header">
+                    <h2 id="pageTitle">Register Your Clinic</h2>
+                    <p id="pageSubtitle">Free during beta — no credit card required</p>
                 </div>
 
-                <div class="form-row">
+                <div id="errorMessage" class="error-message"></div>
+                <div id="successMessage" class="success-message"></div>
+
+                <form id="registerForm" class="register-form">
+                    <div class="section-title" id="sectionClinic">Clinic Information</div>
+
                     <div class="form-group">
-                        <label class="form-label required">Username</label>
-                        <input type="text" class="form-input" id="owner_username" name="owner_username" required
-                               placeholder="Choose a username">
+                        <label class="form-label required" id="labelClinicName">Clinic Name</label>
+                        <input type="text" class="form-input" id="clinic_name" name="clinic_name" required
+                               placeholder="e.g. Cairo Dental Center" dir="auto">
                     </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" id="labelClinicEmail">Clinic Email</label>
+                            <input type="email" class="form-input" id="clinic_email" name="clinic_email"
+                                   placeholder="clinic@example.com" dir="ltr">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" id="labelClinicPhone">Phone Number</label>
+                            <input type="tel" class="form-input" id="clinic_phone" name="clinic_phone"
+                                   placeholder="+20 100 000 0000" dir="ltr">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" id="labelCity">City</label>
+                            <input type="text" class="form-input" id="clinic_city" name="clinic_city"
+                                   placeholder="e.g. Cairo" dir="auto">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" id="labelAddress">Address</label>
+                            <input type="text" class="form-input" id="clinic_address" name="clinic_address"
+                                   placeholder="Street address" dir="auto">
+                        </div>
+                    </div>
+
+                    <div class="section-title" id="sectionOwner">Owner Account</div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label required" id="labelFirstName">First Name</label>
+                            <input type="text" class="form-input" id="owner_first_name" name="owner_first_name" required dir="auto">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label required" id="labelLastName">Last Name</label>
+                            <input type="text" class="form-input" id="owner_last_name" name="owner_last_name" required dir="auto">
+                        </div>
+                    </div>
+
                     <div class="form-group">
-                        <label class="form-label required">Password</label>
-                        <input type="password" class="form-input" id="owner_password" name="owner_password" required
-                               minlength="5" placeholder="Min 5 characters">
+                        <label class="form-label required" id="labelEmail">Email Address</label>
+                        <input type="email" class="form-input" id="owner_email" name="owner_email" required
+                               placeholder="your@email.com" dir="ltr">
                     </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label required" id="labelUsername">Username</label>
+                            <input type="text" class="form-input" id="owner_username" name="owner_username" required
+                                   placeholder="Choose a username" dir="ltr" autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label required" id="labelPassword">Password</label>
+                            <input type="password" class="form-input" id="owner_password" name="owner_password" required
+                                   minlength="5" placeholder="Min 5 characters" dir="ltr" autocomplete="new-password">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-register" id="submitBtn">
+                        <span id="submitBtnText">Create Free Clinic Account</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                            <polyline points="12 5 19 12 12 19"/>
+                        </svg>
+                    </button>
+                </form>
+
+                <div class="register-card-footer">
+                    <p id="alreadyHaveAccount">Already have an account?</p>
+                    <a href="/login" class="login-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                            <polyline points="10 17 15 12 10 7"/>
+                            <line x1="15" y1="12" x2="3" y2="12"/>
+                        </svg>
+                        <span id="loginLinkText">Sign in to your account</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                            <polyline points="12 5 19 12 12 19"/>
+                        </svg>
+                    </a>
                 </div>
-
-                <button type="submit" class="btn-register" id="submitBtn">
-                    Create Clinic Account
-                </button>
-            </form>
-
-            <div class="register-footer">
-                <p>Already have an account? <a href="/">Sign in here</a></p>
+                <p class="trust-signal" id="trustSignal">Free during beta · No credit card required</p>
             </div>
         </div>
     </div>
 
     <script>
+        const T = {
+            en: {
+                langToggle: 'عربي',
+                brandName: 'Dental Pricing Calculator',
+                brandTagline: 'Set up your clinic in 3 minutes — and start pricing with confidence',
+                val1Title: 'Know your real chair cost',
+                val1Desc: 'We calculate your exact cost per chair per hour from your rent, staff, and equipment — automatically',
+                val2Title: 'Price any procedure in seconds',
+                val2Desc: 'Enter chair time, doctor fee, and materials — get the exact minimum price and your profit margin instantly',
+                val3Title: 'Spot losing services immediately',
+                val3Desc: "See which procedures are priced below cost — and fix them before they drain your clinic's profits",
+                pageTitle: 'Register Your Clinic',
+                pageSubtitle: 'Free during beta — no credit card required',
+                sectionClinic: 'Clinic Information',
+                labelClinicName: 'Clinic Name',
+                labelClinicEmail: 'Clinic Email',
+                labelClinicPhone: 'Phone Number',
+                labelCity: 'City',
+                labelAddress: 'Address',
+                sectionOwner: 'Owner Account',
+                labelFirstName: 'First Name',
+                labelLastName: 'Last Name',
+                labelEmail: 'Email Address',
+                labelUsername: 'Username',
+                labelPassword: 'Password',
+                submitBtnText: 'Create Free Clinic Account',
+                alreadyHaveAccount: 'Already have an account?',
+                loginLinkText: 'Sign in to your account',
+                trustSignal: 'Free during beta · No credit card required',
+                creating: 'Creating your account...',
+                successMsg: 'Account created! Redirecting to your dashboard...',
+                errorConn: 'Connection error. Please try again.',
+            },
+            ar: {
+                langToggle: 'English',
+                brandName: 'حاسبة أسعار الأسنان',
+                brandTagline: 'أعدّ عيادتك في ٣ دقائق — وابدأ التسعير بثقة',
+                val1Title: 'اعرف تكلفة كرسيك الحقيقية',
+                val1Desc: 'نحسب تكلفة كرسيك بالساعة تلقائياً من الإيجار والرواتب والمعدات',
+                val2Title: 'سعّر أي إجراء في ثوانٍ',
+                val2Desc: 'أدخل وقت الكرسي وأتعاب الطبيب والمواد — واحصل على السعر الأدنى وهامش ربحك فوراً',
+                val3Title: 'اكتشف الخدمات الخاسرة فوراً',
+                val3Desc: 'شوف أي إجراءات أسعارها أقل من التكلفة — وصحّحها قبل ما تأثر على أرباح عيادتك',
+                pageTitle: 'سجّل عيادتك',
+                pageSubtitle: 'مجاني خلال البيتا — لا بطاقة ائتمانية مطلوبة',
+                sectionClinic: 'بيانات العيادة',
+                labelClinicName: 'اسم العيادة',
+                labelClinicEmail: 'البريد الإلكتروني للعيادة',
+                labelClinicPhone: 'رقم الهاتف',
+                labelCity: 'المدينة',
+                labelAddress: 'العنوان',
+                sectionOwner: 'حساب المالك',
+                labelFirstName: 'الاسم الأول',
+                labelLastName: 'اسم العائلة',
+                labelEmail: 'البريد الإلكتروني',
+                labelUsername: 'اسم المستخدم',
+                labelPassword: 'كلمة المرور',
+                submitBtnText: 'إنشاء حساب عيادتي مجاناً',
+                alreadyHaveAccount: 'لديك حساب بالفعل؟',
+                loginLinkText: 'سجّل الدخول لحسابك',
+                trustSignal: 'مجاني خلال البيتا · لا بطاقة ائتمانية مطلوبة',
+                creating: 'جاري إنشاء حسابك...',
+                successMsg: 'تم إنشاء الحساب! جاري التوجيه إلى لوحتك...',
+                errorConn: 'خطأ في الاتصال. حاول مرة أخرى.',
+            }
+        };
+
+        let currentLang = localStorage.getItem('dental_lang') || 'en';
+
+        function applyLang() {
+            const t = T[currentLang];
+            const html = document.documentElement;
+            html.lang = currentLang;
+            html.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+            Object.keys(t).forEach(k => {
+                const el = document.getElementById(k);
+                if (el && k !== 'creating' && k !== 'successMsg' && k !== 'errorConn') {
+                    el.textContent = t[k];
+                }
+            });
+            // Keep email/username/password always LTR
+            ['clinic_email','clinic_phone','owner_email','owner_username','owner_password'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.dir = 'ltr';
+            });
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'ar' : 'en';
+            localStorage.setItem('dental_lang', currentLang);
+            applyLang();
+        }
+
+        document.addEventListener('DOMContentLoaded', applyLang);
+
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-
+            const t = T[currentLang];
             const errorDiv = document.getElementById('errorMessage');
             const successDiv = document.getElementById('successMessage');
             const submitBtn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('submitBtnText');
+            const originalText = btnText.textContent;
 
             errorDiv.style.display = 'none';
             successDiv.style.display = 'none';
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Creating account...';
+            btnText.textContent = t.creating;
 
             const formData = {
                 clinic_name: document.getElementById('clinic_name').value,
@@ -277,34 +623,28 @@
             try {
                 const response = await fetch('/api/register', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(formData)
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    successDiv.textContent = data.message || 'Clinic registered successfully!';
+                    successDiv.textContent = t.successMsg;
                     successDiv.style.display = 'block';
                     document.getElementById('registerForm').reset();
-
-                    // Redirect to login after 2 seconds
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 2000);
+                    setTimeout(() => { window.location.href = '/'; }, 2000);
                 } else {
                     errorDiv.textContent = data.error || 'Registration failed';
                     errorDiv.style.display = 'block';
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'Create Clinic Account';
+                    btnText.textContent = originalText;
                 }
             } catch (error) {
-                errorDiv.textContent = 'Connection error. Please try again.';
+                errorDiv.textContent = t.errorConn;
                 errorDiv.style.display = 'block';
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Create Clinic Account';
+                btnText.textContent = originalText;
             }
         });
     </script>

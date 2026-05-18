@@ -158,11 +158,11 @@
         }
         .wl-hero-headline {
             font-family: 'Poppins', sans-serif;
-            font-size: 2.75rem;
+            font-size: clamp(2.25rem, 5vw, 3.75rem);
             font-weight: 800;
-            line-height: 1.2;
+            line-height: 1.1;
             margin-bottom: 1.25rem;
-            letter-spacing: -0.02em;
+            letter-spacing: -0.03em;
         }
         .wl-hero-headline .accent { color: #5eead4; }
         .wl-hero-subtext {
@@ -185,7 +185,9 @@
             transition: all 0.2s;
             font-family: 'Poppins', sans-serif;
         }
-        .wl-hero-cta:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(20,184,166,0.4); }
+        .wl-hero-cta { transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease; }
+        .wl-hero-cta:hover { background: #0d9488; transform: translateY(-2px); box-shadow: 0 12px 32px rgba(20,184,166,0.5), 0 0 0 3px rgba(20,184,166,0.2); }
+        .wl-hero-cta:active { transform: translateY(0); box-shadow: none; }
         .wl-hero-cta svg { width: 18px; height: 18px; }
 
         /* ── CALCULATOR WIDGET ────────────────────────── */
@@ -204,7 +206,7 @@
         .cw-progress { margin-bottom: 1rem; }
         .cw-progress-text { display: flex; justify-content: space-between; font-size: 0.72rem; opacity: 0.7; margin-bottom: 0.4rem; }
         .cw-progress-bar { height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden; }
-        .cw-progress-fill { height: 100%; background: #0F6E56; border-radius: 2px; transition: width 0.4s ease; }
+        .cw-progress-fill { height: 100%; background: #14b8a6; border-radius: 2px; transition: width 0.4s ease; }
 
         /* Step panels */
         .cw-step { animation: wl-fadeIn 0.35s ease; }
@@ -228,20 +230,20 @@
             display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
         }
         .cw-chip:hover { background: rgba(255,255,255,0.15); }
-        .cw-chip.cw-selected { background: #E1F5EE; border-color: #0F6E56; color: #085041; }
+        .cw-chip.cw-selected { background: rgba(20,184,166,0.15); border-color: #14b8a6; color: #f0fdfa; }
         .cw-chip-main { font-weight: 600; }
         .cw-chip-sub { font-size: 0.65rem; opacity: 0.7; }
-        .cw-chip.cw-selected .cw-chip-sub { opacity: 0.8; }
+        .cw-chip.cw-selected .cw-chip-sub { opacity: 0.9; }
 
         /* Buttons */
         .cw-btn-primary {
             width: 100%; padding: 0.75rem;
-            background: #0F6E56; border: none; border-radius: 10px;
+            background: #14b8a6; border: none; border-radius: 10px;
             color: var(--white); font-size: 0.88rem; font-weight: 600;
             cursor: pointer; font-family: 'IBM Plex Sans Arabic', inherit;
-            margin-top: 0.6rem; transition: background 0.2s;
+            margin-top: 0.6rem; transition: background 0.2s, box-shadow 0.2s;
         }
-        .cw-btn-primary:hover { background: #085041; }
+        .cw-btn-primary:hover { background: #0d9488; box-shadow: 0 4px 16px rgba(20,184,166,0.35); }
         .cw-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
         .cw-btn-secondary {
             padding: 0.55rem 0.9rem;
@@ -303,19 +305,19 @@
         .cw-warning-box strong { display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
 
         .cw-cta-box {
-            background: #E1F5EE; border: 1px solid rgba(15,110,86,0.3);
+            background: rgba(20,184,166,0.12); border: 1px solid rgba(20,184,166,0.35);
             border-radius: 12px; padding: 0.9rem; text-align: center;
-            color: #085041; margin-bottom: 0.6rem;
+            color: var(--white); margin-bottom: 0.6rem;
         }
         .cw-cta-box strong { display: block; margin-bottom: 0.3rem; font-size: 0.82rem; }
         .cw-cta-box p { font-size: 0.72rem; margin-bottom: 0.6rem; line-height: 1.6; opacity: 0.85; }
         .cw-btn-cta {
-            display: inline-block; background: #0F6E56; color: var(--white);
+            display: inline-block; background: #14b8a6; color: var(--white);
             padding: 0.65rem 1.3rem; border-radius: 10px; font-size: 0.88rem;
             font-weight: 700; text-decoration: none;
-            font-family: 'IBM Plex Sans Arabic', inherit; transition: background 0.2s;
+            font-family: 'IBM Plex Sans Arabic', inherit; transition: background 0.2s, box-shadow 0.2s;
         }
-        .cw-btn-cta:hover { background: #085041; }
+        .cw-btn-cta:hover { background: #0d9488; box-shadow: 0 4px 16px rgba(20,184,166,0.4); }
 
         .cw-restart-link {
             display: block; text-align: center; background: none; border: none;
@@ -370,10 +372,9 @@
         }
         .wl-feature-icon {
             width: 52px; height: 52px;
-            background: linear-gradient(135deg, var(--gray-100), var(--gray-50));
+            background: linear-gradient(135deg, #e0f2fe, #f0fdfa);
             border-radius: 12px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.6rem;
             margin-bottom: 1rem;
         }
         .wl-feature-card h3 {
@@ -387,6 +388,64 @@
             font-size: 0.875rem;
             color: var(--gray-500);
             line-height: 1.6;
+        }
+
+        /* ── HOW IT WORKS ──────────────────────────────── */
+        .wl-howto {
+            padding: 5rem 2rem;
+            background: var(--white);
+        }
+        .wl-steps-grid {
+            display: flex;
+            align-items: flex-start;
+            gap: 0;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .wl-step-item {
+            flex: 1;
+            text-align: center;
+            padding: 0 1.5rem;
+        }
+        .wl-step-num {
+            font-family: 'Poppins', sans-serif;
+            font-size: 3rem;
+            font-weight: 800;
+            color: #14b8a6;
+            opacity: 0.25;
+            line-height: 1;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.04em;
+        }
+        .wl-step-icon {
+            width: 60px; height: 60px;
+            background: linear-gradient(135deg, #e0f2fe, #f0fdfa);
+            border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1rem;
+        }
+        .wl-step-item h3 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.05rem; font-weight: 600;
+            color: var(--primary-dark);
+            margin-bottom: 0.5rem;
+        }
+        .wl-step-item p {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+            line-height: 1.65;
+        }
+        .wl-step-connector {
+            width: 60px; flex-shrink: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #14b8a6, #5eead4);
+            margin-top: 4.75rem;
+            opacity: 0.4;
+        }
+        @media (max-width: 700px) {
+            .wl-steps-grid { flex-direction: column; align-items: center; gap: 2rem; }
+            .wl-step-connector { width: 2px; height: 32px; background: linear-gradient(180deg, #14b8a6, #5eead4); margin: 0; }
+            .wl-step-item { padding: 0 1rem; max-width: 320px; }
         }
 
         /* ── TRUST SECTION ─────────────────────────────── */
@@ -481,7 +540,7 @@
         <div class="wl-nav-actions">
             <button class="wl-lang-btn" onclick="wlToggleLang()" type="button" id="langBtn">عربي</button>
             <a href="/login" class="wl-btn-ghost" id="navLogin">Login</a>
-            <a href="/register" class="wl-btn-primary" id="navRegister">Register Free →</a>
+            <a href="/register" class="wl-btn-primary" id="navRegister">Start Free →</a>
         </div>
     </nav>
 
@@ -498,7 +557,7 @@
                     Most dental clinics price services by gut-feel — and lose money without knowing it. Dental Pricing Calculator computes your real cost per chair per hour and shows you the right price for every procedure.
                 </p>
                 <a href="/register" class="wl-hero-cta" id="heroCta">
-                    <span id="heroCtaText">Start for free</span>
+                    <span id="heroCtaText">Calculate My Real Chair Cost — Free</span>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="5" y1="12" x2="19" y2="12"/>
                         <polyline points="12 5 19 12 12 19"/>
@@ -634,46 +693,105 @@
             </div>
             <div class="wl-features-grid">
                 <div class="wl-feature-card">
-                    <div class="wl-feature-icon">📊</div>
+                    <div class="wl-feature-icon">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+                        </svg>
+                    </div>
                     <h3 id="f1Title">Real cost analysis</h3>
-                    <p id="f1Desc">Track rent, salaries, equipment, and consumables. See the true cost of every chair per hour.</p>
+                    <p id="f1Desc">Stop guessing. See the exact cost of every chair per hour — rent, salaries, equipment, and consumables broken down precisely.</p>
                 </div>
                 <div class="wl-feature-card">
-                    <div class="wl-feature-icon">💰</div>
+                    <div class="wl-feature-icon">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                    </div>
                     <h3 id="f2Title">Instant price calculation</h3>
-                    <p id="f2Desc">Enter chair time, doctor fee, and materials — get the calculated price instantly with full breakdown.</p>
+                    <p id="f2Desc">Enter chair time, doctor fee, and materials — get the scientifically calculated price instantly, with a full cost breakdown.</p>
                 </div>
                 <div class="wl-feature-card">
-                    <div class="wl-feature-icon">📈</div>
+                    <div class="wl-feature-icon">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+                        </svg>
+                    </div>
                     <h3 id="f3Title">Spot underpriced services</h3>
-                    <p id="f3Desc">Compare your current market prices against the calculated minimum. Never lose money on a procedure again.</p>
+                    <p id="f3Desc">Compare your current market prices against the calculated minimum. Know exactly which procedures are costing you money.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Trust Section - COMMENTED OUT until real data available
-    <section class="wl-trust">
+    <!-- How It Works Section -->
+    <section class="wl-howto">
         <div class="wl-section-inner">
-            <h2 id="trustTitle">Trusted by dental clinics</h2>
-            <p class="wl-trust-sub" id="trustSub">across Egypt and the Gulf</p>
-            <div class="wl-trust-stats">
-                <div class="wl-stat">
-                    <span class="wl-stat-num">+300</span>
-                    <span class="wl-stat-label" id="stat1">Clinics registered</span>
+            <div class="wl-section-header">
+                <h2 id="howTitle">From gut-feel to data in 3 steps</h2>
+                <p id="howSub">Every dental service priced correctly — automatically</p>
+            </div>
+            <div class="wl-steps-grid">
+                <div class="wl-step-item">
+                    <div class="wl-step-num">01</div>
+                    <div class="wl-step-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+                            <line x1="9" y1="21" x2="9" y2="9"/>
+                        </svg>
+                    </div>
+                    <h3 id="how1Title">Enter your fixed costs</h3>
+                    <p id="how1Desc">Rent, salaries, equipment depreciation, utilities. We pre-fill estimates — you just confirm your rent.</p>
                 </div>
-                <div class="wl-stat">
-                    <span class="wl-stat-num">+15k</span>
-                    <span class="wl-stat-label" id="stat2">Services priced</span>
+                <div class="wl-step-connector" aria-hidden="true"></div>
+                <div class="wl-step-item">
+                    <div class="wl-step-num">02</div>
+                    <div class="wl-step-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <h3 id="how2Title">Get your chair cost per hour</h3>
+                    <p id="how2Desc">The app divides your total monthly costs across all working hours — giving you the real operating cost per chair.</p>
                 </div>
-                <div class="wl-stat">
-                    <span class="wl-stat-num">EGY &amp; KSA</span>
-                    <span class="wl-stat-label" id="stat3">Countries covered</span>
+                <div class="wl-step-connector" aria-hidden="true"></div>
+                <div class="wl-step-item">
+                    <div class="wl-step-num">03</div>
+                    <div class="wl-step-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                            <rect x="9" y="3" width="6" height="4" rx="1"/>
+                            <path d="M9 12h6"/><path d="M9 16h6"/>
+                        </svg>
+                    </div>
+                    <h3 id="how3Title">Price every service correctly</h3>
+                    <p id="how3Desc">Add chair time + materials + doctor fee — and see the minimum price that covers your costs, plus your profit.</p>
                 </div>
             </div>
         </div>
     </section>
-    -->
+
+    <!-- Trust Section -->
+    <section class="wl-trust">
+        <div class="wl-section-inner">
+            <h2 id="trustTitle">Built for dental clinics in Egypt &amp; the Gulf</h2>
+            <p class="wl-trust-sub" id="trustSub">Early access — join the first clinics getting pricing right</p>
+            <div class="wl-trust-stats">
+                <div class="wl-stat">
+                    <span class="wl-stat-num" id="stat1Num">Free</span>
+                    <span class="wl-stat-label" id="stat1">During beta period</span>
+                </div>
+                <div class="wl-stat">
+                    <span class="wl-stat-num" id="stat2Num">2 min</span>
+                    <span class="wl-stat-label" id="stat2">To get your chair cost</span>
+                </div>
+                <div class="wl-stat">
+                    <span class="wl-stat-num" id="stat3Num">EGY &amp; Gulf</span>
+                    <span class="wl-stat-label" id="stat3">Region-specific data</span>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <!-- Footer -->
     <footer class="wl-footer">
@@ -689,25 +807,36 @@
                 langBtn: 'عربي',
                 navBrand: 'Dental Pricing Calculator',
                 navLogin: 'Login',
-                navRegister: 'Register Free →',
+                navRegister: 'Start Free →',
                 heroBadge: 'Cost-Plus Pricing for Dental Clinics',
                 heroHeadline1: 'Do you know what each',
                 heroHeadline2: 'chair costs per hour?',
                 heroSub: 'Most dental clinics price services by gut-feel — and lose money without knowing it. Dental Pricing Calculator computes your real cost per chair per hour and shows you the right price for every procedure.',
-                heroCtaText: 'Calculate my chair cost free →',
+                heroCtaText: 'Calculate My Real Chair Cost — Free',
                 featTitle: 'Everything you need to price right',
                 featSub: 'Built specifically for dental practices in Egypt and the Gulf',
                 f1Title: 'Real cost analysis',
-                f1Desc: 'Track rent, salaries, equipment, and consumables. See the true cost of every chair per hour.',
+                f1Desc: 'Stop guessing. See the exact cost of every chair per hour — rent, salaries, equipment, and consumables broken down precisely.',
                 f2Title: 'Instant price calculation',
-                f2Desc: 'Enter chair time, doctor fee, and materials — get the calculated price instantly with full breakdown.',
+                f2Desc: 'Enter chair time, doctor fee, and materials — get the scientifically calculated price instantly, with a full cost breakdown.',
                 f3Title: 'Spot underpriced services',
-                f3Desc: 'Compare your current market prices against the calculated minimum. Never lose money on a procedure again.',
-                trustTitle: 'Trusted by dental clinics',
-                trustSub: 'across Egypt and the Gulf',
-                stat1: 'Clinics registered',
-                stat2: 'Services priced',
-                stat3: 'Countries covered',
+                f3Desc: 'Compare your current market prices against the calculated minimum. Know exactly which procedures are costing you money.',
+                howTitle: 'From gut-feel to data in 3 steps',
+                howSub: 'Every dental service priced correctly — automatically',
+                how1Title: 'Enter your fixed costs',
+                how1Desc: 'Rent, salaries, equipment depreciation, utilities. We pre-fill estimates — you just confirm your rent.',
+                how2Title: 'Get your chair cost per hour',
+                how2Desc: 'The app divides your total monthly costs across all working hours — giving you the real operating cost per chair.',
+                how3Title: 'Price every service correctly',
+                how3Desc: 'Add chair time + materials + doctor fee — and see the minimum price that covers your costs, plus your profit.',
+                trustTitle: 'Built for dental clinics in Egypt & the Gulf',
+                trustSub: 'Early access — join the first clinics getting pricing right',
+                stat1Num: 'Free',
+                stat1: 'During beta period',
+                stat2Num: '2 min',
+                stat2: 'To get your chair cost',
+                stat3Num: 'EGY & Gulf',
+                stat3: 'Region-specific data',
                 footerCopy: '© 2026 Dental Pricing Calculator',
                 footerLogin: 'Already have an account? Login →',
                 footerRegister: 'Register your clinic →',
@@ -755,12 +884,12 @@
                 langBtn: 'English',
                 navBrand: 'حاسبة أسعار الأسنان',
                 navLogin: 'تسجيل الدخول',
-                navRegister: 'سجّل مجاناً ←',
+                navRegister: 'ابدأ مجاناً ←',
                 heroBadge: 'تسعير التكلفة الإضافية لعيادات الأسنان',
                 heroHeadline1: 'هل تعرف كم يكلّفك',
                 heroHeadline2: 'كل كرسي في الساعة؟',
                 heroSub: 'معظم عيادات الأسنان تُسعّر خدماتها بالتخمين — وتخسر دون أن تعلم. حاسبة أسعار الأسنان تحسب تكلفة الكرسي الحقيقية وتحدد السعر الصحيح لكل إجراء.',
-                heroCtaText: 'احسب تكلفة كرسيك مجاناً ←',
+                heroCtaText: 'احسب تكلفة كرسيي الحقيقية — مجاناً',
                 featTitle: 'كل ما تحتاجه للتسعير الصحيح',
                 featSub: 'مصمم خصيصاً لعيادات الأسنان في مصر والخليج',
                 f1Title: 'تحليل تكاليف حقيقية',
@@ -769,11 +898,22 @@
                 f2Desc: 'أدخل وقت الكرسي وأتعاب الطبيب والمواد — احصل على السعر المحسوب فوراً مع تفصيل كامل.',
                 f3Title: 'اكتشف الخدمات ذات التسعير المنخفض',
                 f3Desc: 'قارن أسعارك الحالية بالسعر الأدنى المحسوب. لا تخسر على أي إجراء مرة أخرى.',
-                trustTitle: 'موثوق لدى عيادات الأسنان',
-                trustSub: 'في مصر والخليج العربي',
-                stat1: 'عيادة مسجّلة',
-                stat2: 'خدمة مُسعَّرة',
-                stat3: 'دول مدعومة',
+                howTitle: 'من التخمين إلى البيانات في ٣ خطوات',
+                howSub: 'كل خدمة أسنان مُسعَّرة بشكل صحيح — تلقائياً',
+                how1Title: 'أدخل تكاليفك الثابتة',
+                how1Desc: 'الإيجار والرواتب وإهلاك المعدات والمرافق. نملأ التقديرات مسبقاً — أنت فقط تأكد إيجارك.',
+                how2Title: 'احصل على تكلفة الكرسي في الساعة',
+                how2Desc: 'التطبيق يقسم تكاليفك الشهرية على ساعات العمل — ويعطيك التكلفة التشغيلية الحقيقية للكرسي.',
+                how3Title: 'سعّر كل خدمة بشكل صحيح',
+                how3Desc: 'أضف وقت الكرسي + الخامات + أتعاب الطبيب — واحصل على الحد الأدنى للسعر وهامش ربحك.',
+                trustTitle: 'مصمم لعيادات الأسنان في مصر والخليج',
+                trustSub: 'وصول مبكر — انضم لأول العيادات التي تُسعّر بشكل صحيح',
+                stat1Num: 'مجاني',
+                stat1: 'خلال فترة البيتا',
+                stat2Num: 'دقيقتان',
+                stat2: 'للحصول على تكلفة كرسيك',
+                stat3Num: 'مصر والخليج',
+                stat3: 'بيانات خاصة بالمنطقة',
                 footerCopy: '© ٢٠٢٦ حاسبة أسعار الأسنان',
                 footerLogin: 'لديك حساب بالفعل؟ سجّل الدخول ←',
                 footerRegister: 'سجّل عيادتك ←',
@@ -987,7 +1127,7 @@
             const cur = result.currency === 'SAR' ? 'ر.س' : 'ج';
             const cphRound = Math.round(CW.cph);
 
-            document.getElementById('cwCphValue').textContent = cphRound.toLocaleString();
+            cwAnimateCount(document.getElementById('cwCphValue'), cphRound);
             document.getElementById('cwCphCurrency').textContent = cur;
             document.getElementById('cwInfoText').textContent =
                 wlLang === 'ar'
@@ -1002,6 +1142,18 @@
             btn.disabled = false;
             btn.textContent = origText;
             cwGoStep(3);
+        }
+
+        // ── Count-Up Animation ───────────────────────────────────
+        function cwAnimateCount(el, target, ms = 800) {
+            const t0 = performance.now();
+            const step = now => {
+                const p = Math.min((now - t0) / ms, 1);
+                const eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+                el.textContent = Math.round(eased * target).toLocaleString();
+                if (p < 1) requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
         }
 
         // ── Restart ───────────────────────────────────────────────
