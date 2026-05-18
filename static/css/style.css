@@ -272,10 +272,9 @@ h6 { font-size: var(--text-base); }
     }
 }
 
-/* App content uses a denser 14px base instead of the 18px landing-page base.
-   This replaces the old zoom:0.67 hack — renders crisply on Retina screens
-   and respects browser accessibility zoom. */
-body.app-scaled .main-content { font-size: 14px; }
+/* Scale the app shell to 82% — less aggressive than the old 0.67 value so text
+   stays crisp on Retina, while still compressing the fixed-px layout to fit the viewport. */
+body.app-scaled .main-content { zoom: 0.82; }
 
 /* Top Header Bar */
 .top-header {
@@ -1025,7 +1024,7 @@ html[dir="rtl"] .main-content { order: 1; }
 .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
 .card-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--gray-100); background: white; }
 .card-title { font-size: 0.9375rem; font-weight: 600; color: var(--gray-800); letter-spacing: -0.01em; }
-.card-body { padding: 1.25rem; }
+.card-body { padding: 1.25rem; overflow-x: auto; }
 
 /* Content lists inside cards */
 .content-list {
@@ -1130,7 +1129,7 @@ html[dir="rtl"] .main-content { order: 1; }
 }
 
 .metric-value {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--gray-900);
     line-height: 1.15;
