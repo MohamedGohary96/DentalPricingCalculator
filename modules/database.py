@@ -27,7 +27,7 @@ def get_connection():
     }
     # Enable SSL for production (cloud databases)
     if os.environ.get('DB_SSL', '').lower() in ('true', '1', 'required'):
-        ssl_config = {'ssl': True}
+        ssl_config = {}
         ca_path = os.environ.get('DB_SSL_CA', '')
         if ca_path:
             # Resolve relative paths from project root
