@@ -495,8 +495,14 @@ function showToast(msg, type='success', options = {}) {
     c.appendChild(t);
     setTimeout(() => t.classList.add('show'), 10);
 
-    // Auto-hide after duration (default 3s, longer for undo actions)
-    const duration = options.duration || (options.action ? 5000 : 3000);
+    // Auto-hide after duration - differentiate by type
+    const defaultDurations = {
+        error: 6000,
+        warning: 5000,
+        success: 2500,
+        info: 3500
+    };
+    const duration = options.duration || (options.action ? 5000 : (defaultDurations[type] || 3500));
     const timeoutId = setTimeout(() => {
         t.classList.remove('show');
         t.classList.add('hide');
@@ -635,8 +641,11 @@ function setupRealtimeValidation(formId, validationRules = {}) {
 function inlineEdit(td, endpoint, field, type, rowId, onSaved) {
     if (td.querySelector('input')) return;
 
+    const rawNum = td.getAttribute('data-value');
     const rawText = td.textContent.replace(/[^\d.]/g, '');
-    const originalVal = type === 'float' ? parseFloat(rawText) || 0 : parseInt(rawText) || 0;
+    const originalVal = rawNum !== null
+        ? (type === 'float' ? parseFloat(rawNum) : parseInt(rawNum))
+        : (type === 'float' ? parseFloat(rawText) || 0 : parseInt(rawText) || 0);
     const displayHTML = td.innerHTML;
 
     const input = document.createElement('input');
@@ -663,6 +672,7 @@ function inlineEdit(td, endpoint, field, type, rowId, onSaved) {
         try {
             await API.put(`${endpoint}/${rowId}`, { [field]: val });
             td.innerHTML = type === 'float' ? `<strong>${formatCurrency(val)}</strong>` : String(val);
+            td.setAttribute('data-value', val);
             td.classList.add('inline-saved');
             setTimeout(() => td.classList.remove('inline-saved'), 600);
             if (onSaved) onSaved(val);
@@ -1812,8 +1822,12 @@ const APP = {
 
     async loadPage(page, scrollToSection = null, updateURL = true) {
         this.currentPage = page;
-        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-        document.querySelector(`[onclick="APP.loadPage('${page}')"]`)?.classList.add('active');
+        document.querySelectorAll('.nav-link').forEach(l => {
+            l.classList.remove('active', 'nav-link-active');
+            if (l.dataset.page === page) {
+                l.classList.add('active', 'nav-link-active');
+            }
+        });
 
         // Update URL using HTML5 History API if requested (default: true)
         if (updateURL) {
@@ -1882,6 +1896,8 @@ function obSetStep(n) {
         d.classList.toggle('ob-step-dot-active', i + 1 === n);
         d.classList.toggle('ob-step-dot-done', i + 1 < n);
     });
+    const stepLabel = document.getElementById('ob-step-label');
+    if (stepLabel) stepLabel.textContent = t('onboarding.stepOf', {step: n, total: 4});
 }
 
 function obOnCountryChange() {
@@ -1949,7 +1965,11 @@ const Pages = {
         <div class="ob-wrapper">
             <!-- Step indicator (4 steps) -->
             <div class="ob-step-bar">
-                ${[1,2,3,4].map(i => `<div class="ob-step-dot" onclick="obSetStep(${i})">${i}</div>`).join('<div class="ob-step-line"></div>')}
+                ${[1,2,3,4].map(i => `<div class="ob-step-dot">${i}</div>`).join('<div class="ob-step-line"></div>')}
+            </div>
+            <div class="ob-step-meta">
+                <span id="ob-step-label">${t('onboarding.stepOf', {step: 1, total: 4})}</span>
+                <span class="ob-step-time">⏱ ${t('onboarding.setupTime')}</span>
             </div>
 
             <!-- Step 1: Welcome -->
@@ -1999,26 +2019,26 @@ const Pages = {
                     <div class="ob-costs-grid" style="grid-template-columns:1fr;">
                         <div class="ob-cost-row">
                             <label>${t('onboarding.rent')}</label>
-                            <input type="number" id="ob-cost-rent" class="form-input" min="0" step="500" value="0">
+                            <input type="number" id="ob-cost-rent" class="form-input" autocomplete="off" min="0" step="500" value="0">
                         </div>
                     </div>
                     <p class="ob-section-label">${t('onboarding.clinicCapacity')}</p>
                     <div class="ob-cap-grid">
                         <div class="ob-cost-row">
                             <label>${t('settings.dentalChairs')}</label>
-                            <input type="number" id="ob-cap-chairs" class="form-input" min="1" max="20" step="1" value="1">
+                            <input type="number" id="ob-cap-chairs" class="form-input" autocomplete="off" min="1" max="20" step="1" value="1">
                         </div>
                         <div class="ob-cost-row">
                             <label>${t('settings.workingHours')}</label>
-                            <input type="number" id="ob-cap-hours" class="form-input" min="1" max="24" step="1" value="8">
+                            <input type="number" id="ob-cap-hours" class="form-input" autocomplete="off" min="1" max="24" step="1" value="8">
                         </div>
                         <div class="ob-cost-row">
                             <label>${t('settings.workingDays')}</label>
-                            <input type="number" id="ob-cap-days" class="form-input" min="1" max="31" step="1" value="25">
+                            <input type="number" id="ob-cap-days" class="form-input" autocomplete="off" min="1" max="31" step="1" value="25">
                         </div>
                         <div class="ob-cost-row">
                             <label>${t('settings.utilizationRate')}</label>
-                            <input type="number" id="ob-cap-util" class="form-input" min="1" max="100" step="1" value="68">
+                            <input type="number" id="ob-cap-util" class="form-input" autocomplete="off" min="1" max="100" step="1" value="68">
                         </div>
                     </div>
                     <div class="ob-info-note">
@@ -2055,13 +2075,13 @@ const Pages = {
                             <label>${t('settings.vatPercent')} %
                                 <span class="ob-field-hint">${t('onboarding.vatHint')}</span>
                             </label>
-                            <input type="number" id="ob-vat" class="form-input" min="0" max="30" step="0.5" value="0">
+                            <input type="number" id="ob-vat" class="form-input" autocomplete="off" min="0" max="30" step="0.5" value="0">
                         </div>
                         <div class="ob-cost-row">
                             <label>${t('settings.defaultProfit')} %
                                 <span class="ob-field-hint">${t('onboarding.profitHint')}</span>
                             </label>
-                            <input type="number" id="ob-profit" class="form-input" min="0" max="200" step="5" value="40">
+                            <input type="number" id="ob-profit" class="form-input" autocomplete="off" min="0" max="200" step="5" value="40">
                         </div>
                         <div class="ob-cost-row">
                             <label>${t('settings.roundingNearest')}
@@ -2143,7 +2163,7 @@ const Pages = {
         }
 
         // Show banner for trial, expired, or suspended users
-        const showBanner = isTrial || isExpired || isSuspended;
+        const showBanner = (isTrial && stats.total_services > 0) || isExpired || isSuspended;
         const subscriptionBanner = showBanner ? `
             <div class="subscription-banner ${(isExpired || isSuspended) ? 'subscription-banner-expired' : ''}">
                 <div class="subscription-banner-icon">
@@ -2415,7 +2435,15 @@ const Pages = {
         return `
             ${firstVisit.getHTML('settings', '💡 ' + t('settings.howPricingWorks'), settingsExplainerBody)}
 
-            <div class="card" style="margin-top:1.5rem;">
+            <nav class="settings-toc" style="margin-top:1.5rem;">
+                <a href="#section-global">${t('settings.globalSettings')}</a>
+                <a href="#section-capacity">${t('settings.clinicCapacity')}</a>
+                <a href="#section-fixed-costs">${t('settings.fixedMonthlyCosts')}</a>
+                <a href="#section-salaries">${t('settings.salaries')}</a>
+                <a href="#section-depreciation">${t('settings.depreciation')}</a>
+            </nav>
+
+            <div class="card" id="section-global" style="margin-top:1.5rem;">
                 <div class="card-header">
                     <h3 class="card-title">${t('settings.globalSettings')}</h3>
                 </div>
@@ -2461,7 +2489,7 @@ const Pages = {
                 </div>
             </div>
 
-            <div class="card" style="margin-top:1.5rem;">
+            <div class="card" id="section-capacity" style="margin-top:1.5rem;">
                 <div class="card-header">
                     <h3 class="card-title">${t('settings.clinicCapacity')}</h3>
                 </div>
@@ -2515,11 +2543,17 @@ const Pages = {
                                 <tr>
                                     <td>${c.category}</td>
                                     <td>${formatCurrency(c.monthly_amount)}</td>
-                                    <td><span class="badge badge-${c.included?'success':'gray'}">${c.included?'✓':'✗'}</span></td>
+                                    <td>
+                                        <label class="toggle-switch" title="${c.included ? t('settings.included') : t('settings.excluded')}">
+                                            <input type="checkbox" ${c.included ? 'checked' : ''}
+                                                   onchange="Pages.toggleFixedCostIncluded(${c.id}, this.checked)">
+                                            <span class="toggle-track"></span>
+                                        </label>
+                                    </td>
                                     <td>${c.notes||'-'}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showFixedCostForm(${c.id})" title="${t('common.edit')}">✎</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteFixedCost(${c.id})" title="${t('common.delete')}">🗑️</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showFixedCostForm(${c.id})">✎ ${t('common.edit')}</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteFixedCost(${c.id})">🗑️ ${t('common.delete')}</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -2562,11 +2596,17 @@ const Pages = {
                                 <tr>
                                     <td>${s.role_name}</td>
                                     <td>${formatCurrency(s.monthly_salary)}</td>
-                                    <td><span class="badge badge-${s.included?'success':'gray'}">${s.included?'✓':'✗'}</span></td>
+                                    <td>
+                                        <label class="toggle-switch" title="${s.included ? t('settings.included') : t('settings.excluded')}">
+                                            <input type="checkbox" ${s.included ? 'checked' : ''}
+                                                   onchange="Pages.toggleSalaryIncluded(${s.id}, this.checked)">
+                                            <span class="toggle-track"></span>
+                                        </label>
+                                    </td>
                                     <td>${s.notes||'-'}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showSalaryForm(${s.id})" title="${t('common.edit')}">✎</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteSalary(${s.id})" title="${t('common.delete')}">🗑️</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showSalaryForm(${s.id})">✎ ${t('common.edit')}</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteSalary(${s.id})">🗑️ ${t('common.delete')}</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -2614,8 +2654,8 @@ const Pages = {
                                     <td><span class="badge badge-${e.allocation_type==='fixed'?'info':'warning'}">${e.allocation_type}</span></td>
                                     <td>${e.monthly_usage_hours||'-'}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showEquipmentForm(${e.id})" title="${t('common.edit')}">✎</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteEquipment(${e.id})" title="${t('common.delete')}">🗑️</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showEquipmentForm(${e.id})">✎ ${t('common.edit')}</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteEquipment(${e.id})">🗑️ ${t('common.delete')}</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -2667,6 +2707,36 @@ const Pages = {
             showToast(t('toast.capacitySaved'));
         } catch(err) {
             showToast(err.message, 'error');
+        }
+    },
+
+    async toggleFixedCostIncluded(id, included) {
+        try {
+            await API.put(`/api/fixed-costs/${id}`, { included: included ? 1 : 0 });
+            showToast(t('common.saved'), 'success');
+        } catch (e) {
+            showToast(e.message, 'error');
+            APP.loadPage('settings');
+        }
+    },
+
+    async toggleSalaryIncluded(id, included) {
+        try {
+            await API.put(`/api/salaries/${id}`, { included: included ? 1 : 0 });
+            showToast(t('common.saved'), 'success');
+        } catch (e) {
+            showToast(e.message, 'error');
+            APP.loadPage('settings');
+        }
+    },
+
+    async toggleEquipmentIncluded(id, included) {
+        try {
+            await API.put(`/api/equipment/${id}`, { included: included ? 1 : 0 });
+            showToast(t('common.saved'), 'success');
+        } catch (e) {
+            showToast(e.message, 'error');
+            APP.loadPage('settings');
         }
     },
 
@@ -2978,7 +3048,7 @@ const Pages = {
                                     return `
                                         <tr data-consumable-id="${c.id}">
                                             <td><strong>${getLocalizedName(c)}</strong></td>
-                                            <td class="inline-editable" onclick="inlineEdit(this,'/api/consumables','pack_cost','float',${c.id},()=>recalcConsumableRow(this.closest('tr')))"><strong>${formatCurrency(c.pack_cost)}</strong></td>
+                                            <td class="inline-editable ${c.pack_cost <= 0 ? 'value-zero' : ''}" onclick="inlineEdit(this,'/api/consumables','pack_cost','float',${c.id},()=>recalcConsumableRow(this.closest('tr')))">${c.pack_cost > 0 ? `<strong>${formatCurrency(c.pack_cost)}</strong>` : '<span class="no-value">Set price</span>'}</td>
                                             <td class="inline-editable" onclick="inlineEdit(this,'/api/consumables','cases_per_pack','int',${c.id},()=>recalcConsumableRow(this.closest('tr')))">${c.cases_per_pack}</td>
                                             <td class="inline-editable" onclick="inlineEdit(this,'/api/consumables','units_per_case','int',${c.id},()=>recalcConsumableRow(this.closest('tr')))">${c.units_per_case}</td>
                                             <td><strong>${formatCurrency(perUnitCost)}</strong></td>
@@ -3031,7 +3101,7 @@ const Pages = {
                                                 <tr data-material-id="${m.id}">
                                                     <td><strong>${getLocalizedName(m)}</strong></td>
                                                     <td>${m.lab_name || '-'}</td>
-                                                    <td class="inline-editable" onclick="inlineEdit(this,'/api/materials','unit_cost','float',${m.id})"><strong>${formatCurrency(m.unit_cost)}</strong></td>
+                                                    <td class="inline-editable ${m.unit_cost <= 0 ? 'value-zero' : ''}" onclick="inlineEdit(this,'/api/materials','unit_cost','float',${m.id})">${m.unit_cost > 0 ? `<strong>${formatCurrency(m.unit_cost)}</strong>` : '<span class="no-value">Set price</span>'}</td>
                                                     <td>
                                                         <button class="btn btn-sm btn-ghost" onclick="Pages.showMaterialForm(${m.id})" title="${t('common.edit')}">✎</button>
                                                         <button class="btn btn-sm btn-ghost" onclick="Pages.deleteMaterial(${m.id})" title="${t('common.delete')}">🗑️</button>
