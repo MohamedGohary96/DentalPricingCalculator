@@ -23,7 +23,7 @@ def get_connection():
         'charset': 'utf8mb4',
         'cursorclass': pymysql.cursors.DictCursor,
         'autocommit': False,
-        'connect_timeout': 60,
+        'connect_timeout': 10,  # Reduced from 60s - fail fast if DB unreachable
     }
     # Enable SSL for production (cloud databases)
     if os.environ.get('DB_SSL', '').lower() in ('true', '1', 'required'):
