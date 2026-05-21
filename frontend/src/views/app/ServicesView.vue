@@ -49,6 +49,9 @@ const serviceEquipment   = ref([])  // [{equipment_id, hours_used}]
 const useDefaultProfit = ref(true)
 const customProfitPct  = ref('')
 
+// ── Global clinic settings (for live calculator) ─────────────
+const globalSettings = ref(null) // {vat_percent, default_profit_percent, rounding_nearest, total_overhead_per_hour, currency}
+
 // ── Derived ───────────────────────────────────────────────────
 const categories     = computed(() => clinicStore.categories || [])
 const allConsumables = computed(() => clinicStore.consumables || [])
@@ -59,6 +62,72 @@ const calcPriceMap = computed(() => {
   const map = {}
   ;(pricingStore.priceList || []).forEach(p => { if (p.id) map[p.id] = p.calculated_price })
   return map
+})
+
+// ── Live price preview (recalculates as user types) ───────────
+const livePrice = computed(() => {
+  const gs          = globalSettings.value || {}
+  const chairTime   = parseFloat(form.value.chair_time_hours) || 0
+  const feeType     = form.value.doctor_fee_type || 'hourly'
+  const hourlyFee   = parseFloat(form.value.doctor_hourly_fee) || 0
+  const fixedFee    = parseFloat(form.value.doctor_fixed_fee) || 0
+  const pctFee      = parseFloat(form.value.doctor_percentage) || 0
+
+  if (chairTime <= 0 || (hourlyFee <= 0 && fixedFee <= 0 && pctFee <= 0)) return null
+
+  let doctorCost = 0
+  if (feeType === 'hourly') doctorCost = hourlyFee * chairTime
+  else if (feeType === 'fixed') doctorCost = fixedFee
+
+  const overheadPerHour = gs.total_overhead_per_hour || 0
+  const overheadCost    = overheadPerHour * chairTime
+
+  let consumablesCost = 0
+  serviceConsumables.value.forEach(r => { consumablesCost += consumableRowCost(r) })
+
+  let materialsCost = 0
+  serviceMaterials.value.forEach(r => { materialsCost += materialRowCost(r) })
+
+  let equipmentCost = 0
+  serviceEquipment.value.forEach(r => {
+    if (!r.equipment_id || !r.hours_used) return
+    const eq = perHourEquip.value.find(e => e.id == r.equipment_id)
+    if (eq) {
+      const lifeHours = eq.life_years * 12 * (eq.monthly_usage_hours || 160)
+      equipmentCost += (eq.purchase_cost / lifeHours) * parseFloat(r.hours_used)
+    }
+  })
+
+  let totalCost    = doctorCost + overheadCost + consumablesCost + materialsCost + equipmentCost
+  const profitMargin = useDefaultProfit.value
+    ? (gs.default_profit_percent || 40)
+    : (parseFloat(customProfitPct.value) || 0)
+  const vat     = gs.vat_percent || 0
+  const round   = gs.rounding_nearest || 5
+
+  let calculatedPrice
+  if (feeType === 'percentage') {
+    const clinicCosts = overheadCost + consumablesCost + equipmentCost
+    const labCosts    = materialsCost
+    const pm = 1 + profitMargin / 100
+    const vm = 1 + vat / 100
+    const dp = pctFee / 100
+    const clinicPrice = (clinicCosts * pm * vm) / (1 - dp)
+    const labPrice    = labCosts * pm * vm
+    calculatedPrice   = Math.round((clinicPrice + labPrice) / round) * round
+    const doctorFromPct = (calculatedPrice - labCosts) * dp
+    totalCost = doctorFromPct + overheadCost + consumablesCost + materialsCost + equipmentCost
+  } else {
+    const raw = totalCost * (1 + profitMargin / 100) * (1 + vat / 100)
+    calculatedPrice = Math.round(raw / round) * round
+  }
+
+  return {
+    totalCost:       totalCost.toFixed(2),
+    calculatedPrice: calculatedPrice.toFixed(2),
+    profitMargin:    profitMargin.toFixed(0),
+    currency:        gs.currency || 'EGP',
+  }
 })
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -321,6 +390,10 @@ onMounted(async () => {
     pricingStore.loadPriceList().catch(() => {}),
     clinicStore.loadAll().catch(() => {}),
   ])
+  try {
+    const { data } = await axios.get('/api/settings/global', { withCredentials: true })
+    globalSettings.value = data
+  } catch { /* non-critical */ }
 })
 </script>
 
@@ -419,11 +492,37 @@ onMounted(async () => {
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-box">
         <div class="modal-header">
-          <h2 class="dpc-h modal-title">{{ editingId ? (isAr ? 'تعديل خدمة' : 'Edit service') : (isAr ? 'إضافة خدمة' : 'Add service') }}</h2>
+          <h2 class="dpc-h modal-title">{{ editingId ? (isAr ? '✏️ تعديل خدمة' : '✏️ Edit service') : (isAr ? '🦷 خدمة جديدة' : '🦷 New service') }}</h2>
           <button class="icon-btn" @click="showModal = false"><DpcIcon name="X" :size="16" :stroke-width="2" /></button>
         </div>
 
         <div class="modal-body">
+
+          <!-- ── Live Price Preview Card ────────────────────── -->
+          <Transition name="preview-card">
+            <div v-if="livePrice" :class="['price-preview-card', isTrial && 'preview-locked']">
+              <div class="preview-header">
+                <span class="preview-label">
+                  {{ isAr ? '🧮 السعر المحسوب' : '🧮 Calculated price' }}
+                </span>
+                <span v-if="isTrial" class="preview-lock-icon">🔒</span>
+              </div>
+              <div class="preview-amount" :class="isTrial && 'trial-blur'">
+                <span class="preview-num">{{ livePrice.calculatedPrice }}</span>
+                <span class="preview-currency">{{ livePrice.currency }}</span>
+              </div>
+              <div class="preview-breakdown" :class="isTrial && 'trial-blur'">
+                <div class="preview-item">
+                  <span class="preview-item-label">{{ isAr ? '💰 التكلفة الكلية' : '💰 Total cost' }}</span>
+                  <span class="preview-item-value">{{ livePrice.totalCost }}</span>
+                </div>
+                <div class="preview-item">
+                  <span class="preview-item-label">{{ isAr ? '📈 هامش الربح' : '📈 Profit margin' }}</span>
+                  <span class="preview-item-value">{{ livePrice.profitMargin }}%</span>
+                </div>
+              </div>
+            </div>
+          </Transition>
 
           <!-- Name + Category -->
           <div class="form-row">
@@ -493,12 +592,16 @@ onMounted(async () => {
           </div>
 
           <!-- ── Collapsible: Consumables ────────────────────── -->
-          <div class="coll-section">
+          <div :class="['coll-section', openConsumables && 'is-open']">
             <div class="coll-header">
               <button type="button" class="coll-toggle" @click="openConsumables = !openConsumables">
-                <span class="coll-chevron" :class="{ open: openConsumables }"><DpcIcon name="ChevronRight" :size="13" :stroke-width="2.2" /></span>
-                <span class="coll-title">{{ isAr ? 'المستهلكات' : 'Consumables' }}</span>
-                <span v-if="serviceConsumables.length" class="coll-count">{{ serviceConsumables.length }}</span>
+                <span :class="['toggle-icon', openConsumables && 'is-open']">
+                  <DpcIcon name="Plus" :size="14" :stroke-width="2.5" />
+                </span>
+                <span class="coll-title">{{ isAr ? '🧪 المستهلكات' : '🧪 Consumables' }}</span>
+                <span class="coll-badge" :class="serviceConsumables.length && 'badge-active'">
+                  {{ serviceConsumables.length > 0 ? serviceConsumables.length + ' ' + (isAr ? 'عناصر' : 'items') : (isAr ? 'اختياري' : 'Optional') }}
+                </span>
               </button>
               <button type="button" class="coll-add-btn" @click="addConsumableRow()">
                 <DpcIcon name="Plus" :size="12" :stroke-width="2.5" />
@@ -530,12 +633,16 @@ onMounted(async () => {
           </div>
 
           <!-- ── Collapsible: Lab Materials ─────────────────── -->
-          <div class="coll-section">
+          <div :class="['coll-section', openMaterials && 'is-open']">
             <div class="coll-header">
               <button type="button" class="coll-toggle" @click="openMaterials = !openMaterials">
-                <span class="coll-chevron" :class="{ open: openMaterials }"><DpcIcon name="ChevronRight" :size="13" :stroke-width="2.2" /></span>
-                <span class="coll-title">{{ isAr ? 'مواد المختبر' : 'Lab Materials' }}</span>
-                <span v-if="serviceMaterials.length" class="coll-count">{{ serviceMaterials.length }}</span>
+                <span :class="['toggle-icon', openMaterials && 'is-open']">
+                  <DpcIcon name="Plus" :size="14" :stroke-width="2.5" />
+                </span>
+                <span class="coll-title">{{ isAr ? '🔬 مواد المختبر' : '🔬 Lab Materials' }}</span>
+                <span class="coll-badge" :class="serviceMaterials.length && 'badge-active'">
+                  {{ serviceMaterials.length > 0 ? serviceMaterials.length + ' ' + (isAr ? 'عناصر' : 'items') : (isAr ? 'اختياري' : 'Optional') }}
+                </span>
               </button>
               <button type="button" class="coll-add-btn" @click="addMaterialRow()">
                 <DpcIcon name="Plus" :size="12" :stroke-width="2.5" />
@@ -567,12 +674,16 @@ onMounted(async () => {
           </div>
 
           <!-- ── Collapsible: Special Equipment ────────────── -->
-          <div class="coll-section">
+          <div :class="['coll-section', openEquipment && 'is-open']">
             <div class="coll-header">
               <button type="button" class="coll-toggle" @click="openEquipment = !openEquipment">
-                <span class="coll-chevron" :class="{ open: openEquipment }"><DpcIcon name="ChevronRight" :size="13" :stroke-width="2.2" /></span>
-                <span class="coll-title">{{ isAr ? 'معدات خاصة' : 'Special Equipment' }}</span>
-                <span v-if="serviceEquipment.length" class="coll-count">{{ serviceEquipment.length }}</span>
+                <span :class="['toggle-icon', openEquipment && 'is-open']">
+                  <DpcIcon name="Plus" :size="14" :stroke-width="2.5" />
+                </span>
+                <span class="coll-title">{{ isAr ? '⚙️ معدات خاصة' : '⚙️ Special Equipment' }}</span>
+                <span class="coll-badge" :class="serviceEquipment.length && 'badge-active'">
+                  {{ serviceEquipment.length > 0 ? serviceEquipment.length + ' ' + (isAr ? 'عناصر' : 'items') : (isAr ? 'اختياري' : 'Optional') }}
+                </span>
               </button>
               <button type="button" class="coll-add-btn" @click="addEquipmentRow()">
                 <DpcIcon name="Plus" :size="12" :stroke-width="2.5" />
@@ -598,12 +709,14 @@ onMounted(async () => {
           </div>
 
           <!-- ── Collapsible: Custom Profit ─────────────────── -->
-          <div class="coll-section">
+          <div :class="['coll-section', openCustomProfit && 'is-open']">
             <div class="coll-header">
               <button type="button" class="coll-toggle" @click="openCustomProfit = !openCustomProfit">
-                <span class="coll-chevron" :class="{ open: openCustomProfit }"><DpcIcon name="ChevronRight" :size="13" :stroke-width="2.2" /></span>
-                <span class="coll-title">{{ isAr ? 'هامش ربح مخصص' : 'Custom Pricing' }}</span>
-                <span class="coll-badge">
+                <span :class="['toggle-icon', openCustomProfit && 'is-open']">
+                  <DpcIcon name="Plus" :size="14" :stroke-width="2.5" />
+                </span>
+                <span class="coll-title">{{ isAr ? '💹 تسعير مخصص' : '💹 Custom Pricing' }}</span>
+                <span class="coll-badge" :class="!useDefaultProfit && 'badge-active'">
                   {{ !useDefaultProfit && customProfitPct !== '' ? customProfitPct + '%' : (isAr ? 'الافتراضي' : 'Default') }}
                 </span>
               </button>
@@ -738,7 +851,7 @@ onMounted(async () => {
 
 /* ── Modal shell ──────────────────────────────────────────── */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: grid; place-items: center; z-index: 100; }
-.modal-box     { background: var(--surface); border-radius: 16px; width: 580px; box-shadow: 0 20px 60px rgba(0,0,0,.13); overflow: hidden; max-height: 92vh; display: flex; flex-direction: column; }
+.modal-box     { background: var(--surface); border-radius: 16px; width: 660px; box-shadow: 0 20px 60px rgba(0,0,0,.13); overflow: hidden; max-height: 92vh; display: flex; flex-direction: column; }
 .confirm-box   { width: 380px; }
 .detail-box    { width: 440px; }
 .modal-header  { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); flex: none; }
@@ -771,41 +884,96 @@ onMounted(async () => {
 .quick-btn:hover { background: var(--teal-50); color: var(--teal-700); }
 .unit-lbl { font-size: 14px; font-weight: 600; color: var(--ink-500); white-space: nowrap; }
 
+/* ── Live price preview card ──────────────────────────────── */
+.price-preview-card {
+  background: linear-gradient(135deg, var(--teal-600), var(--navy-700));
+  border-radius: 14px;
+  padding: 20px 22px;
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(20,184,166,.28);
+  animation: slideDown 0.25s ease;
+  flex-shrink: 0;
+}
+.price-preview-card.preview-locked { filter: none; }
+.preview-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.preview-label  { font-size: 12.5px; font-weight: 600; opacity: .88; }
+.preview-lock-icon { font-size: 16px; }
+.preview-amount {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 32px; font-weight: 700; font-family: var(--font-mono); margin-bottom: 14px;
+}
+.preview-currency { font-size: 15px; opacity: .75; font-weight: 500; }
+.preview-breakdown {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  padding-top: 12px; border-top: 1px solid rgba(255,255,255,.18);
+}
+.preview-item       { display: flex; flex-direction: column; gap: 2px; }
+.preview-item-label { font-size: 11px; opacity: .78; }
+.preview-item-value { font-size: 13px; font-weight: 700; font-family: var(--font-mono); }
+.trial-blur { filter: blur(5px); user-select: none; }
+
+/* Preview card enter/leave animation */
+.preview-card-enter-active, .preview-card-leave-active { transition: opacity .22s ease, transform .22s ease; }
+.preview-card-enter-from { opacity: 0; transform: translateY(-10px) scale(.98); }
+.preview-card-leave-to   { opacity: 0; transform: translateY(-6px) scale(.98); }
+
 /* ── Collapsible sections ─────────────────────────────────── */
-.coll-section { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; flex-shrink: 0; }
+.coll-section {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--paper-2);
+}
+.coll-section.is-open { background: var(--surface); }
 
 .coll-header {
-  display: flex; align-items: center; gap: 0;
-  background: var(--paper-2);
-  border-bottom: 1px solid transparent;
+  display: flex; align-items: center;
+  transition: background .12s;
 }
-.coll-section:has(.coll-body[style*="display: block"]) .coll-header,
-.coll-section:has(.coll-body:not([style*="none"])) .coll-header {
-  border-bottom-color: var(--line);
-}
+.coll-section.is-open .coll-header { border-bottom: 1px solid var(--line); }
 
 .coll-toggle {
-  flex: 1; display: flex; align-items: center; gap: 8px;
-  padding: 11px 14px; cursor: pointer; text-align: start;
+  flex: 1; display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; cursor: pointer; text-align: start;
 }
 .coll-toggle:hover { background: rgba(0,0,0,.03); }
-.coll-chevron { color: var(--ink-400); transition: transform 0.18s; display: flex; align-items: center; }
-.coll-chevron.open { transform: rotate(90deg); }
+
+/* + icon that rotates 45° to become × when open */
+.toggle-icon {
+  width: 24px; height: 24px; border-radius: 6px; flex: none;
+  background: var(--ink-100); color: var(--ink-600);
+  display: grid; place-items: center;
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+.toggle-icon.is-open {
+  background: var(--teal-600); color: #fff;
+  transform: rotate(45deg);
+}
+
 .coll-title { font-size: 13px; font-weight: 600; color: var(--ink-800); flex: 1; }
-.coll-count { font-size: 11px; font-weight: 700; color: var(--teal-700); background: var(--teal-50); border-radius: 99px; padding: 1px 7px; }
-.coll-badge { font-size: 11px; color: var(--ink-500); background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 1px 7px; }
+.coll-badge {
+  font-size: 11px; color: var(--ink-500);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 99px; padding: 2px 8px;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.coll-badge.badge-active {
+  background: var(--teal-50); color: var(--teal-700); border-color: var(--teal-200);
+  font-weight: 600;
+}
 
 .coll-add-btn {
   display: flex; align-items: center; gap: 4px;
-  padding: 0 14px; height: 100%; min-height: 40px;
+  padding: 0 16px; height: 100%; min-height: 48px;
   font-size: 12px; font-weight: 600; color: var(--teal-700);
   cursor: pointer; border-inline-start: 1px solid var(--line);
-  white-space: nowrap;
+  white-space: nowrap; flex: none;
 }
 .coll-add-btn:hover { background: var(--teal-50); }
 
-.coll-body  { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; background: var(--surface); }
-.coll-empty { font-size: 12.5px; color: var(--ink-400); text-align: center; padding: 8px; margin: 0; }
+.coll-body  { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.coll-empty { font-size: 12.5px; color: var(--ink-400); text-align: center; padding: 12px; margin: 0; background: var(--paper-2); border-radius: 8px; border: 1px dashed var(--line); }
 
 /* ── Item row grid (consumables & materials) ─────────────── */
 .items-hdr,
