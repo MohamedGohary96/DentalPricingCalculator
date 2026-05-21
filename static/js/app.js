@@ -2196,10 +2196,10 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('dashboard.totalServices')}</span>
                     </div>
-                    <div class="metric-value">${stats.total_services}</div>
+                    <div class="metric-value"><span class="dpc-num">${stats.total_services}</span></div>
                     <div class="metric-footer">
                         ${!isFullyRestricted && stats.total_services > 0 ? `
-                            <span class="metric-subtext">${servicesWithPrices}/${stats.total_services} ${t('dashboard.withPricesSet') || 'with prices set'}</span>
+                            <span class="metric-subtext"><span class="dpc-num">${servicesWithPrices}/${stats.total_services}</span> ${t('dashboard.withPricesSet') || 'with prices set'}</span>
                         ` : `
                             <span class="metric-subtext">${t('dashboard.activeProcedures')}</span>
                         `}
@@ -2235,11 +2235,11 @@ const Pages = {
                         <span class="metric-label">${t('dashboard.needsAttention')}</span>
                         <span class="kpi-trend kpi-trend-down">↓ ${underpriced}</span>
                     </div>
-                    <div class="metric-value">${underpriced}</div>
+                    <div class="metric-value"><span class="dpc-num">${underpriced}</span></div>
                     ${potentialRevenue > 0 ? `
                     <div class="kpi-benchmark">
                         <span>${t('dashboard.potentialGain') || 'Potential gain'}</span>
-                        <span class="kpi-benchmark-val kpi-benchmark-positive">+${formatCurrency(potentialRevenue)}</span>
+                        <span class="kpi-benchmark-val kpi-benchmark-positive dpc-num">+${formatCurrency(potentialRevenue)}</span>
                     </div>` : ''}
                     <div class="metric-footer">
                         <span class="metric-action" onclick="APP.loadPage('price-list')">${t('dashboard.servicesUnderpriced')} →</span>
@@ -2275,7 +2275,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('dashboard.chairHourlyRate')}</span>
                     </div>
-                    <div class="metric-value currency ${isTrial ? 'trial-blur' : ''}">${formatCurrency(stats.chair_hourly_rate)}</div>
+                    <div class="metric-value currency ${isTrial ? 'trial-blur' : ''}"><span class="dpc-num">${formatCurrency(stats.chair_hourly_rate)}</span></div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('dashboard.effectiveHoursMonth', {hours: stats.effective_hours.toFixed(0)})}</span>
                         <span class="metric-action" onclick="APP.loadPage('settings')">${t('dashboard.adjustSettings') || 'Adjust'} →</span>
@@ -2293,19 +2293,19 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('dashboard.monthlyFixedCosts')}</span>
                     </div>
-                    <div class="metric-value currency ${isTrial ? 'trial-blur' : ''}">${formatCurrency(stats.total_fixed_monthly)}</div>
+                    <div class="metric-value currency ${isTrial ? 'trial-blur' : ''}"><span class="dpc-num">${formatCurrency(stats.total_fixed_monthly)}</span></div>
                     <div class="metric-breakdown ${isTrial ? 'trial-blur' : ''}">
                         <div class="breakdown-item">
                             <span class="breakdown-label">${t('dashboard.fixedCosts')}</span>
-                            <span class="breakdown-value">${formatCurrency(stats.fixed_costs)}</span>
+                            <span class="breakdown-value dpc-num">${formatCurrency(stats.fixed_costs)}</span>
                         </div>
                         <div class="breakdown-item">
                             <span class="breakdown-label">${t('dashboard.staffSalaries')}</span>
-                            <span class="breakdown-value">${formatCurrency(stats.staff_salaries)}</span>
+                            <span class="breakdown-value dpc-num">${formatCurrency(stats.staff_salaries)}</span>
                         </div>
                         <div class="breakdown-item">
                             <span class="breakdown-label">${t('dashboard.equipmentDepreciation')}</span>
-                            <span class="breakdown-value">${formatCurrency(stats.equipment_depreciation)}</span>
+                            <span class="breakdown-value dpc-num">${formatCurrency(stats.equipment_depreciation)}</span>
                         </div>
                     </div>
                     <div class="metric-footer">
@@ -4511,7 +4511,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('priceList.servicesTracked')}</span>
                     </div>
-                    <div class="metric-value">${servicesWithPrice.length}</div>
+                    <div class="metric-value"><span class="dpc-num">${servicesWithPrice.length}</span></div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('priceList.withCurrentPricing')}</span>
                     </div>
@@ -4526,7 +4526,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${underpriced.length > 0 ? t('priceList.underpriced') : t('priceList.noneUnderpriced')}</span>
                     </div>
-                    <div class="metric-value">${underpriced.length}</div>
+                    <div class="metric-value"><span class="dpc-num">${underpriced.length}</span></div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${underpriced.length > 0 ? t('priceList.needPriceIncrease') : t('priceList.allPricedWell')}</span>
                     </div>
@@ -4538,7 +4538,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('priceList.optimalPricing')}</span>
                     </div>
-                    <div class="metric-value" style="color: var(--success);">${optimal.length}</div>
+                    <div class="metric-value dpc-num" style="color: var(--success);">${optimal.length}</div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('priceList.withinRange')}</span>
                     </div>
@@ -4553,7 +4553,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${totalVariance > 0 ? t('priceList.lostRevenue') : t('priceList.extraMargin')}</span>
                     </div>
-                    <div class="metric-value currency" style="color: ${totalVariance > 0 ? 'var(--danger)' : 'var(--success)'};">${totalVariance > 0 ? '+' : ''}${formatCurrency(totalVariance)}</div>
+                    <div class="metric-value currency dpc-num" style="color: ${totalVariance > 0 ? 'var(--danger)' : 'var(--success)'};">${totalVariance > 0 ? '+' : ''}${formatCurrency(totalVariance)}</div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('priceList.perServiceRendered')}</span>
                     </div>
@@ -4772,8 +4772,8 @@ const Pages = {
                                             <button class="margin-quick-btn" onclick="adjustMargin(${p.id}, 5)" title="Increase by 5%">+5</button>
                                         </div>
                                     </td>
-                                    <td class="${blurClass}"><strong class="simulated-price" data-original="${p.rounded_price}" style="color:var(--primary-600);">${formatCurrency(p.rounded_price)}</strong></td>
-                                    <td class="${blurClass}">${p.current_price ? formatCurrency(p.current_price) : `<span style="color:#94a3b8;font-size:0.8rem;">${t('priceList.notSet')}</span>`}</td>
+                                    <td class="${blurClass}"><strong class="simulated-price dpc-num" data-original="${p.rounded_price}" style="color:var(--teal-700);">${formatCurrency(p.rounded_price)}</strong></td>
+                                    <td class="${blurClass} dpc-num">${p.current_price ? formatCurrency(p.current_price) : `<span style="color:var(--ink-400);font-size:0.8rem;">${t('priceList.notSet')}</span>`}</td>
                                     <td class="${blurClass} variance-cell">${variance.html}</td>
                                     <td class="row-actions">
                                         <button class="save-btn" id="saveBtn-${p.id}" onclick="saveServiceMargin(${p.id})" style="display:none;" title="${t('common.save') || 'Save'}">
@@ -5312,7 +5312,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('superAdmin.totalClinics')}</span>
                     </div>
-                    <div class="metric-value">${stats.total_clinics}</div>
+                    <div class="metric-value dpc-num">${stats.total_clinics}</div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('superAdmin.registeredClinics')}</span>
                     </div>
@@ -5326,7 +5326,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('superAdmin.activeClinics')}</span>
                     </div>
-                    <div class="metric-value" style="color: var(--success);">${stats.active_subscriptions}</div>
+                    <div class="metric-value dpc-num" style="color: var(--success);">${stats.active_subscriptions}</div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('superAdmin.payingCustomers')}</span>
                     </div>
@@ -5340,7 +5340,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('superAdmin.trialClinics')}</span>
                     </div>
-                    <div class="metric-value">${stats.trial_clinics}</div>
+                    <div class="metric-value dpc-num">${stats.trial_clinics}</div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('superAdmin.inTrialPeriod')}</span>
                     </div>
@@ -5354,7 +5354,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('superAdmin.expired')}</span>
                     </div>
-                    <div class="metric-value" style="color: var(--danger);">${stats.expired_clinics}</div>
+                    <div class="metric-value dpc-num" style="color: var(--danger);">${stats.expired_clinics}</div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('superAdmin.needsRenewal')}</span>
                     </div>
@@ -5368,7 +5368,7 @@ const Pages = {
                         </span>
                         <span class="metric-label">${t('superAdmin.monthlyRevenue')}</span>
                     </div>
-                    <div class="metric-value currency">${formatCurrency(stats.monthly_revenue)}</div>
+                    <div class="metric-value currency dpc-num">${formatCurrency(stats.monthly_revenue)}</div>
                     <div class="metric-footer">
                         <span class="metric-subtext">${t('superAdmin.recurringIncome')}</span>
                     </div>
