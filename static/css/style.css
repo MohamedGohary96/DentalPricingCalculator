@@ -117,6 +117,42 @@ body.app-scaled .main-content { zoom: 0.82; }
   top: 0;
   z-index: 40;
 }
+.top-header-content {
+  display: flex; align-items: center; gap: 10px;
+}
+.top-header-logo {
+  height: 32px; width: auto; display: block;
+}
+.top-header-title {
+  font-family: var(--font-head);
+  font-size: 15px; font-weight: 600;
+  color: var(--ink-900); letter-spacing: -0.01em;
+}
+.content-wrapper { flex: 1; display: flex; flex-direction: column; }
+
+/* Skip link (accessibility) */
+.skip-link {
+  position: absolute; top: -40px; inset-inline-start: 0;
+  background: var(--ink-900); color: #fff;
+  padding: 8px 16px; text-decoration: none; border-radius: 0 0 var(--r) 0;
+  transition: top .2s;
+  z-index: 9999;
+}
+.skip-link:focus { top: 0; }
+
+/* Mobile menu toggle */
+#menuToggle {
+  display: none;
+  position: fixed; top: 14px; inset-inline-start: 14px;
+  z-index: 110;
+  width: 40px; height: 40px;
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-sm);
+  color: var(--ink-700);
+  align-items: center; justify-content: center;
+}
+@media (max-width: 768px) { #menuToggle { display: flex; } }
 .topbar-content { display: flex; align-items: center; gap: 12px; }
 .topbar-left { display: flex; align-items: center; gap: 12px; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
@@ -1786,9 +1822,10 @@ html[dir="rtl"] .tab-switcher-option { direction: rtl; }
 .auth-card-icon {
   width: 64px; height: 64px; border-radius: 18px;
   background: var(--teal-50);
+  box-shadow: inset 0 0 0 1.5px var(--teal-100);
   display: flex; align-items: center; justify-content: center;
   margin: 0 auto 20px;
-  font-size: 2.2rem;
+  color: var(--teal-600);
 }
 .auth-card h1 {
   font-family: var(--font-head);
@@ -1835,3 +1872,974 @@ html[dir="rtl"] .register-card-header h2 { font-family: var(--font-arabic); }
 @media (max-width: 768px) {
   .lang-toggle-btn { position: fixed; inset-block-start: 14px; inset-inline-end: 14px; }
 }
+
+/* ── 53. Dashboard metrics grid ──────────────────────────────── */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  padding: 20px 28px 0;
+}
+.metric-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.metric-header .metric-icon { flex-shrink: 0; }
+.metric-header .metric-label {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  margin-bottom: 0;
+}
+.metric-header .kpi-trend { margin-inline-start: auto; }
+
+.metric-subtext { color: var(--ink-500); font-size: 11.5px; }
+.metric-action {
+  color: var(--teal-600);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color .15s;
+  white-space: nowrap;
+}
+.metric-action:hover { color: var(--teal-700); text-decoration: underline; }
+
+.metric-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+.breakdown-value {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+  font-weight: 600;
+  color: var(--ink-900);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.metric-card-wide { grid-column: span 2; }
+@media (max-width: 1024px) { .metric-card-wide { grid-column: span 1; } }
+.metric-locked { opacity: 0.55; pointer-events: none; }
+
+/* ── 54. KPI trend & benchmark ───────────────────────────────── */
+.kpi-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.kpi-trend-up   { color: var(--success-700); background: var(--success-50); }
+.kpi-trend-down { color: var(--danger-700);  background: var(--danger-50); }
+
+.kpi-benchmark {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--teal-50);
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+  font-size: 12px;
+  color: var(--teal-700);
+}
+.kpi-benchmark-val {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.kpi-benchmark-positive { color: var(--success-700); }
+
+/* ── 55. Subscription banner ─────────────────────────────────── */
+.subscription-banner {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 18px;
+  margin: 20px 28px 0;
+  background: var(--teal-50);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+.subscription-banner-icon {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(13,148,136,.12); border-radius: 10px;
+}
+.subscription-banner-content { flex: 1; min-width: 0; }
+.subscription-banner-content h4 {
+  font-size: 13.5px; font-weight: 600; color: var(--teal-800);
+  margin-bottom: 2px;
+}
+.subscription-banner-content p { font-size: 12.5px; color: var(--teal-700); margin: 0; }
+.subscription-banner .btn { flex-shrink: 0; }
+.subscription-banner-expired {
+  background: var(--danger-50);
+  box-shadow: inset 0 0 0 1px var(--danger-100);
+}
+.subscription-banner-expired .subscription-banner-icon { background: rgba(220,38,38,.12); }
+.subscription-banner-expired .subscription-banner-content h4 { color: var(--danger-800, var(--danger-700)); }
+.subscription-banner-expired .subscription-banner-content p { color: var(--danger-700); }
+
+.banner-contact-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.contact-phone, .contact-phone-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 6px; font-size: 12px;
+  color: var(--teal-700); background: var(--teal-50);
+  box-shadow: inset 0 0 0 1px var(--teal-100); text-decoration: none;
+}
+.contact-whatsapp, .contact-whatsapp-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 6px; font-size: 12px;
+  color: var(--success-700); background: var(--success-50);
+  box-shadow: inset 0 0 0 1px var(--success-100); text-decoration: none;
+}
+
+/* ── 56. Trial blur ──────────────────────────────────────────── */
+.trial-blur {
+  filter: blur(5px);
+  user-select: none;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+/* ── 57. Setup checklist & progress ──────────────────────────── */
+.setup-progress-bar {
+  width: 100%; height: 6px;
+  background: var(--paper-2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.setup-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--teal-600), var(--teal-400));
+  border-radius: 999px;
+  transition: width .4s ease;
+}
+.setup-checklist { display: flex; flex-direction: column; gap: 4px; }
+.setup-checklist-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r);
+  cursor: pointer;
+  transition: background .12s;
+  font-size: 13px; color: var(--ink-800);
+}
+.setup-checklist-item:hover { background: var(--paper-2); }
+.setup-checklist-item.setup-cl-done { color: var(--ink-500); }
+.setup-cl-icon { flex-shrink: 0; font-size: 14px; }
+.setup-cl-label { flex: 1; }
+.setup-cl-arrow { color: var(--teal-600); font-weight: 600; }
+
+/* ── 58. Onboarding wizard (ob-*) ────────────────────────────── */
+.ob-wrapper {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 28px 28px 40px;
+}
+.ob-step-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+.ob-step-dot {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--paper-2);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s, color .2s, box-shadow .2s;
+  flex-shrink: 0;
+}
+.ob-step-dot-active {
+  background: var(--teal-600);
+  box-shadow: 0 0 0 4px rgba(13,148,136,.15);
+  color: #fff;
+}
+.ob-step-dot-done {
+  background: var(--success-600);
+  box-shadow: none;
+  color: #fff;
+}
+.ob-step-line {
+  flex: 1; height: 2px;
+  background: var(--line);
+  max-width: 80px;
+}
+.ob-step-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--ink-500);
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ob-step-time { font-size: 12px; }
+.ob-step-panel { }
+.ob-step-content { }
+.ob-welcome-content { text-align: center; }
+.ob-step-emoji {
+  font-size: 52px;
+  display: block;
+  margin-bottom: 16px;
+}
+.ob-step-title {
+  font-family: var(--font-head);
+  font-size: 22px; font-weight: 600;
+  color: var(--ink-900);
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+.ob-step-sub {
+  font-size: 14px; color: var(--ink-500);
+  line-height: 1.6; margin-bottom: 20px;
+}
+.ob-steps-preview {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px;
+  background: var(--paper-2);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--line);
+  margin: 16px 0 24px;
+  text-align: start;
+}
+.ob-preview-item {
+  font-size: 13.5px; color: var(--ink-700);
+  display: flex; align-items: center; gap: 8px;
+}
+.ob-next-btn, .ob-complete-btn {
+  width: 100%; height: 48px;
+  background: var(--ink-900); color: #fff;
+  border-radius: var(--r);
+  font-size: 15px; font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: background .15s;
+  margin-top: 8px;
+}
+.ob-next-btn:hover, .ob-complete-btn:hover { background: #000; }
+.ob-location-form { display: flex; flex-direction: column; gap: 16px; }
+.ob-cost-row {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.ob-cost-row label {
+  font-size: 12.5px; font-weight: 500; color: var(--ink-700);
+}
+.ob-costs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.ob-cap-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 16px;
+}
+.ob-section-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-400);
+  margin-top: 20px; margin-bottom: 12px;
+}
+.ob-field-hint {
+  font-size: 10px; color: var(--ink-400);
+  margin-inline-start: 6px;
+  font-weight: 400;
+}
+.ob-info-note {
+  padding: 10px 14px;
+  background: var(--info-50);
+  border-radius: var(--r-sm);
+  border-inline-start: 3px solid var(--info-600);
+  font-size: 12.5px; color: var(--ink-600);
+  margin: 14px 0;
+  line-height: 1.5;
+}
+.ob-step-actions {
+  display: flex; gap: 10px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+/* ── 59. Case tracker (ct-*) ─────────────────────────────────── */
+.ct-page { padding: 20px 28px; }
+.ct-header {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 20px; margin-bottom: 24px;
+}
+.ct-title { font-size: 22px; font-weight: 600; margin: 0; }
+.ct-subtitle { font-size: 13.5px; color: var(--ink-500); margin: 4px 0 0; }
+.ct-month-selector { display: flex; align-items: flex-end; gap: 10px; }
+.ct-month-label { font-size: 12px; font-weight: 600; color: var(--ink-600); margin-bottom: 6px; }
+.ct-month-select { min-width: 160px; }
+.ct-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 900px) { .ct-layout { grid-template-columns: 1fr; } }
+
+.ct-grid-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 10px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px; font-weight: 600; color: var(--ink-800);
+}
+.ct-grid-wrap { overflow-x: auto; }
+.ct-category-row > td, .ct-category-row > th {
+  background: var(--paper-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-400); padding: 8px 12px;
+}
+.ct-service-row { border-bottom: 1px solid var(--line-soft); }
+.ct-service-name { font-size: 13px; font-weight: 500; padding: 10px 12px; }
+.ct-price-cell {
+  text-align: end; padding: 10px 12px;
+  font-size: 12px; color: var(--ink-600);
+  font-family: var(--font-mono);
+}
+.ct-input-cell { text-align: center; padding: 8px 12px; }
+.ct-count-input {
+  width: 60px; height: 32px;
+  text-align: center; padding: 0;
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1px var(--line);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+  transition: box-shadow .15s;
+}
+.ct-count-input:focus { box-shadow: inset 0 0 0 1.5px var(--teal-600), 0 0 0 3px rgba(13,148,136,.12); }
+
+.ct-results-panel { display: flex; flex-direction: column; gap: 16px; }
+.ct-metrics {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin-bottom: 4px;
+}
+.ct-metric {
+  padding: 12px; border-radius: var(--r-md);
+  background: var(--paper-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.ct-metric-highlight {
+  background: var(--teal-50);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+.ct-metric-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-500);
+}
+.ct-metric-value {
+  font-family: var(--font-mono);
+  font-size: 20px; font-weight: 600;
+  color: var(--ink-900);
+  direction: ltr; unicode-bidi: isolate;
+}
+.ct-metric-highlight .ct-metric-label { color: var(--teal-700); }
+.ct-metric-highlight .ct-metric-value { color: var(--teal-800); }
+
+.ct-insight {
+  padding: 12px 14px;
+  background: var(--info-50);
+  border-radius: var(--r-sm);
+  border-inline-start: 3px solid var(--info-600);
+  font-size: 12.5px; color: var(--ink-600);
+  line-height: 1.5;
+}
+.ct-history-header {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-700);
+  margin-bottom: 10px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ct-history-list { display: flex; flex-direction: column; gap: 6px; }
+.ct-history-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 12px;
+  background: var(--paper-2);
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.ct-history-month { font-size: 12.5px; font-weight: 600; color: var(--ink-800); }
+.ct-history-cases { font-size: 12px; color: var(--ink-500); }
+.ct-history-empty { text-align: center; padding: 24px; color: var(--ink-400); font-size: 13px; }
+
+.ct-upgrade-wall {
+  text-align: center; padding: 48px 24px;
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.ct-upgrade-icon { font-size: 48px; margin-bottom: 16px; }
+.ct-upgrade-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.ct-upgrade-desc { font-size: 13.5px; color: var(--ink-500); margin-bottom: 24px; max-width: 380px; margin-inline: auto; }
+.ct-upgrade-features { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; text-align: start; }
+.ct-upgrade-feature { display: flex; gap: 12px; align-items: flex-start; font-size: 13px; color: var(--ink-700); }
+
+/* ── 60. Price health bar ────────────────────────────────────── */
+.health-bar {
+  position: relative; width: 100%;
+  height: 6px; border-radius: 999px;
+  background: var(--line); overflow: hidden;
+  margin-bottom: 6px;
+}
+.health-zone {
+  position: absolute; top: 0; bottom: 0;
+}
+.zone-under   { inset-inline-start: 0;      width: 33.333%; background: var(--danger-400, #f87171); }
+.zone-optimal { inset-inline-start: 33.333%; width: 33.334%; background: var(--success-400, #4ade80); }
+.zone-over    { inset-inline-start: 66.667%; width: 33.333%; background: var(--teal-400); }
+.health-indicator {
+  position: absolute; top: -2px;
+  width: 3px; height: calc(100% + 4px);
+  background: var(--ink-900);
+  border-radius: 999px;
+  transition: inset-inline-start .3s ease;
+}
+.health-label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 500; color: var(--ink-700);
+}
+.price-health { display: flex; flex-direction: column; gap: 6px; }
+.price-health-none { color: var(--ink-400); font-size: 12px; }
+
+/* ── 61. Explainer / help banners ───────────────────────────── */
+.explainer-banner {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--info-50);
+  border-radius: var(--r);
+  box-shadow: inset 0 0 0 1px var(--info-100);
+  margin-bottom: 12px;
+}
+.explainer-title {
+  font-size: 13px; font-weight: 600;
+  color: var(--ink-900); margin-bottom: 3px;
+}
+.explainer-body {
+  font-size: 12.5px; color: var(--ink-600); line-height: 1.55;
+}
+.explainer-got-it {
+  display: inline-block; margin-top: 6px;
+  font-size: 12px; color: var(--info-600);
+  text-decoration: underline; cursor: pointer;
+  padding: 0; background: none; border: none;
+}
+.explainer-dismiss {
+  flex-shrink: 0; width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-400); cursor: pointer;
+  border-radius: 4px; transition: background .12s;
+  margin-inline-start: auto;
+}
+.explainer-dismiss:hover { background: var(--paper-2); color: var(--ink-700); }
+
+/* ── 62. Simulated price / profit simulator ─────────────────── */
+.simulated-price {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+  font-weight: 600;
+  color: var(--teal-700);
+  direction: ltr; unicode-bidi: isolate;
+}
+
+/* ── 63. Equipment / cost editor rows ───────────────────────── */
+.cost-cell {
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 500;
+  text-align: end; color: var(--ink-900);
+  direction: ltr; unicode-bidi: isolate;
+}
+.doctor-fee-cell { text-align: end; }
+.fee-type-cell   { font-size: 12px; color: var(--ink-500); }
+.detail-value {
+  font-family: var(--font-mono);
+  font-size: 13.5px; font-weight: 600;
+  color: var(--ink-900);
+  direction: ltr; unicode-bidi: isolate;
+}
+.eq-part { font-size: 12px; color: var(--ink-600); }
+.eq-operator { font-size: 12px; color: var(--ink-400); margin: 0 4px; }
+.eq-final { font-family: var(--font-mono); font-weight: 600; color: var(--teal-700); }
+
+/* ── 64. Services / consumables page helpers ─────────────────── */
+.category-header {
+  background: var(--paper-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-400);
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.consumable-option {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; cursor: pointer; font-size: 13.5px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.consumable-option:hover { background: var(--paper-2); }
+.consumable-option:last-child { border-bottom: none; }
+.consumables-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px;
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-500);
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--line);
+}
+.equipment-header {
+  background: var(--paper-2);
+  padding: 10px 14px; font-size: 11px;
+  font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--ink-400);
+  border-bottom: 1px solid var(--line);
+}
+
+/* ── 65. Header group utils ──────────────────────────────────── */
+.header-group { display: flex; flex-direction: column; gap: 2px; }
+.header-subgroup { font-size: 11px; color: var(--ink-500); }
+
+/* ── 66. Page title/subtitle (generic, used in subscription etc.) */
+.page-title {
+  font-family: var(--font-head);
+  font-size: 22px; font-weight: 600;
+  color: var(--ink-900); letter-spacing: -0.02em; margin: 0;
+}
+.page-subtitle {
+  font-size: 13.5px; color: var(--ink-500);
+  margin: 4px 0 0; line-height: 1.5;
+}
+
+/* ── 67. Subscription page cards ─────────────────────────────── */
+.subscription-card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 22px 24px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.subscription-contact-card { }
+.subscription-contact-actions {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.subscription-contact-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-radius: var(--r);
+  font-size: 13px; font-weight: 600;
+  text-decoration: none; transition: opacity .15s;
+  white-space: nowrap;
+}
+.subscription-contact-btn:hover { opacity: 0.85; }
+.subscription-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+.subscription-detail-item {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px; border-radius: var(--r-sm);
+  background: var(--paper-2);
+}
+.detail-label {
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--ink-400);
+}
+
+/* ── 68. Feature list (subscription what's included) ──────────── */
+.feature-item {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13.5px; color: var(--ink-800);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.feature-item:last-child { border-bottom: none; }
+.feature-icon {
+  width: 22px; flex-shrink: 0;
+  text-align: center; font-size: 14px;
+}
+.feature-limited { color: var(--ink-500); }
+.feature-locked  { color: var(--ink-400); text-decoration: line-through; }
+
+/* ── 69. Subscription trial progress bar ─────────────────────── */
+.trial-progress {
+  padding: 16px 20px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--line);
+  margin-bottom: 16px;
+}
+.trial-progress-label {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12.5px; color: var(--ink-600); margin-bottom: 8px;
+}
+.trial-progress-bar {
+  height: 8px; background: var(--paper-2);
+  border-radius: 999px; overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.trial-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--teal-600), var(--teal-400));
+  border-radius: 999px;
+  transition: width .4s ease;
+}
+
+/* ── 70. Super admin KPI metrics ─────────────────────────────── */
+.sa-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.sa-kpi {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.sa-kpi-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-500);
+}
+.sa-kpi-value {
+  font-family: var(--font-mono);
+  font-size: 24px; font-weight: 600;
+  color: var(--ink-900);
+  direction: ltr; unicode-bidi: isolate;
+}
+.sa-kpi-dark {
+  background: var(--ink-900); color: #fff;
+}
+.sa-kpi-dark .sa-kpi-label { color: rgba(255,255,255,.6); }
+.sa-kpi-dark .sa-kpi-value { color: var(--teal-300); }
+
+/* ── 71. Admin clinics table ─────────────────────────────────── */
+.admin-table {
+  width: 100%; border-collapse: collapse; font-size: 13.5px;
+}
+.admin-table thead th {
+  padding: 10px 14px; text-align: start;
+  font-family: var(--font-mono); font-size: 10.5px;
+  font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-500);
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.admin-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-800); vertical-align: middle;
+}
+.admin-table tbody tr:last-child td { border-bottom: none; }
+.admin-table tbody tr:hover td { background: var(--paper-2); }
+.clinic-row-active   { }
+.clinic-row-inactive { opacity: 0.6; }
+.clinic-status {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.02em; text-transform: uppercase;
+}
+.clinic-status.active   { background: var(--success-50); color: var(--success-700); }
+.clinic-status.inactive { background: var(--danger-50);  color: var(--danger-700); }
+.clinic-status.trial    { background: var(--warning-50); color: var(--warning-700); }
+.clinic-status.expired  { background: var(--danger-50);  color: var(--danger-700); }
+
+/* ── 72. Subscription contact row (inside service modals too) ─── */
+.subscription-contact {
+  margin-top: 12px; padding: 12px 14px;
+  background: var(--teal-50);
+  border-radius: var(--r);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+  display: flex; flex-direction: column; gap: 8px;
+  font-size: 13px; color: var(--teal-700);
+}
+.subscription-contact a {
+  color: var(--teal-700); font-weight: 600;
+  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.subscription-contact a:hover { text-decoration: underline; }
+
+/* ── 73. Price-list table ────────────────────────────────────── */
+.price-table-wrap { overflow-x: auto; }
+.simulated-price {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+  font-weight: 600;
+  color: var(--teal-700);
+  direction: ltr; unicode-bidi: isolate;
+}
+.price-status-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+}
+
+/* ── 74. Price preview card (service form live calc) ─────────── */
+.price-preview-card {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.price-preview-card.trial-preview-locked { box-shadow: inset 0 0 0 1px var(--warning-100); background: var(--warning-50); }
+.price-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.price-preview-label { font-size: 11.5px; font-weight: 500; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.06em; }
+.price-preview-amount { font-family: var(--font-mono); font-size: 28px; font-weight: 700; color: var(--ink-900); direction: ltr; unicode-bidi: isolate; line-height: 1.1; }
+.price-preview-currency { font-family: var(--font-sans); font-size: 0.5em; color: var(--ink-500); margin-inline-start: 4px; font-weight: 500; vertical-align: 0.2em; }
+.price-preview-breakdown { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.price-preview-item { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+.price-preview-item-label { color: var(--ink-500); }
+.price-preview-item-value { font-family: var(--font-mono); font-weight: 600; color: var(--ink-700); direction: ltr; unicode-bidi: isolate; }
+.trial-preview-cta { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--warning-100); font-size: 12.5px; color: var(--warning-700); }
+.trial-lock-icon { color: var(--warning-600); }
+
+/* ── 75. Trial restriction UI ────────────────────────────────── */
+.trial-upgrade-banner {
+  background: var(--warning-50);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--warning-100);
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 14px;
+}
+.trial-upgrade-content { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.trial-upgrade-text h4 { font-size: 14px; font-weight: 600; color: var(--warning-700); margin-bottom: 3px; }
+.trial-upgrade-text p  { font-size: 13px; color: var(--ink-600); margin: 0; }
+.trial-upgrade-stats { display: flex; gap: 20px; align-items: center; flex-shrink: 0; }
+.trial-stat-number { font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--warning-700); direction: ltr; unicode-bidi: isolate; }
+.trial-stat-label { font-size: 11px; color: var(--ink-500); }
+
+/* ── 76. Restriction banner ──────────────────────────────────── */
+.restriction-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 16px;
+  border-radius: var(--r-md);
+  margin-bottom: 16px;
+}
+.restriction-banner-info { background: var(--teal-50); box-shadow: inset 0 0 0 1px var(--teal-100); }
+.restriction-banner-content { flex: 1; min-width: 0; }
+.restriction-banner-content h4 { font-size: 13.5px; font-weight: 600; color: var(--teal-700); margin-bottom: 2px; }
+.restriction-banner-content p  { font-size: 12.5px; color: var(--ink-600); margin: 0; }
+.restriction-banner-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+/* ── 77. Packaging calculator (consumables) ──────────────────── */
+.packaging-calculator { padding: 20px 0; }
+.packaging-header { margin-bottom: 20px; }
+.packaging-title { font-size: 16px; font-weight: 600; color: var(--ink-900); margin-bottom: 4px; }
+.packaging-help { font-size: 13px; color: var(--ink-500); }
+.packaging-flow {
+  display: flex; align-items: center; justify-content: center;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.packaging-step {
+  text-align: center;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 14px 16px; min-width: 140px;
+}
+.step-number { font-family: var(--font-mono); font-size: 10px; color: var(--ink-400); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+.step-icon { font-size: 22px; margin-bottom: 6px; }
+.step-badge { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--ink-900); }
+.step-content { font-size: 11.5px; color: var(--ink-500); margin-top: 4px; }
+.step-visual { display: flex; justify-content: center; margin-top: 8px; }
+.packaging-arrow { font-size: 20px; color: var(--ink-300); flex-shrink: 0; }
+.packaging-result {
+  background: linear-gradient(135deg, var(--teal-50), rgba(13,148,136,.04));
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1.5px var(--teal-100);
+  padding: 14px 16px; text-align: center;
+}
+.visual-box {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--paper-2);
+  border-radius: var(--r);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 8px 14px;
+  font-family: var(--font-mono); font-size: 15px; font-weight: 600;
+  color: var(--ink-800); min-width: 48px;
+}
+
+/* ── 78. Dropdown UI ─────────────────────────────────────────── */
+.dropdown-search-container { position: relative; }
+.dropdown-search-input {
+  width: 100%; height: 38px; padding: 0 36px 0 12px;
+  background: var(--surface);
+  border-radius: var(--r);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 13.5px; color: var(--ink-900);
+  outline: none;
+}
+.dropdown-search-input:focus { box-shadow: inset 0 0 0 1.5px var(--teal-600), 0 0 0 4px rgba(13,148,136,.10); }
+.dropdown-arrow { position: absolute; inset-inline-end: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-400); pointer-events: none; }
+.dropdown-options-container {
+  position: absolute; z-index: 50; width: 100%; margin-top: 4px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md), inset 0 0 0 1px var(--line);
+  max-height: 220px; overflow-y: auto;
+}
+
+/* ── 79. Toggle sections ─────────────────────────────────────── */
+.section-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; padding: 14px 16px;
+  border-radius: var(--r);
+  transition: background .12s;
+}
+.section-toggle:hover { background: var(--paper-2); }
+.toggle-title { font-size: 14px; font-weight: 600; color: var(--ink-900); }
+.toggle-badge {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--teal-50); color: var(--teal-700);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+.toggle-icon { color: var(--ink-400); transition: transform .2s; }
+.section-content { padding: 0 16px 14px; }
+.toggle-track {
+  width: 40px; height: 22px; border-radius: 999px;
+  background: var(--line); position: relative;
+  transition: background .15s; cursor: pointer; border: none;
+}
+.toggle-track.on { background: var(--teal-600); }
+.toggle-switch {
+  position: absolute; top: 3px; inset-inline-start: 3px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: var(--shadow-xs);
+  transition: inset-inline-start .15s;
+}
+.toggle-track.on .toggle-switch { inset-inline-start: 21px; }
+
+/* ── 80. Subscription plan cards ────────────────────────────── */
+.subscription-wall, .subscription-wall-content {
+  text-align: center; padding: 40px 24px;
+}
+.subscription-plan-card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 24px 20px;
+  transition: box-shadow .15s, transform .12s;
+}
+.subscription-plan-card:hover { box-shadow: var(--shadow), inset 0 0 0 1.5px var(--teal-300); transform: translateY(-2px); }
+.plan-header { margin-bottom: 16px; }
+.plan-features { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.subscription-icon { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: var(--r-md); background: var(--teal-50); color: var(--teal-600); margin-bottom: 10px; }
+.subscription-description { font-size: 13px; color: var(--ink-500); margin: 4px 0 0; }
+
+/* ── 81. Inline editable fields ─────────────────────────────── */
+.inline-editable { cursor: pointer; }
+.inline-editable:hover { background: var(--teal-50); border-radius: var(--r-sm); }
+.value-zero { color: var(--ink-300); }
+.no-value { color: var(--ink-300); font-size: 12px; }
+
+/* ── 82. Modal content wrapper ───────────────────────────────── */
+.modal-content-wrapper { padding: 0; }
+
+/* ── 83. svc-status chip ─────────────────────────────────────── */
+.svc-status-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+}
+.svc-status-good  { background: var(--success-50); color: var(--success-700); }
+.svc-status-warn  { background: var(--warning-50); color: var(--warning-700); }
+.svc-status-bad   { background: var(--danger-50);  color: var(--danger-700); }
+.svc-status-none  { background: var(--paper-2);    color: var(--ink-500); }
+
+/* ── 84. Quick options / quick buttons ───────────────────────── */
+.quick-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.quick-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 500;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-700);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.quick-btn:hover { background: var(--teal-50); color: var(--teal-700); box-shadow: inset 0 0 0 1px var(--teal-200); }
+
+/* ── 85. Banner contact links ────────────────────────────────── */
+.banner-contact-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.preview-contact-links { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── 86. Category header row ─────────────────────────────────── */
+.category-header td { padding: 8px 12px; }
+.print-category-row td { padding: 6px 10px; background: var(--paper-2); }
+
+/* ── 87. Save button in simulator ────────────────────────────── */
+.save-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: var(--r-sm);
+  background: var(--teal-600); color: #fff;
+  transition: background .12s, opacity .12s;
+  cursor: pointer; border: none;
+}
+.save-btn:hover { background: var(--teal-700); }
+
+/* ── 88. Row states in price table ───────────────────────────── */
+.row-modified { background: rgba(13,148,136,.04); }
+.row-saved    { background: rgba(5,150,105,.06); }
+
+/* ── 89. Simulator body / header ─────────────────────────────── */
+.simulator-body { padding: 16px 20px; }
+.simulator-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.simulator-metrics .metric-card { padding: 14px; }
+.simulator-metrics .metric-icon { margin-bottom: 6px; color: var(--teal-600); }
+.simulator-metrics .metric-label { font-size: 11px; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.06em; }
+.simulator-metrics .metric-value { font-family: var(--font-mono); font-size: 20px; font-weight: 700; direction: ltr; unicode-bidi: isolate; }
+
+/* ── 90. ct-upgrade wall ─────────────────────────────────────── */
+.ct-upgrade-wall { text-align: center; padding: 60px 24px; }
+.ct-upgrade-title { font-family: var(--font-head); font-size: 22px; font-weight: 700; color: var(--ink-900); margin-bottom: 12px; }
+.ct-upgrade-desc { font-size: 14px; color: var(--ink-500); max-width: 400px; margin: 0 auto 24px; line-height: 1.6; }
+.ct-upgrade-features { display: flex; flex-direction: column; gap: 10px; max-width: 300px; margin: 0 auto 28px; text-align: start; }
+.ct-upgrade-feature { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-700); }
+
+/* ── 91. Subscription plan grid ─────────────────────────────── */
+.subscription-plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 20px; }

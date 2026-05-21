@@ -1,0 +1,193 @@
+<script setup>
+/**
+ * DpcAchievements — horizontal badge strip, 4-per-row desktop, 2 mobile.
+ * Unlocked: full color with pop animation.
+ * Locked: grayscale with "?" hint.
+ */
+import { computed, watch } from 'vue'
+import { useI18nStore }    from '@/stores/i18n.js'
+
+const props = defineProps({
+  achievements: { type: Array, default: () => [] },
+})
+
+const i18n = useI18nStore()
+const isAr = computed(() => i18n.locale === 'ar')
+
+function fmtDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return isAr.value
+    ? d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' })
+    : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+</script>
+
+<template>
+  <div class="ach-root">
+    <div class="ach-header">
+      <span class="ach-title">{{ isAr ? 'الإنجازات' : 'Achievements' }}</span>
+      <span class="ach-count">
+        {{ achievements.filter(a => a.unlocked).length }} / {{ achievements.length }}
+      </span>
+    </div>
+
+    <div class="ach-grid">
+      <div
+        v-for="badge in achievements"
+        :key="badge.id"
+        :class="['ach-badge', badge.unlocked ? 'is-unlocked' : 'is-locked']"
+        :title="badge.unlocked ? badge.desc : (isAr ? 'اجمع المتطلبات لفتح هذا الإنجاز' : 'Meet the requirements to unlock')"
+      >
+        <div class="badge-icon" :class="badge.unlocked ? 'icon-unlocked' : 'icon-locked'">
+          <span v-if="badge.unlocked" class="badge-emoji">{{ badge.icon }}</span>
+          <span v-else class="badge-q">?</span>
+        </div>
+        <div class="badge-body">
+          <div class="badge-name">{{ badge.label }}</div>
+          <div v-if="badge.unlocked" class="badge-date">
+            {{ fmtDate(badge.unlockedAt) }}
+          </div>
+          <div v-else class="badge-hint">
+            {{ isAr ? 'مقفل' : 'Locked' }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.ach-root {
+  background: var(--paper);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 18px 20px;
+}
+
+.ach-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.ach-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-800);
+  letter-spacing: 0.01em;
+}
+
+.ach-count {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-400);
+  font-family: var(--font-mono);
+}
+
+/* ── Grid ─────────────────────────────────────────────────────── */
+.ach-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .ach-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Badge card ───────────────────────────────────────────────── */
+.ach-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px;
+  border-radius: var(--r);
+  text-align: center;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.ach-badge.is-unlocked {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--teal-200), 0 2px 8px rgba(20, 184, 148, 0.10);
+  animation: badge-pop 0.4s var(--ease-spring) both;
+}
+
+.ach-badge.is-locked {
+  background: var(--paper-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  opacity: 0.6;
+}
+
+.ach-badge.is-unlocked:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 0 0 1.5px var(--teal-300), 0 6px 16px rgba(20, 184, 148, 0.16);
+}
+
+/* ── Badge icon ───────────────────────────────────────────────── */
+.badge-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  flex: none;
+}
+
+.icon-unlocked {
+  background: linear-gradient(135deg, var(--teal-50), var(--teal-100));
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.20);
+}
+
+.icon-locked {
+  background: var(--line);
+}
+
+.badge-emoji {
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.12));
+}
+
+.badge-q {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink-400);
+  font-family: var(--font-head);
+}
+
+/* ── Badge text ───────────────────────────────────────────────── */
+.badge-body { min-width: 0; width: 100%; }
+
+.badge-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-800);
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+
+.is-locked .badge-name {
+  color: var(--ink-400);
+}
+
+.badge-date {
+  font-size: 10px;
+  color: var(--teal-700);
+  font-weight: 500;
+}
+
+.badge-hint {
+  font-size: 10px;
+  color: var(--ink-400);
+}
+
+/* ── Pop animation ────────────────────────────────────────────── */
+@keyframes badge-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  70%  { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+</style>

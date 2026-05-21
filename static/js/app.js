@@ -434,7 +434,7 @@ window.saveServiceMargin = async function(serviceId) {
         await API.put(`/api/services/${serviceId}`, serviceData);
 
         // Success state
-        if (saveBtn) saveBtn.innerHTML = '✓';
+        if (saveBtn) saveBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
         if (row) {
             row.classList.remove('row-modified');
             row.classList.add('row-saved');
@@ -445,10 +445,11 @@ window.saveServiceMargin = async function(serviceId) {
         window.updateSimulatorMetrics();
 
         // Hide button after delay
+        const _saveSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
         setTimeout(() => {
             if (saveBtn) {
                 saveBtn.style.display = 'none';
-                saveBtn.innerHTML = '💾';
+                saveBtn.innerHTML = _saveSvg;
                 saveBtn.disabled = false;
             }
             if (row) row.classList.remove('row-saved');
@@ -458,9 +459,9 @@ window.saveServiceMargin = async function(serviceId) {
     } catch (err) {
         console.error('Failed to save margin:', err);
         if (saveBtn) {
-            saveBtn.innerHTML = '❌';
+            saveBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--danger-600)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
             setTimeout(() => {
-                saveBtn.innerHTML = '💾';
+                saveBtn.innerHTML = _saveSvg;
                 saveBtn.disabled = false;
             }, 1500);
         }
@@ -1969,19 +1970,35 @@ const Pages = {
             </div>
             <div class="ob-step-meta">
                 <span id="ob-step-label">${t('onboarding.stepOf', {step: 1, total: 4})}</span>
-                <span class="ob-step-time">⏱ ${t('onboarding.setupTime')}</span>
+                <span class="ob-step-time">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px;margin-right:4px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    ${t('onboarding.setupTime')}
+                </span>
             </div>
 
             <!-- Step 1: Welcome -->
             <div class="ob-step-panel">
                 <div class="ob-step-content ob-welcome-content">
-                    <div class="ob-step-emoji">🦷</div>
+                    <div class="ob-step-emoji" style="display:flex;justify-content:center;">
+                        <div style="width:72px;height:72px;border-radius:20px;background:linear-gradient(155deg,var(--teal-500),var(--teal-700));display:grid;place-items:center;box-shadow:0 8px 24px rgba(13,148,136,.28);">
+                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 6 5 6 8c0 2.5 1 4 2 5.5S10 16 10 18c0 1.5-.5 3-1.5 4h7c-1-1-1.5-2.5-1.5-4 0-2 1-3.5 2-5.5s2-3 2-5.5c0-3-2-6-6-6z"/><path d="M9 22h6"/></svg>
+                        </div>
+                    </div>
                     <h2 class="ob-step-title">${t('onboarding.welcomeTitle').replace('{clinic}', clinicName)}</h2>
                     <p class="ob-step-sub">${t('onboarding.welcomeSub')}</p>
                     <div class="ob-steps-preview">
-                        <div class="ob-preview-item">📍 ${t('onboarding.step2label')}</div>
-                        <div class="ob-preview-item">🏥 ${t('onboarding.step3label')}</div>
-                        <div class="ob-preview-item">💱 ${t('onboarding.step4label')}</div>
+                        <div class="ob-preview-item">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--teal-600)"><circle cx="12" cy="12" r="3"/><path d="M2 12h3m14 0h3M12 2v3m0 14v3"/></svg>
+                            ${t('onboarding.step2label')}
+                        </div>
+                        <div class="ob-preview-item">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--teal-600)"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+                            ${t('onboarding.step3label')}
+                        </div>
+                        <div class="ob-preview-item">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--teal-600)"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            ${t('onboarding.step4label')}
+                        </div>
                     </div>
                     <button class="btn btn-primary ob-next-btn" onclick="obSetStep(2)">${t('onboarding.letsStart')} →</button>
                 </div>
@@ -2140,35 +2157,38 @@ const Pages = {
         // Subscription banner for trial/expired/suspended users
         let bannerTitle, bannerMessage, bannerButtonText, bannerIcon;
 
+        const _svgPause = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>';
+        const _svgRefresh = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.27"/></svg>';
+        const _svgLock = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+        const _svgStar = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+
         if (isSuspended) {
             bannerTitle = t('subscription.accountOnHold');
             bannerMessage = t('subscription.onHoldMessage');
             bannerButtonText = t('subscription.getHelp');
-            bannerIcon = '⏸️';
+            bannerIcon = _svgPause;
         } else if (isExpired) {
             bannerTitle = t('subscription.timeToRenew');
             bannerMessage = t('subscription.renewMessage');
             bannerButtonText = t('subscription.renewNow');
-            bannerIcon = '🔄';
+            bannerIcon = _svgRefresh;
         } else if (isTrial) {
             bannerTitle = t('dashboard.trialModeActive');
             bannerMessage = `${t('dashboard.trialPricesBlurred')} ${underpriced > 0 ? t('dashboard.youHaveUnderpriced', {count: underpriced}) : ''}`;
             bannerButtonText = t('subscription.seePlans');
-            bannerIcon = '🔒';
+            bannerIcon = _svgLock;
         } else {
             bannerTitle = t('subscription.welcomeTrial');
             bannerMessage = `${t('subscription.trialMessage')} ${t('subscription.upgradeAnytime')}`;
             bannerButtonText = t('subscription.seePlans');
-            bannerIcon = '✨';
+            bannerIcon = _svgStar;
         }
 
         // Show banner for trial, expired, or suspended users
         const showBanner = (isTrial && stats.total_services > 0) || isExpired || isSuspended;
         const subscriptionBanner = showBanner ? `
             <div class="subscription-banner ${(isExpired || isSuspended) ? 'subscription-banner-expired' : ''}">
-                <div class="subscription-banner-icon">
-                    <span style="font-size: 1.5rem;">${bannerIcon}</span>
-                </div>
+                <div class="subscription-banner-icon" style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.6);display:grid;place-items:center;flex-shrink:0;">${bannerIcon}</div>
                 <div class="subscription-banner-content">
                     <h4>${bannerTitle}</h4>
                     <p>${bannerMessage}</p>
@@ -2390,8 +2410,11 @@ const Pages = {
                 return `
                 <div class="card" style="margin-top:1.5rem;">
                     <div class="card-header">
-                        <h3 class="card-title">📋 ${t('dashboard.setupChecklist')}</h3>
-                        <span style="font-size:0.85rem;color:var(--gray-500);">${done}/${total}</span>
+                        <h3 class="card-title">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-3px;margin-right:6px;"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+                            ${t('dashboard.setupChecklist')}
+                        </h3>
+                        <span style="font-size:0.85rem;color:var(--ink-500);font-family:var(--font-mono);">${done}/${total}</span>
                     </div>
                     <div class="card-body">
                         <div class="setup-progress-bar">
@@ -2402,9 +2425,12 @@ const Pages = {
                             ${items.map(i => {
                                 const isDone = setupStatus[i.key];
                                 return `<div class="setup-checklist-item ${isDone ? 'setup-cl-done' : ''}" onclick="APP.loadPage('${i.page}')">
-                                    <span class="setup-cl-icon">${isDone ? '✅' : '⬜'}</span>
+                                    <span class="setup-cl-icon">${isDone
+                                        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success-600)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>'
+                                        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-300)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>'
+                                    }</span>
                                     <span class="setup-cl-label">${i.label}</span>
-                                    ${!isDone ? '<span class="setup-cl-arrow">→</span>' : ''}
+                                    ${!isDone ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--teal-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>' : ''}
                                 </div>`;
                             }).join('')}
                         </div>
@@ -2433,7 +2459,7 @@ const Pages = {
             <p style="margin-top:0.75rem;color:var(--gray-700);"><em>${t('settings.pricingNote')}</em></p>`;
 
         return `
-            ${firstVisit.getHTML('settings', '💡 ' + t('settings.howPricingWorks'), settingsExplainerBody)}
+            ${firstVisit.getHTML('settings', t('settings.howPricingWorks'), settingsExplainerBody)}
 
             <nav class="settings-toc" style="margin-top:1.5rem;">
                 <a href="#section-global">${t('settings.globalSettings')}</a>
@@ -2552,8 +2578,8 @@ const Pages = {
                                     </td>
                                     <td>${c.notes||'-'}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showFixedCostForm(${c.id})">✎ ${t('common.edit')}</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteFixedCost(${c.id})">🗑️ ${t('common.delete')}</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showFixedCostForm(${c.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> ${t('common.edit')}</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteFixedCost(${c.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> ${t('common.delete')}</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -2561,7 +2587,7 @@ const Pages = {
                     </table>
                     ` : `
                         <div class="empty-state">
-                            <div class="empty-state-icon">💰</div>
+                            <div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
                             <h3>No fixed costs yet</h3>
                             <p>Add rent, utilities, and other monthly expenses to calculate accurate service pricing.</p>
                             <div class="empty-state-actions">
@@ -2605,8 +2631,8 @@ const Pages = {
                                     </td>
                                     <td>${s.notes||'-'}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showSalaryForm(${s.id})">✎ ${t('common.edit')}</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteSalary(${s.id})">🗑️ ${t('common.delete')}</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showSalaryForm(${s.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> ${t('common.edit')}</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteSalary(${s.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> ${t('common.delete')}</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -2614,7 +2640,7 @@ const Pages = {
                     </table>
                     ` : `
                         <div class="empty-state">
-                            <div class="empty-state-icon">👥</div>
+                            <div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
                             <h3>No salaries yet</h3>
                             <p>Add staff salaries to include labor costs in your service pricing calculations.</p>
                             <div class="empty-state-actions">
@@ -2654,8 +2680,8 @@ const Pages = {
                                     <td><span class="badge badge-${e.allocation_type==='fixed'?'info':'warning'}">${e.allocation_type}</span></td>
                                     <td>${e.monthly_usage_hours||'-'}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showEquipmentForm(${e.id})">✎ ${t('common.edit')}</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteEquipment(${e.id})">🗑️ ${t('common.delete')}</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showEquipmentForm(${e.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> ${t('common.edit')}</button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteEquipment(${e.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> ${t('common.delete')}</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -2663,7 +2689,7 @@ const Pages = {
                     </table>
                     ` : `
                         <div class="empty-state">
-                            <div class="empty-state-icon">🔧</div>
+                            <div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
                             <h3>No equipment yet</h3>
                             <p>Add dental equipment to track depreciation and include costs in service pricing.</p>
                             <div class="empty-state-actions">
@@ -2990,7 +3016,7 @@ const Pages = {
             </p>`;
 
         return `
-            ${firstVisit.getHTML('consumables', '📦 ' + t('consumables.aboutTitle'), consumablesExplainerBody)}
+            ${firstVisit.getHTML('consumables', t('consumables.aboutTitle'), consumablesExplainerBody)}
 
             <!-- Card-style Tabs for Consumables and Materials -->
             <div style="margin-top:1.5rem;">
@@ -3053,8 +3079,8 @@ const Pages = {
                                             <td class="inline-editable" onclick="inlineEdit(this,'/api/consumables','units_per_case','int',${c.id},()=>recalcConsumableRow(this.closest('tr')))">${c.units_per_case}</td>
                                             <td><strong>${formatCurrency(perUnitCost)}</strong></td>
                                             <td>
-                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showConsumableForm(${c.id})" title="${t('common.edit')}">✎</button>
-                                                <button class="btn btn-sm btn-ghost" onclick="Pages.deleteConsumable(${c.id})" title="${t('common.delete')}">🗑️</button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showConsumableForm(${c.id})" title="${t('common.edit')}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.deleteConsumable(${c.id})" title="${t('common.delete')}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
                                             </td>
                                         </tr>
                                     `;
@@ -3063,7 +3089,7 @@ const Pages = {
                         </table>
                     ` : `
                         <div class="empty-state">
-                            <div class="empty-state-icon">📦</div>
+                            <div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
                             <h3>${t('consumables.noConsumables')}</h3>
                             <p>${t('consumables.addFirst')}</p>
                             <div class="empty-state-actions">
@@ -3103,8 +3129,8 @@ const Pages = {
                                                     <td>${m.lab_name || '-'}</td>
                                                     <td class="inline-editable ${m.unit_cost <= 0 ? 'value-zero' : ''}" onclick="inlineEdit(this,'/api/materials','unit_cost','float',${m.id})">${m.unit_cost > 0 ? `<strong>${formatCurrency(m.unit_cost)}</strong>` : '<span class="no-value">Set price</span>'}</td>
                                                     <td>
-                                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showMaterialForm(${m.id})" title="${t('common.edit')}">✎</button>
-                                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteMaterial(${m.id})" title="${t('common.delete')}">🗑️</button>
+                                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showMaterialForm(${m.id})" title="${t('common.edit')}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteMaterial(${m.id})" title="${t('common.delete')}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
                                                     </td>
                                                 </tr>
                                             `;
@@ -3113,7 +3139,7 @@ const Pages = {
                                 </table>
                             ` : `
                                 <div class="empty-state">
-                                    <div class="empty-state-icon">🦷</div>
+                                    <div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 6 5 6 8c0 2.5 1 4 2 5.5S10 16 10 18c0 1.5-.5 3-1.5 4h7c-1-1-1.5-2.5-1.5-4 0-2 1-3.5 2-5.5s2-3 2-5.5c0-3-2-6-6-6z"/></svg></div>
                                     <h3>${t('materials.noMaterials')}</h3>
                                     <p>${t('materials.addFirst')}</p>
                                     <div class="empty-state-actions">
@@ -3174,7 +3200,7 @@ const Pages = {
                                 <small>${t('consumables.packCostHelp')}</small>
                             </div>
                             <div class="step-visual">
-                                <div class="visual-box">📦 1 ${t('consumables.pack')}</div>
+                                <div class="visual-box">1 ${t('consumables.pack')}</div>
                             </div>
                         </div>
 
@@ -3194,7 +3220,7 @@ const Pages = {
                                 <small>${t('consumables.casesPerPackHelp')}</small>
                             </div>
                             <div class="step-visual">
-                                <div class="visual-box">📦 × <span id="casesPreview">${consumable?.cases_per_pack||1}</span></div>
+                                <div class="visual-box">× <span id="casesPreview">${consumable?.cases_per_pack||1}</span></div>
                             </div>
                         </div>
 
@@ -3214,7 +3240,7 @@ const Pages = {
                                 <small>${t('consumables.unitsPerCaseHelp')}</small>
                             </div>
                             <div class="step-visual">
-                                <div class="visual-box">🧤 × <span id="unitsPreview">${consumable?.units_per_case||1}</span></div>
+                                <div class="visual-box">× <span id="unitsPreview">${consumable?.units_per_case||1}</span></div>
                             </div>
                         </div>
                     </div>
@@ -3455,7 +3481,7 @@ const Pages = {
             // Active trial - prices are blurred
             bannerHtml = `
                 <div class="restriction-banner restriction-banner-info">
-                    <div class="restriction-banner-icon">🔒</div>
+                    <div class="restriction-banner-icon" style="width:36px;height:36px;border-radius:9px;background:rgba(255,255,255,0.6);display:grid;place-items:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
                     <div class="restriction-banner-content">
                         <h4>${t('services.trialMode')}</h4>
                         <p>${t('services.trialPricesBlurred')}</p>
@@ -3489,7 +3515,7 @@ const Pages = {
         return `
             ${bannerHtml}
 
-            ${firstVisit.getHTML('services', '🦷 ' + t('services.aboutTitle'), servicesExplainerBody)}
+            ${firstVisit.getHTML('services', t('services.aboutTitle'), servicesExplainerBody)}
 
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
@@ -3545,9 +3571,9 @@ const Pages = {
                                     <td>${s.equipment_name||'-'}</td>
                                     <td>${statusChip}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}">💰</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}">✎</button>
-                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}">🗑️</button>
+                                        <button class="btn btn-sm btn-success" onclick="Pages.viewServicePrice(${s.id})" title="${t('services.viewPrice')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.showServiceForm(${s.id})" title="${t('common.edit')}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                                        <button class="btn btn-sm btn-ghost" onclick="Pages.deleteService(${s.id})" title="${t('common.delete')}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
                                     </td>
                                 </tr>
                             `;
@@ -3561,7 +3587,7 @@ const Pages = {
                             tableRows += `
                                 <tr class="category-header" style="background:var(--gray-100);">
                                     <td colspan="6" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
-                                        📁 ${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${grouped[catName].length} ${grouped[catName].length === 1 ? t('services.service') : t('services.services')})</span>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-inline-end:6px;vertical-align:-2px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${grouped[catName].length} ${grouped[catName].length === 1 ? t('services.service') : t('services.services')})</span>
                                     </td>
                                 </tr>
                             `;
@@ -3573,7 +3599,7 @@ const Pages = {
                             tableRows += `
                                 <tr class="category-header" style="background:var(--gray-100);">
                                     <td colspan="6" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
-                                        📁 ${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length} ${uncategorized.length === 1 ? t('services.service') : t('services.services')})</span>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-inline-end:6px;vertical-align:-2px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length} ${uncategorized.length === 1 ? t('services.service') : t('services.services')})</span>
                                     </td>
                                 </tr>
                             `;
@@ -3603,7 +3629,7 @@ const Pages = {
                         `;
                     })() : `
                         <div class="empty-state">
-                            <div class="empty-state-icon">🦷</div>
+                            <div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 6 5 6 8c0 2.5 1 4 2 5.5S10 16 10 18c0 1.5-.5 3-1.5 4h7c-1-1-1.5-2.5-1.5-4 0-2 1-3.5 2-5.5s2-3 2-5.5c0-3-2-6-6-6z"/></svg></div>
                             <h3>${t('services.noServices')}</h3>
                             <p>${t('services.addFirst')}</p>
                             <div class="empty-state-actions">
@@ -3653,7 +3679,7 @@ const Pages = {
                 <div id="livePricePreview" class="price-preview-card ${isTrial ? 'trial-preview-locked' : ''}" style="display:none;">
                     <div class="price-preview-header">
                         <span class="price-preview-label">${isTrial ? t('services.pricePreviewLocked') : (t('services.calculatedPrice') || 'Calculated Price')}</span>
-                        ${isTrial ? '<span class="trial-lock-icon">🔒</span>' : ''}
+                        ${isTrial ? '<span class="trial-lock-icon" style="display:inline-flex;align-items:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>' : ''}
                     </div>
                     <div class="price-preview-amount ${blurClass}">
                         <span id="previewAmount">0.00</span>
@@ -4194,8 +4220,8 @@ const Pages = {
             const content = `
                 <div class="modal-content-wrapper">
                 <div style="text-align:center;padding:2rem;">
-                    <div style="font-size:4rem;margin-bottom:1rem;">🔒</div>
-                    <h2 style="margin:0 0 1rem;color:var(--teal-700);">🦷 ${price.service_name}</h2>
+                    <div style="width:64px;height:64px;border-radius:16px;background:var(--danger-50);box-shadow:inset 0 0 0 1.5px var(--danger-100);display:grid;place-items:center;margin:0 auto 1rem;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--danger-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+                    <h2 style="margin:0 0 1rem;color:var(--teal-700);font-family:var(--font-head);">${price.service_name}</h2>
                     <div style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border-radius:12px;padding:2rem;margin:1.5rem 0;">
                         <h3 style="color:#0369a1;margin-bottom:0.5rem;">${t('services.priceCalculationLocked')}</h3>
                         <p style="color:#0c4a6e;margin-bottom:1.5rem;">${t('services.upgradeToSeeBreakdown')}</p>
@@ -4250,7 +4276,7 @@ const Pages = {
                         </tr>
                     </table>
                     <p style="margin-top:0.5rem;font-size:0.875rem;color:#64748b;">
-                        ${variance > 0 ? '⚠️ Calculated price is higher - you may be undercharging' : '✅ Calculated price is lower - you have good margin'}
+                        ${variance > 0 ? '▲ Calculated price is higher - you may be undercharging' : '▼ Calculated price is lower - you have good margin'}
                     </p>
                 </div>
             `;
@@ -4260,7 +4286,7 @@ const Pages = {
             <div class="modal-content-wrapper">
             <div style="font-family:monospace;background:#f9fafb;padding:1.5rem;border-radius:8px;">
                 <div style="text-align:center;margin-bottom:1.5rem;">
-                    <h2 style="margin:0;color:var(--teal-700);">🦷 ${price.service_name}</h2>
+                    <h2 style="margin:0;color:var(--teal-700);font-family:var(--font-head);">${price.service_name}</h2>
                 </div>
                 <div style="border-top:2px solid var(--teal-700);padding-top:1rem;">
                     <h3 style="color:var(--teal-700);">COST BREAKDOWN</h3>
@@ -4269,10 +4295,10 @@ const Pages = {
                             <td>
                                 Chair Time Cost (${formatCurrency(price.chair_hourly_rate)}/hr)
                                 <div style="font-size:0.7rem;color:#64748b;font-family:sans-serif;margin-top:0.5rem;background:#f1f5f9;padding:0.5rem;border-radius:6px;">
-                                    <div style="font-weight:600;margin-bottom:0.25rem;">💡 Chair Hourly Rate Breakdown:</div>
-                                    <div style="display:flex;justify-content:space-between;"><span>🏢 Fixed Costs (rent, utilities)</span><span>${formatCurrency(price.monthly_fixed_costs)}</span></div>
-                                    <div style="display:flex;justify-content:space-between;"><span>👥 Salaries</span><span>${formatCurrency(price.monthly_salaries)}</span></div>
-                                    <div style="display:flex;justify-content:space-between;"><span>🔧 Equipment Depreciation</span><span>${formatCurrency(price.monthly_depreciation)}</span></div>
+                                    <div style="font-weight:600;margin-bottom:0.25rem;">Chair Hourly Rate Breakdown:</div>
+                                    <div style="display:flex;justify-content:space-between;"><span>Fixed Costs (rent, utilities)</span><span>${formatCurrency(price.monthly_fixed_costs)}</span></div>
+                                    <div style="display:flex;justify-content:space-between;"><span>Salaries</span><span>${formatCurrency(price.monthly_salaries)}</span></div>
+                                    <div style="display:flex;justify-content:space-between;"><span>Equipment Depreciation</span><span>${formatCurrency(price.monthly_depreciation)}</span></div>
                                     <div style="display:flex;justify-content:space-between;border-top:1px dashed #cbd5e1;margin-top:0.25rem;padding-top:0.25rem;font-weight:600;"><span>Total Monthly</span><span>${formatCurrency(price.total_monthly_fixed)}</span></div>
                                     <div style="margin-top:0.25rem;color:var(--teal-700);font-weight:500;">÷ ${price.effective_hours.toFixed(0)} effective hours = ${formatCurrency(price.chair_hourly_rate)}/hr</div>
                                 </div>
@@ -4561,7 +4587,7 @@ const Pages = {
             </div>
             ${underpriced.length > 0 ? `
                 <div style="background:linear-gradient(90deg,#fef3c7,#fde68a);border-left:4px solid #f59e0b;padding:1rem 1.25rem;border-radius:8px;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;">
-                    <span style="font-size:2rem;">💡</span>
+                    <span style="display:inline-flex;width:36px;height:36px;border-radius:8px;background:#fef9c3;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
                     <div>
                         <strong style="color:#b45309;">${t('priceList.pricingOpportunityFound')}</strong>
                         <p style="margin:0.25rem 0 0;color:#92400e;font-size:0.875rem;">
@@ -4571,7 +4597,7 @@ const Pages = {
                 </div>
             ` : `
                 <div style="background:linear-gradient(90deg,#dcfce7,#bbf7d0);border-left:4px solid #22c55e;padding:1rem 1.25rem;border-radius:8px;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;">
-                    <span style="font-size:2rem;">🏆</span>
+                    <span style="display:inline-flex;width:36px;height:36px;border-radius:8px;background:#dcfce7;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
                     <div>
                         <strong style="color:#15803d;">${t('priceList.excellentPricing')}</strong>
                         <p style="margin:0.25rem 0 0;color:#166534;font-size:0.875rem;">
@@ -4586,7 +4612,7 @@ const Pages = {
         const trialBannerHtml = isTrial ? `
             <div class="trial-upgrade-banner">
                 <div class="trial-upgrade-content">
-                    <div class="trial-upgrade-icon">🔒</div>
+                    <div class="trial-upgrade-icon" style="width:44px;height:44px;border-radius:12px;background:var(--warning-50);box-shadow:inset 0 0 0 1.5px var(--warning-100);display:grid;place-items:center;flex-shrink:0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning-700)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
                     <div class="trial-upgrade-text">
                         <h4>${t('priceList.trialPricesHidden')}</h4>
                         <p>${t('priceList.trialUpgradeToSee')}</p>
@@ -4620,7 +4646,7 @@ const Pages = {
         const simulatorHtml = !isTrial ? `
             <div class="profit-simulator" id="profitSimulator">
                 <div class="simulator-header" onclick="toggleSimulator()">
-                    <h3>🎮 ${t('priceList.simulator.title') || 'Profit Margin Editor'}</h3>
+                    <h3>${t('priceList.simulator.title') || 'Profit Margin Editor'}</h3>
                     <span class="toggle-icon">▼</span>
                 </div>
                 <div class="simulator-body">
@@ -4629,19 +4655,19 @@ const Pages = {
                     <!-- Metrics -->
                     <div class="simulator-metrics">
                         <div class="metric-card" id="revenueImpactCard">
-                            <div class="metric-icon">📊</div>
+                            <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
                             <div class="metric-label">${t('priceList.simulator.revenueImpact') || 'Revenue Impact'}</div>
                             <div class="metric-value" id="revenueImpactValue">${formatCurrency(0)}</div>
                             <div class="metric-subtext">from modified services</div>
                         </div>
                         <div class="metric-card" id="pricingHealthCard">
-                            <div class="metric-icon">💚</div>
+                            <div class="metric-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
                             <div class="metric-label">${t('priceList.simulator.pricingHealth') || 'Pricing Health'}</div>
                             <div class="metric-value" id="pricingHealthValue">${optimal.length > 0 ? Math.round((optimal.length / servicesWithPrice.length) * 100) : 0}%</div>
                             <div class="health-bar"><div class="health-bar-fill" id="healthBarFill" style="width:${optimal.length > 0 ? (optimal.length / servicesWithPrice.length) * 100 : 0}%"></div></div>
                         </div>
                         <div class="metric-card" id="modifiedServicesCard">
-                            <div class="metric-icon">✏️</div>
+                            <div class="metric-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
                             <div class="metric-label">Modified Services</div>
                             <div class="metric-value" id="modifiedCount">0</div>
                             <div class="metric-subtext">changes pending</div>
@@ -4666,14 +4692,14 @@ const Pages = {
             ${simulatorHtml}
             <div class="card" style="background:#d1fae5;border-color:#34d399;">
                 <div class="card-header" style="background:#a7f3d0;">
-                    <h3 class="card-title">💰 ${t('priceList.overview')}</h3>
+                    <h3 class="card-title">${t('priceList.overview')}</h3>
                 </div>
                 <div class="card-body">
                     <p><strong>${t('priceList.overviewDescription')}</strong></p>
                     <p style="margin-top:0.5rem;color:var(--gray-700);">
                         ${t('priceList.priceIncludesDesc', { profitPercent: settings.default_profit_percent, vatPercent: settings.vat_percent })}
                     </p>
-                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>💡 ${t('priceList.addCurrentPriceTip')}</em></p>
+                    <p style="margin-top:0.5rem;color:var(--gray-700);"><em>${t('priceList.addCurrentPriceTip')}</em></p>
                 </div>
             </div>
 
@@ -4682,7 +4708,7 @@ const Pages = {
             <div class="card" style="margin-top:1.5rem;">
                 <div class="card-header">
                     <h3 class="card-title">${t('priceList.completePriceList')}</h3>
-                    <button class="btn btn-primary" onclick="window.print()">🖨️ ${t('priceList.print')}</button>
+                    <button class="btn btn-primary" onclick="window.print()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> ${t('priceList.print')}</button>
                 </div>
                 <div class="card-body" style="padding:0;">
                     ${priceList.length > 0 ? (() => {
@@ -4705,12 +4731,12 @@ const Pages = {
                         const getDoctorFeeTypeBadge = (p) => {
                             const type = p.doctor_fee_type || 'hourly';
                             const config = {
-                                'hourly': { icon: '⏱️', label: t('services.perHour') || 'Hourly', badgeClass: 'badge-secondary' },
-                                'fixed': { icon: '💵', label: t('services.fixed') || 'Fixed', badgeClass: 'badge-primary' },
-                                'percentage': { icon: '📊', label: `${p.doctor_percentage || 0}%`, badgeClass: 'badge-warning' }
+                                'hourly': { label: t('services.perHour') || 'Hourly', badgeClass: 'badge-secondary' },
+                                'fixed': { label: t('services.fixed') || 'Fixed', badgeClass: 'badge-primary' },
+                                'percentage': { label: `${p.doctor_percentage || 0}%`, badgeClass: 'badge-warning' }
                             };
                             const c = config[type] || config['hourly'];
-                            return `<span class="fee-type-badge ${c.badgeClass}"><span class="badge-icon">${c.icon}</span> ${c.label}</span>`;
+                            return `<span class="fee-type-badge ${c.badgeClass}">${c.label}</span>`;
                         };
 
                         // Helper function for print variance (text only)
@@ -4776,9 +4802,7 @@ const Pages = {
                                     <td class="${blurClass} dpc-num">${p.current_price ? formatCurrency(p.current_price) : `<span style="color:var(--ink-400);font-size:0.8rem;">${t('priceList.notSet')}</span>`}</td>
                                     <td class="${blurClass} variance-cell">${variance.html}</td>
                                     <td class="row-actions">
-                                        <button class="save-btn" id="saveBtn-${p.id}" onclick="saveServiceMargin(${p.id})" style="display:none;" title="${t('common.save') || 'Save'}">
-                                            💾
-                                        </button>
+                                        <button class="save-btn" id="saveBtn-${p.id}" onclick="saveServiceMargin(${p.id})" style="display:none;" title="${t('common.save') || 'Save'}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button>
                                     </td>
                                 </tr>
                             `;
@@ -4793,7 +4817,7 @@ const Pages = {
                             tableRows += `
                                 <tr class="category-header" style="background:var(--gray-100);">
                                     <td colspan="10" style="font-weight:600;color:var(--gray-700);padding:0.75rem 1rem;">
-                                        📁 ${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${grouped[catName].length} ${t('priceList.services')})</span>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-inline-end:6px;vertical-align:-2px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>${catName} <span style="font-weight:400;color:var(--gray-500);font-size:0.875rem;">(${grouped[catName].length} ${t('priceList.services')})</span>
                                     </td>
                                 </tr>
                             `;
@@ -4802,7 +4826,7 @@ const Pages = {
                             // Print table rows
                             printTableRows += `
                                 <tr class="print-category-row">
-                                    <td colspan="8"><strong>📁 ${catName}</strong> (${grouped[catName].length} ${t('priceList.services')})</td>
+                                    <td colspan="8"><strong>${catName}</strong> (${grouped[catName].length} ${t('priceList.services')})</td>
                                 </tr>
                             `;
                             printTableRows += grouped[catName].map(renderPrintRow).join('');
@@ -4813,7 +4837,7 @@ const Pages = {
                             tableRows += `
                                 <tr class="category-header" style="background:var(--gray-100);">
                                     <td colspan="10" style="font-weight:600;color:var(--gray-500);padding:0.75rem 1rem;">
-                                        📁 ${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length} ${t('priceList.services')})</span>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-inline-end:6px;vertical-align:-2px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>${t('priceList.uncategorized')} <span style="font-weight:400;font-size:0.875rem;">(${uncategorized.length} ${t('priceList.services')})</span>
                                     </td>
                                 </tr>
                             `;
@@ -4822,7 +4846,7 @@ const Pages = {
                             // Print table rows for uncategorized
                             printTableRows += `
                                 <tr class="print-category-row">
-                                    <td colspan="8"><strong>📁 ${t('priceList.uncategorized')}</strong> (${uncategorized.length} ${t('priceList.services')})</td>
+                                    <td colspan="8"><strong>${t('priceList.uncategorized')}</strong> (${uncategorized.length} ${t('priceList.services')})</td>
                                 </tr>
                             `;
                             printTableRows += uncategorized.map(renderPrintRow).join('');
@@ -4874,7 +4898,7 @@ const Pages = {
                         `;
                     })() : `
                         <div class="empty-state">
-                            <div class="empty-state-icon">📋</div>
+                            <div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
                             <h3>${t('priceList.noPrices')}</h3>
                             <p>${t('priceList.addServicesToGenerate')}</p>
                         </div>
@@ -4884,24 +4908,24 @@ const Pages = {
 
             <div class="card" style="margin-top:1.5rem;background:#f0f9ff;border-color:#7dd3fc;">
                 <div class="card-header" style="background:#e0f2fe;">
-                    <h3 class="card-title">📊 ${t('priceList.understandingVariance')}</h3>
+                    <h3 class="card-title">${t('priceList.understandingVariance')}</h3>
                 </div>
                 <div class="card-body">
                     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
                         <div style="text-align:center;padding:1rem;">
-                            <span style="background:#fef3c7;color:#b45309;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">⚠️ ${t('priceList.underpricedZone')}</span>
+                            <span style="background:#fef3c7;color:#b45309;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">${t('priceList.underpricedZone')}</span>
                             <p style="margin-top:0.75rem;font-size:0.875rem;color:var(--gray-600);">
                                 ${t('priceList.underpricedDesc')}
                             </p>
                         </div>
                         <div style="text-align:center;padding:1rem;">
-                            <span style="background:#dcfce7;color:#15803d;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">✓ ${t('priceList.optimalZone')}</span>
+                            <span style="background:#dcfce7;color:#15803d;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">${t('priceList.optimalZone')}</span>
                             <p style="margin-top:0.75rem;font-size:0.875rem;color:var(--gray-600);">
                                 ${t('priceList.optimalDesc')}
                             </p>
                         </div>
                         <div style="text-align:center;padding:1rem;">
-                            <span style="background:#dbeafe;color:#1d4ed8;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">💪 ${t('priceList.extraMarginZone')}</span>
+                            <span style="background:#dbeafe;color:#1d4ed8;padding:0.5rem 1rem;border-radius:20px;font-weight:600;">${t('priceList.extraMarginZone')}</span>
                             <p style="margin-top:0.75rem;font-size:0.875rem;color:var(--gray-600);">
                                 ${t('priceList.extraMarginDesc')}
                             </p>
@@ -4922,22 +4946,22 @@ const Pages = {
         if (!isActive) {
             return `
                 <div class="ct-upgrade-wall">
-                    <div class="ct-upgrade-icon">📅</div>
+                    <div class="ct-upgrade-icon" style="width:56px;height:56px;border-radius:14px;background:var(--teal-50);box-shadow:inset 0 0 0 1.5px var(--teal-100);display:grid;place-items:center;margin:0 auto 1rem;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--teal-700)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
                     <h2 class="ct-upgrade-title">${i18n.currentLang === 'ar' ? 'متتبع الحالات الشهري' : 'Monthly Case Tracker'}</h2>
                     <p class="ct-upgrade-desc">${i18n.currentLang === 'ar'
                         ? 'سجّل حالاتك الشهرية واعرف كم تصرف على الخامات فعلاً — متاح للمشتركين'
                         : 'Record your monthly cases and track real materials spend — available for subscribers'}</p>
                     <div class="ct-upgrade-features">
                         <div class="ct-upgrade-feature">
-                            <span>📊</span>
+                            <span style="display:inline-flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
                             <span>${i18n.currentLang === 'ar' ? 'نسبة الخامات الفعلية شهرياً' : 'Actual materials % per month'}</span>
                         </div>
                         <div class="ct-upgrade-feature">
-                            <span>💰</span>
+                            <span style="display:inline-flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
                             <span>${i18n.currentLang === 'ar' ? 'الإيراد المقدّر لكل شهر' : 'Estimated revenue per month'}</span>
                         </div>
                         <div class="ct-upgrade-feature">
-                            <span>📈</span>
+                            <span style="display:inline-flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
                             <span>${i18n.currentLang === 'ar' ? 'مقارنة آخر ١٢ شهراً' : 'Last 12-month history'}</span>
                         </div>
                     </div>
@@ -5115,12 +5139,12 @@ const Pages = {
 
         // Status display config
         const statusConfig = {
-            'active': { icon: '✅', color: '#22c55e', bg: '#dcfce7', label: t('subscription.statusActive'), message: t('subscription.statusActiveMsg') },
-            'trial': { icon: '🎁', color: '#f59e0b', bg: '#fef3c7', label: t('subscription.statusTrial'), message: t('subscription.statusTrialMsg') },
-            'warning': { icon: '⏰', color: '#f59e0b', bg: '#fef3c7', label: t('subscription.statusWarning'), message: t('subscription.statusWarningMsg') },
-            'grace_period': { icon: '⚠️', color: '#ef4444', bg: '#fee2e2', label: t('subscription.statusGrace'), message: t('subscription.statusGraceMsg') },
-            'expired': { icon: '🔒', color: '#ef4444', bg: '#fee2e2', label: t('subscription.statusExpired'), message: t('subscription.statusExpiredMsg') },
-            'suspended': { icon: '⏸️', color: '#6b7280', bg: '#f3f4f6', label: t('subscription.statusSuspended'), message: t('subscription.statusSuspendedMsg') }
+            'active': { icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>', color: 'var(--success-600)', bg: 'var(--success-50)', label: t('subscription.statusActive'), message: t('subscription.statusActiveMsg') },
+            'trial': { icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>', color: 'var(--warning-600)', bg: 'var(--warning-50)', label: t('subscription.statusTrial'), message: t('subscription.statusTrialMsg') },
+            'warning': { icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>', color: 'var(--warning-600)', bg: 'var(--warning-50)', label: t('subscription.statusWarning'), message: t('subscription.statusWarningMsg') },
+            'grace_period': { icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>', color: 'var(--danger-600)', bg: 'var(--danger-50)', label: t('subscription.statusGrace'), message: t('subscription.statusGraceMsg') },
+            'expired': { icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>', color: 'var(--danger-600)', bg: 'var(--danger-50)', label: t('subscription.statusExpired'), message: t('subscription.statusExpiredMsg') },
+            'suspended': { icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>', color: 'var(--ink-500)', bg: 'var(--paper-2)', label: t('subscription.statusSuspended'), message: t('subscription.statusSuspendedMsg') }
         };
 
         const status = sub.is_suspended ? 'suspended' : (sub.status || 'trial');
@@ -5184,10 +5208,10 @@ const Pages = {
             <!-- Status Card -->
             <div class="subscription-card" style="background:${config.bg};border:2px solid ${config.color}20;">
                 <div style="display:flex;align-items:center;gap:1rem;">
-                    <div style="font-size:3rem;">${config.icon}</div>
+                    <div style="width:52px;height:52px;border-radius:14px;background:${config.bg};box-shadow:inset 0 0 0 1.5px ${config.color}30;display:grid;place-items:center;flex-shrink:0;">${config.icon}</div>
                     <div style="flex:1;">
-                        <div style="font-size:1.5rem;font-weight:700;color:${config.color};">${config.label}</div>
-                        <div style="color:var(--gray-600);margin-top:0.25rem;">${config.message}</div>
+                        <div style="font-size:1.25rem;font-weight:700;color:${config.color};font-family:var(--font-head);letter-spacing:-0.02em;">${config.label}</div>
+                        <div style="color:var(--ink-600);margin-top:0.25rem;font-size:13.5px;">${config.message}</div>
                     </div>
                     ${!isPermanent && (status === 'trial' || status === 'expired' || status === 'grace_period') ? `
                         <button class="btn btn-primary" onclick="APP.loadPage('price-list')" style="background:${config.color};">
@@ -5200,9 +5224,9 @@ const Pages = {
             <!-- Contact Support -->
             <div class="subscription-card subscription-contact-card" style="margin-top:1.5rem;background:linear-gradient(135deg,var(--teal-700) 0%,var(--navy-800) 100%);color:white;">
                 <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
-                    <div style="font-size:2.5rem;">📞</div>
+                    <div style="width:48px;height:48px;border-radius:12px;background:rgba(255,255,255,0.15);display:grid;place-items:center;flex-shrink:0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.21 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.14 1.29L6 1a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16l.92.92z"/></svg></div>
                     <div style="flex:1;min-width:200px;">
-                        <h4 style="font-size:1.125rem;color:white;margin-bottom:0.25rem;">${t('subscription.readyToUpgradeQuestion')}</h4>
+                        <h4 style="font-size:1.125rem;color:white;margin-bottom:0.25rem;font-family:var(--font-head);">${t('subscription.readyToUpgradeQuestion')}</h4>
                         <p style="font-size:0.9375rem;color:rgba(255,255,255,0.9);margin:0;">${t('subscription.contactUsToUpgrade')}</p>
                     </div>
                     <div class="subscription-contact-actions">
@@ -5250,31 +5274,38 @@ const Pages = {
             <!-- What's Included -->
             <div class="subscription-card" style="margin-top:1.5rem;">
                 <h3 style="margin-bottom:1.25rem;font-size:1.125rem;color:var(--gray-800);">${t('subscription.whatsIncluded')}</h3>
-                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;">
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0;">
+                    ${(() => {
+                        const checkSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--success-600)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+                        const lockSvg  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-300)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>';
+                        const limitSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--warning-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+                        const isLocked = status === 'trial' || status === 'expired';
+                        return `
                     <div class="feature-item ${status === 'trial' ? 'feature-limited' : ''}">
-                        <span class="feature-icon">${status === 'trial' ? '🔢' : '✅'}</span>
+                        <span class="feature-icon">${status === 'trial' ? limitSvg : checkSvg}</span>
                         <span>${status === 'trial' ? t('subscription.upToServices', {max: maxTrialServices}) : t('subscription.unlimitedServicesLabel')}</span>
                     </div>
                     <div class="feature-item">
-                        <span class="feature-icon">✅</span>
+                        <span class="feature-icon">${checkSvg}</span>
                         <span>${t('subscription.unlimitedConsumables')}</span>
                     </div>
-                    <div class="feature-item ${status === 'trial' || status === 'expired' ? 'feature-locked' : ''}">
-                        <span class="feature-icon">${status === 'trial' || status === 'expired' ? '🔒' : '✅'}</span>
+                    <div class="feature-item ${isLocked ? 'feature-locked' : ''}">
+                        <span class="feature-icon">${isLocked ? lockSvg : checkSvg}</span>
                         <span>${t('subscription.priceCalculations')}</span>
                     </div>
-                    <div class="feature-item ${status === 'trial' || status === 'expired' ? 'feature-locked' : ''}">
-                        <span class="feature-icon">${status === 'trial' || status === 'expired' ? '🔒' : '✅'}</span>
+                    <div class="feature-item ${isLocked ? 'feature-locked' : ''}">
+                        <span class="feature-icon">${isLocked ? lockSvg : checkSvg}</span>
                         <span>${t('subscription.priceListExportLabel')}</span>
                     </div>
-                    <div class="feature-item ${status === 'trial' || status === 'expired' ? 'feature-locked' : ''}">
-                        <span class="feature-icon">${status === 'trial' || status === 'expired' ? '🔒' : '✅'}</span>
+                    <div class="feature-item ${isLocked ? 'feature-locked' : ''}">
+                        <span class="feature-icon">${isLocked ? lockSvg : checkSvg}</span>
                         <span>${t('subscription.varianceAnalysis')}</span>
                     </div>
                     <div class="feature-item">
-                        <span class="feature-icon">✅</span>
+                        <span class="feature-icon">${checkSvg}</span>
                         <span>${t('subscription.allClinicSettings')}</span>
-                    </div>
+                    </div>`;
+                    })()}
                 </div>
             </div>
         `;
@@ -5414,11 +5445,14 @@ const Pages = {
                                             <td>${c.service_count || 0}</td>
                                             <td>
                                                 <button class="btn btn-sm btn-ghost" onclick="Pages.toggleClinicStatus(${c.id})" title="${c.is_active ? 'Deactivate' : 'Activate'}">
-                                                    ${c.is_active ? '🔒' : '🔓'}
+                                                    ${c.is_active
+                                                        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+                                                        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'
+                                                    }
                                                 </button>
-                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showEditSubscription(${c.id})" title="Edit Subscription">✏️</button>
-                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showPaymentForm(${c.id}, '${c.name}')" title="Record Payment">💳</button>
-                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showExtendSubscription(${c.id}, '${c.name}', '${sub.expires_at || ''}')" title="Extend Subscription">📅</button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showEditSubscription(${c.id})" title="Edit Subscription"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showPaymentForm(${c.id}, '${c.name}')" title="Record Payment"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></button>
+                                                <button class="btn btn-sm btn-ghost" onclick="Pages.showExtendSubscription(${c.id}, '${c.name}', '${sub.expires_at || ''}')" title="Extend Subscription"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button>
                                             </td>
                                         </tr>
                                     `;
@@ -5427,7 +5461,7 @@ const Pages = {
                         </table>
                     ` : `
                         <div class="empty-state">
-                            <div class="empty-state-icon">🏢</div>
+                            <div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
                             <h3>No Clinics</h3>
                             <p>No clinics have registered yet</p>
                         </div>

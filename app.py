@@ -3,7 +3,8 @@ Dental Pricing Calculator - Flask Application
 A multi-tenant SaaS platform for dental clinics to calculate service prices using Cost-Plus pricing model
 """
 
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, request, jsonify, session, send_from_directory
+import os as _os
 from flask.json.provider import DefaultJSONProvider
 from functools import wraps
 from datetime import datetime, date
@@ -140,26 +141,10 @@ def super_admin_required(f):
 
 # ============== Routes ==============
 
-@app.route('/')
-def index():
-    """Main application page"""
-    if 'user_id' not in session:
-        return render_template('welcome.html')
-    return render_template('index.html')
-
-
-@app.route('/welcome')
-def welcome():
-    """Public landing page"""
-    return render_template('welcome.html')
-
-
 @app.route('/login')
 def login_page():
-    """Login page"""
-    if 'user_id' in session:
-        return redirect(url_for('index'))
-    return render_template('login.html')
+    """Redirect legacy login URL — Vue SPA handles this route"""
+    pass
 
 
 @app.route('/login', methods=['POST'])
@@ -202,7 +187,7 @@ def login():
 def logout():
     """Handle logout"""
     session.clear()
-    return redirect(url_for('index'))
+    return jsonify({'success': True})
 
 
 @app.route('/api/user')
@@ -998,10 +983,8 @@ def api_super_admin_record_payment(clinic_id):
 
 @app.route('/register')
 def register_page():
-    """Show clinic registration page"""
-    if 'user_id' in session:
-        return redirect(url_for('index'))
-    return render_template('register.html')
+    """Redirect legacy register URL — Vue SPA handles this route"""
+    pass
 
 
 @app.route('/api/register', methods=['POST'])
@@ -1070,8 +1053,8 @@ def api_register_clinic():
 
 @app.route('/verify-email')
 def verify_email_page():
-    """Email verification page"""
-    return render_template('verify_email.html')
+    """Redirect legacy verify-email URL — Vue SPA handles this route"""
+    pass
 
 
 @app.route('/api/verify-email', methods=['POST'])
@@ -1125,14 +1108,14 @@ def api_resend_verification():
 
 @app.route('/forgot-password')
 def forgot_password_page():
-    """Forgot password page"""
-    return render_template('forgot_password.html')
+    """Redirect legacy forgot-password URL — Vue SPA handles this route"""
+    pass
 
 
 @app.route('/reset-password')
 def reset_password_page():
-    """Password reset page"""
-    return render_template('reset_password.html')
+    """Redirect legacy reset-password URL — Vue SPA handles this route"""
+    pass
 
 
 @app.route('/api/forgot-password', methods=['POST'])
@@ -1277,32 +1260,19 @@ def api_update_clinic_user(user_id):
     return jsonify({'success': True})
 
 
-# ============== SPA Catch-All Route ==============
+# ============== Vue SPA Catch-All Route ==============
 
+@app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
-def catch_all(path):
-    """Catch-all route for SPA - serves index.html for all app routes"""
-    # List of valid SPA routes (authenticated)
-    spa_routes = [
-        'dashboard', 'settings', 'consumables', 'services',
-        'price-list', 'subscription', 'super-admin'
-    ]
-
-    # Public auth routes (handled by dedicated templates)
-    auth_routes = ['verify-email', 'forgot-password', 'reset-password']
-
-    # If it's a valid SPA route, serve index.html
-    if path in spa_routes:
-        if 'user_id' not in session:
-            return render_template('login.html')
-        return render_template('index.html')
-
-    # Auth routes are handled by their own route handlers
-    if path in auth_routes:
-        return redirect(url_for(path.replace('-', '_') + '_page'))
-
-    # Otherwise, return 404
-    return jsonify({'error': 'Not found'}), 404
+def spa(path):
+    """Serve the Vue SPA for all non-API routes"""
+    if path.startswith('static/'):
+        return app.send_static_file(path[len('static/'):])
+    dist = _os.path.join(app.root_path, 'static', 'dist')
+    file_path = _os.path.join(dist, path)
+    if path and _os.path.exists(file_path) and not _os.path.isdir(file_path):
+        return send_from_directory(dist, path)
+    return send_from_directory(dist, 'index.html')
 
 
 # ============== Error Handlers ==============
