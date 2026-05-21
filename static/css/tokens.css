@@ -416,4 +416,10 @@
 
   /* Old radius */
   --radius: var(--r);
+
+  /* welcome.html legacy vars */
+  --primary-dark:  var(--navy-900);
+  --primary-light: var(--navy-500);
+  --teal:          var(--teal-600);
+  --white:         #ffffff;
 }

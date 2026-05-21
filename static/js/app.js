@@ -4195,7 +4195,7 @@ const Pages = {
                 <div class="modal-content-wrapper">
                 <div style="text-align:center;padding:2rem;">
                     <div style="font-size:4rem;margin-bottom:1rem;">🔒</div>
-                    <h2 style="margin:0 0 1rem;color:#667eea;">🦷 ${price.service_name}</h2>
+                    <h2 style="margin:0 0 1rem;color:var(--teal-700);">🦷 ${price.service_name}</h2>
                     <div style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border-radius:12px;padding:2rem;margin:1.5rem 0;">
                         <h3 style="color:#0369a1;margin-bottom:0.5rem;">${t('services.priceCalculationLocked')}</h3>
                         <p style="color:#0c4a6e;margin-bottom:1.5rem;">${t('services.upgradeToSeeBreakdown')}</p>
@@ -4206,7 +4206,7 @@ const Pages = {
                             </div>
                             <div style="background:white;border-radius:8px;padding:1rem 1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
                                 <div style="font-size:0.75rem;color:#64748b;text-transform:uppercase;">${t('services.recommendedPrice')}</div>
-                                <div class="trial-blur" style="font-size:1.5rem;font-weight:bold;color:#667eea;">${formatCurrency(price.rounded_price)}</div>
+                                <div class="trial-blur" style="font-size:1.5rem;font-weight:bold;color:var(--teal-700);">${formatCurrency(price.rounded_price)}</div>
                             </div>
                         </div>
                     </div>
@@ -4239,8 +4239,8 @@ const Pages = {
             const varianceIcon = variance > 0 ? '▲' : '▼';
 
             varianceSection = `
-                <div style="border-top:2px solid #667eea;padding-top:1rem;margin-top:1rem;">
-                    <h3 style="color:#667eea;">PRICE COMPARISON</h3>
+                <div style="border-top:2px solid var(--teal-700);padding-top:1rem;margin-top:1rem;">
+                    <h3 style="color:var(--teal-700);">PRICE COMPARISON</h3>
                     <table style="width:100%;margin-top:1rem;">
                         <tr><td>Current Price</td><td style="text-align:right;">${formatCurrency(service.current_price)}</td></tr>
                         <tr><td>Calculated Price</td><td style="text-align:right;">${formatCurrency(price.rounded_price)}</td></tr>
@@ -4260,10 +4260,10 @@ const Pages = {
             <div class="modal-content-wrapper">
             <div style="font-family:monospace;background:#f9fafb;padding:1.5rem;border-radius:8px;">
                 <div style="text-align:center;margin-bottom:1.5rem;">
-                    <h2 style="margin:0;color:#667eea;">🦷 ${price.service_name}</h2>
+                    <h2 style="margin:0;color:var(--teal-700);">🦷 ${price.service_name}</h2>
                 </div>
-                <div style="border-top:2px solid #667eea;padding-top:1rem;">
-                    <h3 style="color:#667eea;">COST BREAKDOWN</h3>
+                <div style="border-top:2px solid var(--teal-700);padding-top:1rem;">
+                    <h3 style="color:var(--teal-700);">COST BREAKDOWN</h3>
                     <table style="width:100%;margin-top:1rem;">
                         <tr>
                             <td>
@@ -4274,7 +4274,7 @@ const Pages = {
                                     <div style="display:flex;justify-content:space-between;"><span>👥 Salaries</span><span>${formatCurrency(price.monthly_salaries)}</span></div>
                                     <div style="display:flex;justify-content:space-between;"><span>🔧 Equipment Depreciation</span><span>${formatCurrency(price.monthly_depreciation)}</span></div>
                                     <div style="display:flex;justify-content:space-between;border-top:1px dashed #cbd5e1;margin-top:0.25rem;padding-top:0.25rem;font-weight:600;"><span>Total Monthly</span><span>${formatCurrency(price.total_monthly_fixed)}</span></div>
-                                    <div style="margin-top:0.25rem;color:#667eea;font-weight:500;">÷ ${price.effective_hours.toFixed(0)} effective hours = ${formatCurrency(price.chair_hourly_rate)}/hr</div>
+                                    <div style="margin-top:0.25rem;color:var(--teal-700);font-weight:500;">÷ ${price.effective_hours.toFixed(0)} effective hours = ${formatCurrency(price.chair_hourly_rate)}/hr</div>
                                 </div>
                             </td>
                             <td style="text-align:right;vertical-align:top;">${formatCurrency(price.chair_time_cost)}</td>
@@ -4301,14 +4301,14 @@ const Pages = {
                         <tr style="border-top:1px solid #ccc;font-weight:bold;"><td>TOTAL COST</td><td style="text-align:right;">${formatCurrency(price.total_cost)}</td></tr>
                     </table>
                 </div>
-                <div style="border-top:2px solid #667eea;padding-top:1rem;margin-top:1rem;">
-                    <h3 style="color:#667eea;">PRICING</h3>
+                <div style="border-top:2px solid var(--teal-700);padding-top:1rem;margin-top:1rem;">
+                    <h3 style="color:var(--teal-700);">PRICING</h3>
                     <table style="width:100%;margin-top:1rem;">
                         <tr><td>Profit (${price.profit_percent}%)</td><td style="text-align:right;">${formatCurrency(price.profit_amount)}</td></tr>
                         <tr><td>Price Before VAT</td><td style="text-align:right;">${formatCurrency(price.price_before_vat)}</td></tr>
                         <tr><td>VAT (${price.vat_percent}%)</td><td style="text-align:right;">${formatCurrency(price.vat_amount)}</td></tr>
                         <tr><td>Final Price</td><td style="text-align:right;">${formatCurrency(price.final_price)}</td></tr>
-                        <tr style="border-top:2px solid #667eea;font-size:1.2em;font-weight:bold;color:#667eea;">
+                        <tr style="border-top:2px solid var(--teal-700);font-size:1.2em;font-weight:bold;color:var(--teal-700);">
                             <td>RECOMMENDED PRICE</td>
                             <td style="text-align:right;">${formatCurrency(price.rounded_price)}</td>
                         </tr>
@@ -5198,7 +5198,7 @@ const Pages = {
             </div>
 
             <!-- Contact Support -->
-            <div class="subscription-card subscription-contact-card" style="margin-top:1.5rem;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;">
+            <div class="subscription-card subscription-contact-card" style="margin-top:1.5rem;background:linear-gradient(135deg,var(--teal-700) 0%,var(--navy-800) 100%);color:white;">
                 <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
                     <div style="font-size:2.5rem;">📞</div>
                     <div style="flex:1;min-width:200px;">
