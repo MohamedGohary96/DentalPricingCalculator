@@ -1,0 +1,379 @@
+/* Design tokens — redesign of Dental Pricing Calculator
+   Keeps the brand DNA (navy + teal) but pushes deeper, calmer, more grown-up. */
+
+:root {
+  /* ── Color · brand ── */
+  --navy-950: #0a1a32;
+  --navy-900: #0f2545;
+  --navy-800: #163058;
+  --navy-700: #1f3f6f;
+  --navy-600: #2f548a;
+  --navy-500: #4b73a5;
+
+  --teal-50:  #ecfdf5;
+  --teal-100: #d1faec;
+  --teal-200: #99f0d4;
+  --teal-300: #5ee0b9;
+  --teal-400: #2ec9a0;
+  --teal-500: #14b894;
+  --teal-600: #0d9488;
+  --teal-700: #0f766e;
+  --teal-800: #115e59;
+
+  /* ── Color · neutrals ── */
+  --paper:    #fafaf7;     /* warm off-white app bg */
+  --paper-2:  #f5f4ee;     /* subtle elevation/divider band */
+  --surface:  #ffffff;
+  --line:     #e7e5e0;     /* warm border */
+  --line-2:   #ededea;
+  --line-soft:#f1efeb;
+
+  --ink-900: #0a1424;
+  --ink-800: #1a2538;
+  --ink-700: #2c3a52;
+  --ink-600: #475569;
+  --ink-500: #6b7a90;
+  --ink-400: #94a3b8;
+  --ink-300: #c0c8d4;
+  --ink-200: #dde2e9;
+
+  /* ── Color · semantic ── */
+  --success-50:  #ecfdf5;
+  --success-100: #d1fae5;
+  --success-600: #059669;
+  --success-700: #047857;
+
+  --danger-50:   #fef2f2;
+  --danger-100:  #fee2e2;
+  --danger-600:  #dc2626;
+  --danger-700:  #b91c1c;
+
+  --warning-50:  #fffbeb;
+  --warning-100: #fef3c7;
+  --warning-600: #d97706;
+  --warning-700: #b45309;
+
+  --info-50: #eef4ff;
+  --info-100:#dbeafe;
+  --info-600:#2563eb;
+
+  /* ── Type ── */
+  --font-sans:   'Rubik', 'IBM Plex Sans Arabic', -apple-system, system-ui, sans-serif;
+  --font-head:   'Poppins', 'IBM Plex Sans Arabic', -apple-system, system-ui, sans-serif;
+  --font-arabic: 'IBM Plex Sans Arabic', 'Rubik', system-ui, sans-serif;
+  --font-mono:   'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ── Radius ── */
+  --r-sm: 6px;
+  --r:    10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-full: 9999px;
+
+  /* ── Shadow ── */
+  --shadow-xs: 0 1px 2px rgba(15, 37, 69, .04);
+  --shadow-sm: 0 1px 3px rgba(15, 37, 69, .06), 0 1px 2px rgba(15, 37, 69, .04);
+  --shadow:    0 4px 14px rgba(15, 37, 69, .08), 0 1px 3px rgba(15, 37, 69, .04);
+  --shadow-md: 0 12px 28px rgba(15, 37, 69, .10), 0 2px 6px rgba(15, 37, 69, .05);
+  --shadow-lg: 0 24px 60px rgba(15, 37, 69, .18), 0 4px 12px rgba(15, 37, 69, .08);
+}
+
+/* ── Base reset (scoped — only inside our screens) ── */
+.dpc-app *,
+.dpc-app *::before,
+.dpc-app *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.dpc-app {
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  color: var(--ink-900);
+  background: var(--paper);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 1, 'cv11' 1;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.dpc-app.dpc-ar {
+  font-family: var(--font-arabic);
+  direction: rtl;
+}
+
+.dpc-app button {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.dpc-app input,
+.dpc-app textarea,
+.dpc-app select {
+  font: inherit;
+  color: inherit;
+}
+
+.dpc-app a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* numbers — always Plex Mono, tabular, LTR even in RTL */
+.dpc-num {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* common heading */
+.dpc-h {
+  font-family: var(--font-head);
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--ink-900);
+  line-height: 1.15;
+}
+.dpc-app.dpc-ar .dpc-h {
+  font-family: var(--font-arabic);
+  letter-spacing: 0;
+}
+
+/* logo mark */
+.dpc-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
+}
+.dpc-mark-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(155deg, var(--teal-500), var(--teal-700));
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(13, 148, 136, .25), inset 0 1px 0 rgba(255,255,255,.25);
+}
+.dpc-mark-icon svg { width: 16px; height: 16px; }
+.dpc-mark.on-dark { color: #fff; }
+
+/* Primary button */
+.dpc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: var(--r);
+  font-weight: 600;
+  font-size: 14.5px;
+  letter-spacing: -0.005em;
+  transition: background .15s, transform .15s, box-shadow .15s;
+  white-space: nowrap;
+}
+.dpc-btn-primary {
+  background: var(--ink-900);
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(255,255,255,.1) inset, var(--shadow-sm);
+}
+.dpc-btn-primary:hover { background: #000; }
+
+.dpc-btn-teal {
+  background: var(--teal-600);
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 6px 16px rgba(13,148,136,.22);
+}
+.dpc-btn-teal:hover { background: var(--teal-700); }
+
+.dpc-btn-ghost {
+  background: transparent;
+  color: var(--ink-700);
+}
+.dpc-btn-outline {
+  background: var(--surface);
+  color: var(--ink-800);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* Chip / pill */
+.dpc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-700);
+}
+.dpc-chip-teal { background: var(--teal-50); color: var(--teal-700); box-shadow: inset 0 0 0 1px var(--teal-100); }
+.dpc-chip-amber { background: var(--warning-50); color: var(--warning-700); box-shadow: inset 0 0 0 1px var(--warning-100); }
+.dpc-chip-rose  { background: var(--danger-50); color: var(--danger-700); box-shadow: inset 0 0 0 1px var(--danger-100); }
+.dpc-chip-navy  { background: rgba(15,37,69,.06); color: var(--navy-900); box-shadow: inset 0 0 0 1px rgba(15,37,69,.10); }
+
+/* Field */
+.dpc-field-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-700);
+  margin-bottom: 6px;
+  letter-spacing: 0.01em;
+}
+.dpc-field-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  background: var(--surface);
+  border-radius: var(--r);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-900);
+  font-size: 14.5px;
+  transition: box-shadow .15s;
+  outline: none;
+}
+.dpc-field-input::placeholder { color: var(--ink-400); }
+.dpc-field-input:focus { box-shadow: inset 0 0 0 1.5px var(--teal-600), 0 0 0 4px rgba(13,148,136,.12); }
+.dpc-field-input.has-icon { padding-inline-start: 42px; }
+
+/* selectable card */
+.dpc-select-card {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  text-align: start;
+  transition: box-shadow .15s, background .15s;
+  cursor: pointer;
+}
+.dpc-select-card.is-selected {
+  background: var(--teal-50);
+  box-shadow: inset 0 0 0 1.5px var(--teal-600);
+}
+
+/* badge (text label inline) */
+.dpc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.dpc-badge-teal { background: var(--teal-50); color: var(--teal-700); }
+.dpc-badge-amber { background: var(--warning-50); color: var(--warning-700); }
+.dpc-badge-rose { background: var(--danger-50); color: var(--danger-700); }
+.dpc-badge-ink { background: var(--ink-200); color: var(--ink-700); }
+
+/* divider */
+.dpc-divider {
+  height: 1px;
+  background: var(--line);
+  width: 100%;
+}
+
+/* progress dots (wizard rail) */
+.dpc-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.dpc-rail-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  position: relative;
+}
+.dpc-rail-step .dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--ink-200);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-500);
+  flex: none;
+  position: relative;
+  z-index: 1;
+}
+.dpc-rail-step.done .dot { background: var(--teal-600); box-shadow: none; color: #fff; }
+.dpc-rail-step.active .dot {
+  background: var(--ink-900); color: #fff; box-shadow: 0 0 0 4px rgba(15,37,69,.08);
+}
+.dpc-rail-step + .dpc-rail-step::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 11.5px;
+  top: -22px;
+  height: 22px;
+  width: 1px;
+  background: var(--line);
+}
+.dpc-rail-step.done + .dpc-rail-step::before,
+.dpc-rail-step + .dpc-rail-step.active::before { background: var(--teal-300); }
+
+.dpc-rail-step .meta { padding-top: 1px; }
+.dpc-rail-step .step-tag {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-400);
+  text-transform: uppercase;
+}
+.dpc-rail-step .step-name {
+  font-size: 13.5px;
+  color: var(--ink-700);
+  font-weight: 500;
+  margin-top: 1px;
+}
+.dpc-rail-step.active .step-name { color: var(--ink-900); font-weight: 600; }
+.dpc-rail-step.done .step-name { color: var(--ink-500); }
+
+/* Soft section panel */
+.dpc-panel {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* Subtle texture for hero panels (dotted) */
+.dpc-hero-dots {
+  background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Currency token */
+.dpc-currency {
+  font-family: var(--font-sans);
+  font-size: 0.6em;
+  font-weight: 500;
+  color: var(--ink-500);
+  margin-inline-start: 0.3em;
+  vertical-align: 0.25em;
+  letter-spacing: 0.04em;
+}
