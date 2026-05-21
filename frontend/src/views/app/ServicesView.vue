@@ -23,6 +23,8 @@ const showModal       = ref(false)
 const editingId       = ref(null)
 const confirmDeleteId = ref(null)
 const viewingRow      = ref(null)
+const viewingPrice    = ref(null)   // full cost breakdown from /api/services/:id/price
+const loadingPrice    = ref(false)
 const saving          = ref(false)
 
 // ── Essential form fields ─────────────────────────────────────
@@ -372,10 +374,25 @@ async function saveService() {
     } else {
       await pricingStore.createService(payload)
     }
-    await pricingStore.loadPriceList().catch(() => {})
+    // Close modal and clear saving immediately — don't wait on price list reload
     showModal.value = false
-  } catch (e) { console.error(e) }
-  finally { saving.value = false }
+    saving.value    = false
+    pricingStore.loadPriceList().catch(() => {})  // background refresh
+  } catch (e) {
+    console.error(e)
+    saving.value = false
+  }
+}
+
+async function openDetail(row) {
+  viewingRow.value   = row
+  viewingPrice.value = null
+  loadingPrice.value = true
+  try {
+    const { data } = await axios.get(`/api/services/${row.id}/price`, { withCredentials: true })
+    viewingPrice.value = data
+  } catch { /* show basic info only */ }
+  loadingPrice.value = false
 }
 
 async function deleteService(id) {
@@ -480,7 +497,7 @@ onMounted(async () => {
             <span v-else class="status-chip chip-unset">{{ isAr ? 'غير محدد' : 'Unset' }}</span>
           </div>
           <div class="actions-cell">
-            <button class="icon-btn view-btn" :title="isAr ? 'تفاصيل السعر' : 'Price details'" @click="viewingRow = row"><DpcIcon name="Eye" :size="14" :stroke-width="1.7" /></button>
+            <button class="icon-btn view-btn" :title="isAr ? 'تفاصيل السعر' : 'Price details'" @click="openDetail(row)"><DpcIcon name="Eye" :size="14" :stroke-width="1.7" /></button>
             <button class="icon-btn edit-btn" :title="isAr ? 'تعديل' : 'Edit'" @click="openEdit(row)"><DpcIcon name="Pencil" :size="14" :stroke-width="1.7" /></button>
             <button class="icon-btn del-btn" @click="confirmDeleteId = row.id"><DpcIcon name="Trash2" :size="14" :stroke-width="1.7" /></button>
           </div>
@@ -762,25 +779,138 @@ onMounted(async () => {
 
     <!-- ── Price detail modal ──────────────────────────────── -->
     <div v-if="viewingRow" class="modal-overlay" @click.self="viewingRow = null">
-      <div class="modal-box detail-box">
+      <div class="modal-box price-detail-box">
         <div class="modal-header">
-          <h2 class="dpc-h modal-title">{{ svcName(viewingRow) }}</h2>
+          <div>
+            <div class="eyebrow-teal">🦷 {{ viewingRow.category_name || (isAr ? 'خدمة' : 'Service') }}</div>
+            <h2 class="dpc-h modal-title">{{ svcName(viewingRow) }}</h2>
+          </div>
           <button class="icon-btn" @click="viewingRow = null"><DpcIcon name="X" :size="16" :stroke-width="2" /></button>
         </div>
-        <div class="detail-body">
+
+        <!-- Loading skeleton -->
+        <div v-if="loadingPrice" class="detail-loading">
+          <div class="detail-skeleton" v-for="i in 6" :key="i"></div>
+        </div>
+
+        <div v-else-if="viewingPrice" class="detail-body">
+
+          <!-- Recommended price hero -->
+          <div class="detail-hero" :class="isTrial && 'detail-hero-locked'">
+            <div class="detail-hero-label">{{ isAr ? '💰 السعر الموصى به' : '💰 Recommended price' }}</div>
+            <div class="detail-hero-price" :class="isTrial && 'trial-blur'">
+              {{ fmt(viewingPrice.rounded_price) }}
+              <span class="detail-hero-currency">{{ globalSettings?.currency || 'EGP' }}</span>
+            </div>
+            <div class="detail-hero-sub" :class="isTrial && 'trial-blur'">
+              {{ isAr ? 'التكلفة الكلية:' : 'Total cost:' }} <strong>{{ fmt(viewingPrice.total_cost) }}</strong>
+              &nbsp;·&nbsp;
+              {{ isAr ? 'الربح:' : 'Profit:' }} <strong>{{ viewingPrice.profit_percent }}%</strong>
+            </div>
+          </div>
+
+          <!-- Variance vs current price -->
+          <div v-if="viewingRow.current_price" class="variance-card"
+            :class="viewingPrice.rounded_price > viewingRow.current_price * 1.05 ? 'variance-under' : 'variance-ok'">
+            <div class="variance-icon">
+              {{ viewingPrice.rounded_price > viewingRow.current_price * 1.05 ? '⚠️' : '✅' }}
+            </div>
+            <div class="variance-text">
+              <div class="variance-title">
+                {{ viewingPrice.rounded_price > viewingRow.current_price * 1.05
+                  ? (isAr ? 'سعرك الحالي أقل من الموصى به' : 'Your price is below recommended')
+                  : (isAr ? 'سعرك في النطاق الصحيح' : 'Your price is in the right range') }}
+              </div>
+              <div class="variance-detail">
+                {{ isAr ? 'سعرك الحالي:' : 'Current price:' }} <strong>{{ fmt(viewingRow.current_price) }}</strong>
+                &nbsp;→&nbsp;
+                {{ isAr ? 'الفرق:' : 'Difference:' }}
+                <strong>{{ viewingPrice.rounded_price > viewingRow.current_price ? '+' : '' }}{{ fmt(viewingPrice.rounded_price - viewingRow.current_price) }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cost breakdown section -->
+          <div class="breakdown-section">
+            <div class="breakdown-title">{{ isAr ? '📊 تفصيل التكلفة' : '📊 Cost breakdown' }}</div>
+
+            <!-- Chair time cost with sub-breakdown -->
+            <div class="breakdown-row">
+              <div class="breakdown-label">
+                <span class="breakdown-emoji">🪑</span>
+                {{ isAr ? 'تكلفة وقت الكرسي' : 'Chair time cost' }}
+                <span class="breakdown-sub">{{ viewingRow.chair_time_hours }}{{ isAr ? ' سا' : ' hr' }} × {{ fmt(viewingPrice.chair_hourly_rate) }}/{{ isAr ? 'سا' : 'hr' }}</span>
+              </div>
+              <span class="breakdown-value" :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.chair_time_cost) }}</span>
+            </div>
+
+            <!-- Chair hourly rate sub-breakdown -->
+            <div class="breakdown-subitems">
+              <div class="sub-row"><span>🏢 {{ isAr ? 'تكاليف ثابتة شهرية' : 'Monthly fixed costs' }}</span><span :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.monthly_fixed_costs) }}</span></div>
+              <div class="sub-row"><span>👥 {{ isAr ? 'رواتب' : 'Salaries' }}</span><span :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.monthly_salaries) }}</span></div>
+              <div class="sub-row"><span>🔧 {{ isAr ? 'إهلاك معدات' : 'Equipment depreciation' }}</span><span :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.monthly_depreciation) }}</span></div>
+              <div class="sub-row sub-total"><span>{{ isAr ? 'الإجمالي الشهري ÷ ' : 'Monthly total ÷ ' }}{{ Math.round(viewingPrice.effective_hours) }}{{ isAr ? ' سا فعالة' : ' effective hrs' }}</span><span :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.chair_hourly_rate) }}/{{ isAr ? 'سا' : 'hr' }}</span></div>
+            </div>
+
+            <div class="breakdown-row">
+              <div class="breakdown-label">
+                <span class="breakdown-emoji">👨‍⚕️</span>
+                {{ isAr ? 'أتعاب الطبيب' : 'Doctor fee' }}
+                <span class="breakdown-sub">{{ doctorFeeDisplay(viewingRow) }}</span>
+              </div>
+              <span class="breakdown-value" :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.doctor_fee) }}</span>
+            </div>
+
+            <div class="breakdown-row" v-if="viewingPrice.equipment_cost > 0">
+              <div class="breakdown-label">
+                <span class="breakdown-emoji">⚙️</span>
+                {{ isAr ? 'تكلفة المعدات الخاصة' : 'Special equipment cost' }}
+              </div>
+              <span class="breakdown-value" :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.equipment_cost) }}</span>
+            </div>
+
+            <div class="breakdown-row" v-if="viewingPrice.materials_cost > 0">
+              <div class="breakdown-label">
+                <span class="breakdown-emoji">🔬</span>
+                {{ isAr ? 'مواد ومستهلكات' : 'Materials & consumables' }}
+              </div>
+              <span class="breakdown-value" :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.materials_cost) }}</span>
+            </div>
+
+            <div class="breakdown-row breakdown-total">
+              <div class="breakdown-label"><span class="breakdown-emoji">💼</span>{{ isAr ? 'إجمالي التكلفة' : 'Total cost' }}</div>
+              <span class="breakdown-value" :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.total_cost) }}</span>
+            </div>
+          </div>
+
+          <!-- Pricing section -->
+          <div class="breakdown-section">
+            <div class="breakdown-title">{{ isAr ? '📈 التسعير' : '📈 Pricing' }}</div>
+            <div class="breakdown-row">
+              <div class="breakdown-label"><span class="breakdown-emoji">📊</span>{{ isAr ? 'هامش الربح' : 'Profit margin' }} ({{ viewingPrice.profit_percent }}%)</div>
+              <span class="breakdown-value" :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.profit_amount) }}</span>
+            </div>
+            <div class="breakdown-row" v-if="viewingPrice.vat_percent > 0">
+              <div class="breakdown-label"><span class="breakdown-emoji">🧾</span>{{ isAr ? 'ضريبة القيمة المضافة' : 'VAT' }} ({{ viewingPrice.vat_percent }}%)</div>
+              <span class="breakdown-value" :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.vat_amount) }}</span>
+            </div>
+            <div class="breakdown-row breakdown-final">
+              <div class="breakdown-label"><span class="breakdown-emoji">🏷️</span>{{ isAr ? 'السعر الموصى به' : 'Recommended price' }}</div>
+              <span class="breakdown-value final-val" :class="isTrial && 'trial-blur'">{{ fmt(viewingPrice.rounded_price) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fallback: basic info if price API unavailable -->
+        <div v-else class="detail-body">
           <div class="detail-row"><span>{{ isAr ? 'وقت الكرسي' : 'Chair time' }}</span><span class="dpc-num">{{ viewingRow.chair_time_hours }}{{ isAr ? ' سا' : ' hr' }}</span></div>
-          <div class="detail-row"><span>{{ isAr ? 'نوع أتعاب الطبيب' : 'Doctor fee type' }}</span><span>{{ doctorFeeDisplay(viewingRow) }}</span></div>
-          <div class="detail-row"><span>{{ isAr ? 'المعدة' : 'Equipment' }}</span><span>{{ viewingRow.equipment_name || '—' }}</span></div>
-          <div class="detail-row"><span>{{ isAr ? 'الفئة' : 'Category' }}</span><span>{{ viewingRow.category_name || '—' }}</span></div>
-          <div v-if="viewingRow.current_price" class="detail-row detail-row-price">
+          <div class="detail-row"><span>{{ isAr ? 'أتعاب الطبيب' : 'Doctor fee' }}</span><span>{{ doctorFeeDisplay(viewingRow) }}</span></div>
+          <div v-if="viewingRow.current_price" class="detail-row">
             <span>{{ isAr ? 'سعرك الحالي' : 'Current price' }}</span>
             <span class="dpc-num">{{ fmt(viewingRow.current_price) }}</span>
           </div>
-          <div v-if="calcPriceMap[viewingRow.id]" class="detail-row detail-row-total">
-            <span>{{ isAr ? 'السعر المحسوب' : 'Calculated price' }}</span>
-            <span class="dpc-num">{{ fmt(calcPriceMap[viewingRow.id]) }}</span>
-          </div>
         </div>
+
         <div class="modal-footer">
           <button class="dpc-btn dpc-btn-ghost" @click="viewingRow = null">{{ isAr ? 'إغلاق' : 'Close' }}</button>
           <button class="dpc-btn dpc-btn-teal" @click="openEdit(viewingRow); viewingRow = null">
@@ -1028,6 +1158,67 @@ onMounted(async () => {
 .detail-row:last-child { border-bottom: none; }
 .detail-row-total { font-weight: 600; color: var(--ink-900); }
 .detail-row-price .dpc-num { color: var(--teal-700); font-weight: 600; }
+
+/* ── Price detail modal ───────────────────────────────────── */
+.price-detail-box { width: 540px; }
+.eyebrow-teal { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--teal-700); margin-bottom: 3px; }
+
+.detail-loading { padding: 24px; display: flex; flex-direction: column; gap: 10px; }
+.detail-skeleton { height: 20px; border-radius: 6px; background: linear-gradient(90deg, var(--paper-2) 25%, var(--surface) 50%, var(--paper-2) 75%); background-size: 200% 100%; animation: shimmer 1.3s infinite; }
+.detail-skeleton:nth-child(2) { width: 75%; }
+.detail-skeleton:nth-child(4) { width: 60%; }
+.detail-skeleton:nth-child(6) { width: 80%; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+.detail-body { padding: 0 0 8px; overflow-y: auto; max-height: 70vh; }
+
+/* Hero recommended price */
+.detail-hero {
+  background: linear-gradient(135deg, var(--teal-600), var(--navy-700));
+  padding: 20px 24px; margin-bottom: 0; color: #fff;
+}
+.detail-hero-locked { opacity: .85; }
+.detail-hero-label  { font-size: 12px; font-weight: 600; opacity: .8; margin-bottom: 6px; }
+.detail-hero-price  { font-size: 36px; font-weight: 800; font-family: var(--font-mono); display: flex; align-items: baseline; gap: 8px; }
+.detail-hero-currency { font-size: 16px; opacity: .7; font-weight: 500; }
+.detail-hero-sub    { font-size: 12.5px; opacity: .8; margin-top: 6px; }
+
+/* Variance card */
+.variance-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 24px; border-bottom: 1px solid var(--line);
+}
+.variance-under { background: var(--warning-50); }
+.variance-ok    { background: rgba(20,184,166,.06); }
+.variance-icon  { font-size: 20px; flex: none; }
+.variance-title { font-size: 13px; font-weight: 600; color: var(--ink-900); }
+.variance-detail{ font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+
+/* Cost breakdown */
+.breakdown-section { padding: 16px 24px; border-bottom: 1px solid var(--line); }
+.breakdown-section:last-child { border-bottom: none; }
+.breakdown-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-500); margin-bottom: 12px; }
+
+.breakdown-row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line-2, #f0eeea);
+}
+.breakdown-row:last-child { border-bottom: none; }
+.breakdown-label { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-800); font-weight: 500; }
+.breakdown-emoji { margin-inline-end: 5px; font-style: normal; }
+.breakdown-sub   { font-size: 11px; color: var(--ink-500); font-weight: 400; padding-inline-start: 20px; }
+.breakdown-value { font-size: 13px; font-weight: 600; font-family: var(--font-mono); color: var(--ink-900); white-space: nowrap; flex: none; }
+.breakdown-total { border-top: 2px solid var(--line) !important; border-bottom: none !important; padding-top: 10px !important; }
+.breakdown-total .breakdown-label { font-weight: 700; color: var(--ink-900); }
+.breakdown-total .breakdown-value { color: var(--ink-900); }
+.breakdown-final .breakdown-label { font-weight: 700; color: var(--teal-700); }
+.final-val { font-size: 16px; color: var(--teal-700) !important; }
+
+/* Sub-item breakdown (chair hourly rate) */
+.breakdown-subitems { margin: 0 0 6px 20px; padding: 10px 12px; background: var(--paper-2); border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line); }
+.sub-row { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--ink-600); padding: 3px 0; gap: 8px; }
+.sub-row span:last-child { font-family: var(--font-mono); font-weight: 500; white-space: nowrap; }
+.sub-total { border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 4px; font-weight: 600; color: var(--ink-800); }
 
 /* ── Lockout / trial ──────────────────────────────────────── */
 .lockout-wall  { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 400px; text-align: center; padding: 40px; }
