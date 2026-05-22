@@ -21,12 +21,12 @@
   --teal-800: #115e59;
 
   /* ── Color · neutrals ── */
-  --paper:    #f5f7fa;     /* cool slate-tinted canvas */
-  --paper-2:  #eef1f6;     /* subtle elevation/divider band */
+  --paper:    #f0f4f8;     /* cool blue-tinted medical canvas */
+  --paper-2:  #e8edf5;     /* subtle elevation/divider band */
   --surface:  #ffffff;
-  --line:     #e4e8ef;     /* cool-neutral border */
-  --line-2:   #e4e8ef;
-  --line-soft:#eef1f6;
+  --line:     #e2e8f0;     /* cool-neutral border */
+  --line-2:   #e2e8f0;
+  --line-soft:#eaf0f7;
 
   --ink-900: #0a1424;
   --ink-800: #1a2538;
