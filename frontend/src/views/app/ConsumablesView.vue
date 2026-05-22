@@ -17,15 +17,15 @@ const confirmDelete = ref(null)
 
 // Edit form — fields shared between consumable/material editing
 const editForm = ref({
-  name_en: '', name_ar: '',
-  pack_price: 0, cases_per_pack: 1, units_per_case: 1,
+  item_name: '', name_ar: '',
+  pack_cost: 0, cases_per_pack: 1, units_per_case: 1,
   material_name: '', lab_name: '', unit_cost: 0,
 })
 
 // Add form
 const newItem = ref({
-  name_en: '', name_ar: '',
-  pack_price: 0, cases_per_pack: 1, units_per_case: 1,
+  item_name: '', name_ar: '',
+  pack_cost: 0, cases_per_pack: 1, units_per_case: 1,
   material_name: '', lab_name: '', unit_cost: 0,
 })
 
@@ -33,32 +33,32 @@ function fmt(n)  { return Number(n || 0).toLocaleString('en-US', { maximumFracti
 function fmtInt(n){ return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }) }
 
 function perUnit(item) {
-  const denom = (item.cases_per_pack || item.cases || 1) * (item.units_per_case || item.units || 1)
-  return denom > 0 ? (item.pack_price || item.pack || 0) / denom : 0
+  const denom = (item.cases_per_pack || 1) * (item.units_per_case || 1)
+  return denom > 0 ? (item.pack_cost || 0) / denom : 0
 }
 
 function itemName(item) {
   if (item._type === 'material') {
     return isAr.value ? (item.name_ar || item.material_name || '') : (item.material_name || item.name_ar || '')
   }
-  return isAr.value ? (item.name_ar || item.name_en || '') : (item.name_en || item.name_ar || '')
+  return isAr.value ? (item.name_ar || item.item_name || '') : (item.item_name || item.name_ar || '')
 }
 
 function selectItem(item) {
   selectedItem.value = item
   if (item._type === 'consumable') {
     editForm.value = {
-      name_en:        item.name_en || '',
+      item_name:      item.item_name || '',
       name_ar:        item.name_ar || '',
-      pack_price:     item.pack_price || item.pack || 0,
-      cases_per_pack: item.cases_per_pack || item.cases || 1,
-      units_per_case: item.units_per_case || item.units || 1,
+      pack_cost:      item.pack_cost || 0,
+      cases_per_pack: item.cases_per_pack || 1,
+      units_per_case: item.units_per_case || 1,
       material_name: '', lab_name: '', unit_cost: 0,
     }
   } else {
     editForm.value = {
-      name_en: '', name_ar: item.name_ar || '',
-      pack_price: 0, cases_per_pack: 1, units_per_case: 1,
+      item_name: '', name_ar: item.name_ar || '',
+      pack_cost: 0, cases_per_pack: 1, units_per_case: 1,
       material_name: item.material_name || '',
       lab_name:      item.lab_name || '',
       unit_cost:     item.unit_cost || 0,
@@ -72,9 +72,9 @@ async function saveEdit() {
   try {
     if (selectedItem.value._type === 'consumable') {
       await clinicStore.updateConsumable(id, {
-        name_en:        editForm.value.name_en,
+        item_name:        editForm.value.item_name,
         name_ar:        editForm.value.name_ar,
-        pack_price:     editForm.value.pack_price,
+        pack_cost:     editForm.value.pack_cost,
         cases_per_pack: editForm.value.cases_per_pack,
         units_per_case: editForm.value.units_per_case,
       })
@@ -107,9 +107,9 @@ async function addNew() {
   try {
     if (activeTab.value === 'consumables') {
       await clinicStore.createConsumable({
-        name_en:        newItem.value.name_en,
+        item_name:        newItem.value.item_name,
         name_ar:        newItem.value.name_ar,
-        pack_price:     newItem.value.pack_price,
+        pack_cost:     newItem.value.pack_cost,
         cases_per_pack: newItem.value.cases_per_pack,
         units_per_case: newItem.value.units_per_case,
       })
@@ -122,12 +122,12 @@ async function addNew() {
       })
     }
     showAddModal.value = false
-    newItem.value = { name_en: '', name_ar: '', pack_price: 0, cases_per_pack: 1, units_per_case: 1, material_name: '', lab_name: '', unit_cost: 0 }
+    newItem.value = { item_name: '', name_ar: '', pack_cost: 0, cases_per_pack: 1, units_per_case: 1, material_name: '', lab_name: '', unit_cost: 0 }
   } catch (e) { console.error(e) }
 }
 
 function openAdd() {
-  newItem.value = { name_en: '', name_ar: '', pack_price: 0, cases_per_pack: 1, units_per_case: 1, material_name: '', lab_name: '', unit_cost: 0 }
+  newItem.value = { item_name: '', name_ar: '', pack_cost: 0, cases_per_pack: 1, units_per_case: 1, material_name: '', lab_name: '', unit_cost: 0 }
   showAddModal.value = true
   selectedItem.value = null
 }
@@ -139,7 +139,7 @@ const displayItems = computed(() => activeTab.value === 'consumables' ? consumab
 const computedPerUnit = computed(() => {
   if (!selectedItem.value || selectedItem.value._type !== 'consumable') return 0
   const denom = (editForm.value.cases_per_pack || 1) * (editForm.value.units_per_case || 1)
-  return denom > 0 ? editForm.value.pack_price / denom : 0
+  return denom > 0 ? editForm.value.pack_cost / denom : 0
 })
 
 onMounted(async () => {
@@ -216,7 +216,7 @@ onMounted(async () => {
                   <div class="item-sku">{{ item.sku || `CON-${item.id}` }}</div>
                 </div>
               </div>
-              <div class="dpc-num col-end t-sm">{{ fmtInt(item.pack_price || item.pack || 0) }}</div>
+              <div class="dpc-num col-end t-sm">{{ fmtInt(item.pack_cost || 0) }}</div>
               <div class="dpc-num col-center t-sm text-faint">{{ item.cases_per_pack || item.cases || 1 }}</div>
               <div class="dpc-num col-center t-sm text-faint">{{ item.units_per_case || item.units || 1 }}</div>
               <div class="dpc-num col-end t-bold">{{ fmt(perUnit(item)) }}</div>
@@ -304,7 +304,7 @@ onMounted(async () => {
               <div class="edit-fields">
                 <div>
                   <label class="field-label">{{ isAr ? 'الاسم (EN)' : 'Name (EN)' }}</label>
-                  <input v-model="editForm.name_en" class="edit-input" />
+                  <input v-model="editForm.item_name" class="edit-input" />
                 </div>
                 <div>
                   <label class="field-label">{{ isAr ? 'الاسم (AR)' : 'Name (AR)' }}</label>
@@ -313,7 +313,7 @@ onMounted(async () => {
                 <div>
                   <label class="field-label">{{ isAr ? 'سعر الباكيت' : 'Pack cost' }}</label>
                   <div class="input-with-suffix">
-                    <input v-model.number="editForm.pack_price" type="number" class="edit-input" />
+                    <input v-model.number="editForm.pack_cost" type="number" class="edit-input" />
                     <span class="input-suffix">{{ isAr ? 'ج.م' : 'EGP' }}</span>
                   </div>
                 </div>
@@ -382,7 +382,7 @@ onMounted(async () => {
           <template v-if="activeTab === 'consumables'">
             <div class="form-group">
               <label class="field-label">{{ isAr ? 'الاسم *' : 'Name *' }}</label>
-              <input v-model="newItem.name_en" class="edit-input" :placeholder="isAr ? 'مثال: قفازات لاتكس' : 'e.g., Latex Gloves'" />
+              <input v-model="newItem.item_name" class="edit-input" :placeholder="isAr ? 'مثال: قفازات لاتكس' : 'e.g., Latex Gloves'" />
             </div>
             <div class="form-group">
               <label class="field-label">{{ isAr ? 'الاسم بالعربية' : 'Name (Arabic)' }}</label>
@@ -399,7 +399,7 @@ onMounted(async () => {
                   <div class="pkg-step-num">1</div>
                   <div class="pkg-step-body">
                     <label class="field-label">{{ isAr ? 'سعر الباكيت *' : 'Pack cost *' }}</label>
-                    <input v-model.number="newItem.pack_price" type="number" step="0.01" class="edit-input" :placeholder="isAr ? 'مثال: 180' : 'e.g., 180'" />
+                    <input v-model.number="newItem.pack_cost" type="number" step="0.01" class="edit-input" :placeholder="isAr ? 'مثال: 180' : 'e.g., 180'" />
                   </div>
                 </div>
                 <div class="pkg-arrow">↓</div>
@@ -424,12 +424,12 @@ onMounted(async () => {
 
               <!-- Live result -->
               <div class="pkg-result">
-                <span class="pkg-eq-part">{{ newItem.pack_price || 0 }}</span>
+                <span class="pkg-eq-part">{{ newItem.pack_cost || 0 }}</span>
                 <span class="pkg-eq-op">÷</span>
                 <span class="pkg-eq-part">{{ (newItem.cases_per_pack || 1) * (newItem.units_per_case || 1) }} {{ isAr ? 'وحدة' : 'units' }}</span>
                 <span class="pkg-eq-op">=</span>
                 <span class="pkg-eq-result">
-                  {{ ((newItem.pack_price || 0) / ((newItem.cases_per_pack || 1) * (newItem.units_per_case || 1))).toFixed(3) }}
+                  {{ ((newItem.pack_cost || 0) / ((newItem.cases_per_pack || 1) * (newItem.units_per_case || 1))).toFixed(3) }}
                   <small>{{ isAr ? 'ج.م / وحدة' : 'EGP / unit' }}</small>
                 </span>
               </div>

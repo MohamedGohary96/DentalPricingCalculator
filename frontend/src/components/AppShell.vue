@@ -8,6 +8,7 @@ import DpcLastReview      from './DpcLastReview.vue'
 import { useAuthStore }   from '@/stores/auth.js'
 import { useI18nStore }   from '@/stores/i18n.js'
 import { usePricingStore } from '@/stores/pricing.js'
+import { useRestriction } from '@/composables/useRestriction.js'
 
 defineProps({
   activeKey: { type: String, default: 'dashboard' },
@@ -17,6 +18,7 @@ const router       = useRouter()
 const auth         = useAuthStore()
 const i18n         = useI18nStore()
 const pricingStore = usePricingStore()
+const { isTrial, isLockout } = useRestriction()
 
 // Health score computed from dashboard stats
 const sidebarHealthScore = computed(() => {
@@ -92,8 +94,8 @@ const userName = () => {
         <!-- Last price review indicator -->
         <DpcLastReview />
 
-        <!-- Upgrade CTA (existing upgrade prompt) -->
-        <button class="upgrade-cta" @click="router.push('/app/subscription')">
+        <!-- Upgrade CTA — only shown for trial / expired accounts -->
+        <button v-if="isTrial || isLockout" class="upgrade-cta" @click="router.push('/app/subscription')">
           <DpcIcon name="Star" :size="13" :stroke-width="1.8" />
           <span>{{ i18n.t('nav.upgradeCta') || 'Upgrade to Pro →' }}</span>
         </button>

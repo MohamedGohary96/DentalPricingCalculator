@@ -628,24 +628,32 @@ def api_create_service():
 @login_required
 def api_update_service(service_id):
     """Update service"""
+    import traceback
     clinic_id = get_clinic_id()
     data = request.get_json()
-    consumables = data.pop('consumables', None)
-    materials = data.pop('materials', None)
+    if data is None:
+        return jsonify({'error': 'Invalid JSON body'}), 400
+
+    consumables   = data.pop('consumables', None)
+    materials     = data.pop('materials', None)
     equipment_list = data.pop('equipment_list', None)
 
-    update_service(service_id, clinic_id, **data)
+    try:
+        update_service(service_id, clinic_id, **data)
 
-    if consumables is not None:
-        update_service_consumables(service_id, consumables)
+        if consumables is not None:
+            update_service_consumables(service_id, consumables)
 
-    if materials is not None:
-        update_service_materials(service_id, materials)
+        if materials is not None:
+            update_service_materials(service_id, materials)
 
-    if equipment_list is not None:
-        update_service_equipment(service_id, equipment_list)
+        if equipment_list is not None:
+            update_service_equipment(service_id, equipment_list)
 
-    return jsonify({'success': True})
+        return jsonify({'success': True})
+    except Exception as e:
+        app.logger.error('update_service %s failed: %s\n%s', service_id, e, traceback.format_exc())
+        return jsonify({'error': str(e), 'fields': list(data.keys())}), 500
 
 
 @app.route('/api/services/<int:service_id>', methods=['DELETE'])
