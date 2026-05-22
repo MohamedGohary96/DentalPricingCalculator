@@ -62,7 +62,7 @@ const perHourEquip   = computed(() => (clinicStore.equipment || []).filter(e => 
 
 const calcPriceMap = computed(() => {
   const map = {}
-  ;(pricingStore.priceList || []).forEach(p => { if (p.id) map[p.id] = p.calculated_price })
+  ;(pricingStore.priceList || []).forEach(p => { if (p.id) map[p.id] = p.rounded_price })
   return map
 })
 
