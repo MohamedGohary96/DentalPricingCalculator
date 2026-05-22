@@ -40,8 +40,8 @@ const BADGE_META = {
     icon: '🎯',
     labelEn: 'Priced Right',
     labelAr: 'تسعير صحيح',
-    descEn: 'Zero underpriced services',
-    descAr: 'لا توجد خدمات بسعر منخفض',
+    descEn: 'First service priced at or above its calculated cost',
+    descAr: 'أول خدمة بسعر صحيح أو أعلى من التكلفة المحسوبة',
   },
   supply_chain: {
     icon: '📦',
@@ -49,13 +49,6 @@ const BADGE_META = {
     labelAr: 'سلسلة التوريد',
     descEn: '10+ consumables configured',
     descAr: 'أضفت أكثر من ١٠ مستهلكات',
-  },
-  month_reviewed: {
-    icon: '📅',
-    labelEn: 'Monthly Review',
-    labelAr: 'مراجعة شهرية',
-    descEn: 'Opened the app on the 1st of a month',
-    descAr: 'فتحت التطبيق في أول الشهر',
   },
 }
 
@@ -114,8 +107,9 @@ export function useAchievements() {
 
     const onboarding  = auth.user?.onboarding_completed === 1 || auth.user?.onboarding_completed === true
     const totalSvcs   = stats?.total_services || 0
-    const underpriced = stats?.underpriced_services || 0
-    const pricedSvcs  = stats?.priced_services || stats?.market_priced_services || 0
+    const setSvcs     = stats?.set_services   || 0
+    const lowSvcs     = stats?.low_services   || 0
+    const goodSvcs    = setSvcs - lowSvcs
 
     // clinic_configured
     if (onboarding) _unlock('clinic_configured')
@@ -123,11 +117,11 @@ export function useAchievements() {
     // first_price
     if (totalSvcs >= 1) _unlock('first_price')
 
-    // full_coverage — all services have market prices
-    if (totalSvcs > 0 && pricedSvcs >= totalSvcs) _unlock('full_coverage')
+    // full_coverage — all services have market prices set
+    if (totalSvcs > 0 && setSvcs >= totalSvcs) _unlock('full_coverage')
 
-    // priced_right — zero underpriced
-    if (totalSvcs > 0 && underpriced === 0) _unlock('priced_right')
+    // priced_right — at least one service priced at or above its calculated cost
+    if (goodSvcs >= 1) _unlock('priced_right')
 
     // supply_chain — 10+ consumables
     let cCount = consumablesCount
@@ -140,10 +134,6 @@ export function useAchievements() {
       }
     }
     if (cCount >= 10) _unlock('supply_chain')
-
-    // month_reviewed — opened on the 1st of any month
-    const today = new Date()
-    if (today.getDate() === 1) _unlock('month_reviewed')
   }
 
   /**
