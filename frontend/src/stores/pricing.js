@@ -23,10 +23,10 @@ export const usePricingStore = defineStore('pricing', () => {
   }
 
   async function updateService(id, payload) {
-    const { data } = await api.put(`/api/services/${id}`, payload)
+    await api.put(`/api/services/${id}`, payload)
+    const { consumables, materials, equipment_list, ...fields } = payload
     const idx = services.value.findIndex(s => s.id === id)
-    if (idx >= 0) services.value[idx] = data
-    return data
+    if (idx >= 0) services.value[idx] = { ...services.value[idx], ...fields }
   }
 
   async function deleteService(id) {

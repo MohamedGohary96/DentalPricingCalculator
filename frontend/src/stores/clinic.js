@@ -63,29 +63,40 @@ export const useClinicStore = defineStore('clinic', () => {
     clinic.value = res.data
   }
 
+  function mergeById(list, id, patch) {
+    const i = list.findIndex(x => x.id === id)
+    if (i >= 0) list[i] = { ...list[i], ...patch }
+  }
+
   // Fixed costs
   async function loadFixedCosts()            { fixedCosts.value  = await crud.fixedCosts.load() }
   async function createFixedCost(data)       { fixedCosts.value.push(await crud.fixedCosts.create(data)) }
-  async function updateFixedCost(id, data)   { const r = await crud.fixedCosts.update(id, data); const i = fixedCosts.value.findIndex(x => x.id === id); if (i >= 0) fixedCosts.value[i] = r }
+  async function updateFixedCost(id, data)   { await crud.fixedCosts.update(id, data); mergeById(fixedCosts.value, id, data) }
   async function deleteFixedCost(id)         { await crud.fixedCosts.remove(id); fixedCosts.value = fixedCosts.value.filter(x => x.id !== id) }
 
   // Salaries
   async function loadSalaries()              { salaries.value    = await crud.salaries.load() }
   async function createSalary(data)          { salaries.value.push(await crud.salaries.create(data)) }
-  async function updateSalary(id, data)      { const r = await crud.salaries.update(id, data); const i = salaries.value.findIndex(x => x.id === id); if (i >= 0) salaries.value[i] = r }
+  async function updateSalary(id, data)      { await crud.salaries.update(id, data); mergeById(salaries.value, id, data) }
   async function deleteSalary(id)            { await crud.salaries.remove(id); salaries.value = salaries.value.filter(x => x.id !== id) }
 
   // Equipment
   async function loadEquipment()             { equipment.value   = await crud.equipment.load() }
   async function createEquipment(data)       { equipment.value.push(await crud.equipment.create(data)) }
-  async function updateEquipment(id, data)   { const r = await crud.equipment.update(id, data); const i = equipment.value.findIndex(x => x.id === id); if (i >= 0) equipment.value[i] = r }
+  async function updateEquipment(id, data)   { await crud.equipment.update(id, data); mergeById(equipment.value, id, data) }
   async function deleteEquipment(id)         { await crud.equipment.remove(id); equipment.value = equipment.value.filter(x => x.id !== id) }
 
   // Consumables
   async function loadConsumables()           { consumables.value = await crud.consumables.load() }
   async function createConsumable(data)      { consumables.value.push(await crud.consumables.create(data)) }
-  async function updateConsumable(id, data)  { const r = await crud.consumables.update(id, data); const i = consumables.value.findIndex(x => x.id === id); if (i >= 0) consumables.value[i] = r }
+  async function updateConsumable(id, data)  { await crud.consumables.update(id, data); mergeById(consumables.value, id, data) }
   async function deleteConsumable(id)        { await crud.consumables.remove(id); consumables.value = consumables.value.filter(x => x.id !== id) }
+
+  // Materials
+  async function loadMaterials()             { materials.value   = await crud.materials.load() }
+  async function createMaterial(data)        { materials.value.push(await crud.materials.create(data)) }
+  async function updateMaterial(id, data)    { await crud.materials.update(id, data); mergeById(materials.value, id, data) }
+  async function deleteMaterial(id)          { await crud.materials.remove(id); materials.value = materials.value.filter(x => x.id !== id) }
 
   return {
     clinic, fixedCosts, salaries, equipment, capacity, consumables, materials, categories,
@@ -94,5 +105,6 @@ export const useClinicStore = defineStore('clinic', () => {
     loadSalaries, createSalary, updateSalary, deleteSalary,
     loadEquipment, createEquipment, updateEquipment, deleteEquipment,
     loadConsumables, createConsumable, updateConsumable, deleteConsumable,
+    loadMaterials, createMaterial, updateMaterial, deleteMaterial,
   }
 })
