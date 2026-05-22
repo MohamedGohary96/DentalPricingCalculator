@@ -37,7 +37,6 @@ function fmtDate(iso) {
         v-for="badge in achievements"
         :key="badge.id"
         :class="['ach-badge', badge.unlocked ? 'is-unlocked' : 'is-locked']"
-        :title="badge.unlocked ? badge.desc : (isAr ? 'اجمع المتطلبات لفتح هذا الإنجاز' : 'Meet the requirements to unlock')"
       >
         <div class="badge-icon" :class="badge.unlocked ? 'icon-unlocked' : 'icon-locked'">
           <span v-if="badge.unlocked" class="badge-emoji">{{ badge.icon }}</span>
@@ -51,6 +50,10 @@ function fmtDate(iso) {
           <div v-else class="badge-hint">
             {{ isAr ? 'مقفل' : 'Locked' }}
           </div>
+        </div>
+        <div class="badge-tooltip" :dir="isAr ? 'rtl' : 'ltr'">
+          <span v-if="!badge.unlocked" class="tooltip-how">{{ isAr ? 'كيف تحصل عليه:' : 'How to earn:' }}</span>
+          {{ badge.desc }}
         </div>
       </div>
     </div>
@@ -99,6 +102,7 @@ function fmtDate(iso) {
 
 /* ── Badge card ───────────────────────────────────────────────── */
 .ach-badge {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -107,6 +111,7 @@ function fmtDate(iso) {
   border-radius: var(--r);
   text-align: center;
   transition: box-shadow 0.15s ease, transform 0.15s ease;
+  cursor: default;
 }
 
 .ach-badge.is-unlocked {
@@ -182,6 +187,54 @@ function fmtDate(iso) {
 .badge-hint {
   font-size: 10px;
   color: var(--ink-400);
+}
+
+/* ── Tooltip ──────────────────────────────────────────────────── */
+.badge-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink-900);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 7px 10px;
+  border-radius: 7px;
+  white-space: normal;
+  width: 160px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+.badge-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--ink-900);
+}
+
+.ach-badge:hover .badge-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.tooltip-how {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 2px;
+  color: var(--teal-300);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* ── Pop animation ────────────────────────────────────────────── */
