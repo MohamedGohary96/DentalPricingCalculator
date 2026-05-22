@@ -31,8 +31,9 @@ const chairRate    = computed(() => stats.value.chair_hourly_rate   || 0)
 const fixedMonthly = computed(() => stats.value.total_fixed_monthly || 0)
 const totalSvcs    = computed(() => stats.value.total_services      || 0)
 const effectiveH   = computed(() => stats.value.effective_hours     || 0)
-const fixedCosts   = computed(() => stats.value.fixed_costs         || 0)
-const salaries     = computed(() => stats.value.staff_salaries      || 0)
+const fixedCosts   = computed(() => stats.value.fixed_costs              || 0)
+const salaries     = computed(() => stats.value.staff_salaries           || 0)
+const equipmentDep = computed(() => stats.value.equipment_depreciation   || 0)
 
 const underpricedCount = computed(() => stats.value.underpriced_services || 0)
 
@@ -46,22 +47,18 @@ function fmt(n) {
 }
 
 // ── Pricing Health Score (0–100) ─────────────────────────────────
+// Uses same calculation as sidebar for consistency: 1 - (low / set)
 const healthScore = computed(() => {
-  const s = stats.value
-  const onboardingDone = auth.user?.onboarding_completed === 1 || auth.user?.onboarding_completed === true
-  const total      = s.total_services      || 0
-  const underpriced = s.underpriced_services || underpricedCount.value
-  const priced     = s.priced_services     || s.market_priced_services || 0
-  const hasFixed   = (s.fixed_costs || s.total_fixed_monthly || 0) > 0
-
-  let score = 0
-  if (onboardingDone)    score += 20
-  score += Math.min(total * 5, 30)
-  score += Math.min(priced * 5, 20)
-  score -= underpriced * 10
-  if (hasFixed)          score += 10
-  if (underpriced === 0 && total > 0) score += 15
-  return Math.max(0, Math.min(100, score))
+  const list = pricingStore.priceList || []
+  const set  = list.filter(s => s.current_price > 0 && s.rounded_price > 0)
+  if (set.length === 0) {
+    console.log('📊 Health Score: 0 (no services with prices set)')
+    return 0
+  }
+  const low  = set.filter(s => s.current_price < s.rounded_price * 0.95)
+  const score = Math.round((1 - low.length / set.length) * 100)
+  console.log(`📊 Health Score: ${score} (${set.length} priced, ${low.length} underpriced)`)
+  return score
 })
 
 // ── Achievements ─────────────────────────────────────────────────
@@ -79,8 +76,15 @@ watch(newlyUnlocked, (badge) => {
   }
 })
 
-// ── Monthly nudge ─────────────────────────────────────────────────
-const { saveHealthScore } = useMonthlyNudge()
+// Re-check achievements when health score or stats change
+watch([healthScore, stats], ([newScore, newStats]) => {
+  if (newStats && Object.keys(newStats).length > 0) {
+    checkAchievements(newStats, newScore)
+  }
+})
+
+// ── Monthly nudge (now event-based) ───────────────────────────────
+const { saveHealthScore, checkUnderpricedIncrease, checkCostsChanged } = useMonthlyNudge()
 
 onMounted(async () => {
   loading.value = true
@@ -91,10 +95,17 @@ onMounted(async () => {
   ])
   loading.value = false
 
-  // Run achievements check after data is loaded
-  await checkAchievements(stats.value)
+  // Run achievements check after data is loaded (pass computed healthScore)
+  await checkAchievements(stats.value, healthScore.value)
 
-  // Persist current health score for monthly nudge comparison
+  // Event-based nudge triggers
+  checkUnderpricedIncrease(underpricedCount.value)
+
+  // Check if costs changed (create simple hash from costs)
+  const costsHash = `${fixedCosts.value}_${salaries.value}_${equipmentDep.value}`
+  checkCostsChanged(costsHash)
+
+  // Persist current health score for comparison
   saveHealthScore(healthScore.value)
 })
 </script>
@@ -136,9 +147,6 @@ onMounted(async () => {
     </div>
 
     <div class="dash-body">
-      <!-- Achievements strip (below checklist, above KPIs) -->
-      <DpcAchievements :achievements="achievements" class="ach-section" />
-
       <!-- 4 KPI cards (real API data only) -->
       <div class="kpi-grid">
         <!-- Chair hourly rate -->
@@ -159,18 +167,33 @@ onMounted(async () => {
         </div>
 
         <!-- Monthly fixed costs -->
-        <div class="dpc-panel kpi-card">
+        <div class="dpc-panel kpi-card kpi-card-wide">
           <div class="kpi-top">
             <span class="kpi-label">{{ isAr ? 'التكاليف الثابتة الشهرية' : 'Monthly fixed costs' }}</span>
-            <div class="kpi-icon kpi-icon-ink"><DpcIcon name="CircleDollarSign" :size="13" :stroke-width="1.7" /></div>
+            <div class="kpi-icon kpi-icon-pink"><DpcIcon name="CircleDollarSign" :size="13" :stroke-width="1.7" /></div>
           </div>
-          <div class="kpi-bottom">
+          <div class="kpi-bottom" :class="{ 'trial-blur': isTrial }">
             <span class="dpc-num kpi-value">{{ fmt(fixedMonthly) }}</span>
             <span class="kpi-unit">{{ isAr ? 'ج.م' : 'EGP' }}</span>
           </div>
-          <div class="kpi-sub kpi-breakdown">
-            <span>{{ isAr ? 'ثابت:' : 'Fixed:' }} {{ fmt(fixedCosts) }}</span>
-            <span>· {{ isAr ? 'رواتب:' : 'Staff:' }} {{ fmt(salaries) }}</span>
+          <div class="kpi-breakdown-list" :class="{ 'trial-blur': isTrial }">
+            <div class="breakdown-item">
+              <span class="breakdown-lbl">{{ isAr ? 'تكاليف ثابتة' : 'Fixed costs' }}</span>
+              <span class="breakdown-val">{{ fmt(fixedCosts) }}</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-lbl">{{ isAr ? 'رواتب الموظفين' : 'Staff salaries' }}</span>
+              <span class="breakdown-val">{{ fmt(salaries) }}</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-lbl">{{ isAr ? 'استهلاك المعدات' : 'Equipment depreciation' }}</span>
+              <span class="breakdown-val">{{ fmt(equipmentDep) }}</span>
+            </div>
+          </div>
+          <div class="kpi-sub">
+            <button class="kpi-action" @click="router.push('/app/settings')">
+              {{ isAr ? 'عرض التفاصيل ←' : 'View details →' }}
+            </button>
           </div>
         </div>
 
@@ -266,124 +289,247 @@ onMounted(async () => {
           <DpcIcon :name="i18n.dir === 'rtl' ? 'ChevronLeft' : 'ChevronRight'" :size="16" :stroke-width="1.7" class="nav-chevron" />
         </div>
       </div>
+
+      <!-- Achievements strip (below nav cards) -->
+      <DpcAchievements :achievements="achievements" class="ach-section" />
     </div>
   </AppShell>
 </template>
 
 <style scoped>
 .page-header {
-  padding: 22px 28px;
+  padding: 32px 32px 28px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  background: var(--paper);
+  background: var(--canvas);
   border-bottom: 1px solid var(--line);
 }
 
 .eyebrow-teal {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--teal-700); margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+  margin-bottom: 8px;
 }
-.page-title { font-size: 24px; margin-bottom: 0; }
+.page-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0;
+  color: var(--ink-900);
+}
 
-.header-actions { display: flex; gap: 8px; align-items: center; }
-.btn-sm { height: 36px; }
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.btn-sm {
+  height: 36px;
+  font-size: 12px;
+}
 
 /* Checklist bar */
 .checklist-bar {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 28px;
-  background: var(--warning-50);
-  border-bottom: 1px solid var(--warning-200, #fde68a);
+  gap: 16px;
+  padding: 14px 32px;
+  background: linear-gradient(135deg, var(--warning-50), #fffbf0);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
   flex-wrap: wrap;
 }
 .checklist-heading {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
+  gap: 8px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--warning-700);
   flex: none;
 }
-.checklist-items { display: flex; gap: 8px; flex-wrap: wrap; }
+.checklist-items {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .checklist-item {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: 999px;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
   font-size: 12px;
-  font-weight: 500;
-  background: var(--warning-100, #fef3c7);
-  color: var(--warning-800, #92400e);
+  font-weight: 600;
+  background: #ffffff;
+  color: var(--warning-700);
   cursor: pointer;
-  border: none;
-  transition: background .12s;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  transition: all var(--transition-fast);
+  box-shadow: 0 1px 2px rgba(245, 158, 11, 0.1);
 }
-.checklist-item:hover { background: var(--warning-200, #fde68a); }
-.item-icon { color: var(--warning-600); }
+.checklist-item:hover {
+  background: var(--warning-100);
+  border-color: rgba(245, 158, 11, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.15);
+}
+.item-icon {
+  color: var(--warning-600);
+}
 
 /* Body */
-.dash-body { padding: 20px 28px 32px; }
-.ach-section { margin-bottom: 20px; }
+.dash-body {
+  padding: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.ach-section {
+  margin-bottom: 32px;
+}
 
 /* KPI grid */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 22px;
+  gap: 16px;
+  margin-bottom: 32px;
 }
 
-.kpi-card { padding: 18px; }
+.kpi-card {
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
 
 .kpi-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 .kpi-label {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--ink-500);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .kpi-icon {
-  width: 28px; height: 28px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
+  flex: none;
 }
-.kpi-icon-teal   { background: var(--teal-50);  color: var(--teal-700); }
-.kpi-icon-danger { background: var(--danger-50); color: var(--danger-700); }
-.kpi-icon-ink    { background: var(--paper-2);  color: var(--ink-700); }
+.kpi-icon-teal {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(6, 182, 212, 0.05));
+  color: var(--accent-dark);
+  box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.15);
+}
+.kpi-icon-danger {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
+  color: var(--danger-600);
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.15);
+}
+.kpi-icon-ink {
+  background: var(--surface-2);
+  color: var(--ink-700);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.kpi-icon-pink {
+  background: linear-gradient(135deg, rgba(219, 39, 119, 0.1), rgba(219, 39, 119, 0.05));
+  color: #db2777;
+  box-shadow: inset 0 0 0 1px rgba(219, 39, 119, 0.15);
+}
 
-.kpi-bottom { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
-.kpi-value  { font-size: 26px; font-weight: 600; color: var(--ink-900); }
-.kpi-unit   { font-size: 12px; color: var(--ink-500); }
-.kpi-value-danger { color: var(--danger-700); }
-.kpi-value-good   { font-size: 22px; color: var(--teal-700); font-weight: 600; }
+.kpi-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+}
+.breakdown-lbl {
+  color: var(--ink-500);
+}
+.breakdown-val {
+  color: var(--ink-900);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
 
-.kpi-sub { font-size: 11.5px; color: var(--ink-500); }
-.kpi-breakdown { display: flex; gap: 6px; flex-wrap: wrap; }
+.kpi-bottom {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.kpi-value {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--ink-900);
+  letter-spacing: -0.02em;
+}
+.kpi-unit {
+  font-size: 13px;
+  color: var(--ink-500);
+  font-weight: 500;
+}
+.kpi-value-danger {
+  color: var(--danger-600);
+}
+.kpi-value-good {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--success);
+  font-weight: 700;
+}
+
+.kpi-sub {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+.kpi-breakdown {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
 
 .kpi-action {
   background: none;
   border: none;
   padding: 0;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--teal-700);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-dark);
   cursor: pointer;
+  transition: all var(--transition-fast);
 }
-.kpi-action:hover { text-decoration: underline; }
-.kpi-action-danger { color: var(--danger-700); }
+.kpi-action:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.kpi-action-danger {
+  color: var(--danger-600);
+}
 
 /* Empty state */
 .empty-state {
@@ -391,60 +537,124 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 12px;
-  padding: 48px 24px;
-  background: var(--surface);
-  border-radius: var(--r);
-  box-shadow: inset 0 0 0 1px var(--line);
+  gap: 16px;
+  padding: 64px 32px;
+  background: var(--surface-1);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
 }
 .empty-icon {
-  width: 72px; height: 72px;
-  border-radius: 18px;
-  background: var(--paper-2);
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: var(--surface-2);
   color: var(--ink-400);
   display: grid;
   place-items: center;
-  box-shadow: inset 0 0 0 1px var(--line);
+  border: 1px solid var(--line);
+  animation: float 4s var(--ease-in-out-expo, cubic-bezier(0.87, 0, 0.13, 1)) infinite;
 }
-.empty-title { font-size: 20px; font-weight: 700; color: var(--ink-900); margin: 0; }
-.empty-body  { font-size: 14px; color: var(--ink-500); max-width: 380px; margin: 0; }
-.empty-btn   { height: 44px; }
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.empty-body {
+  font-size: 14px;
+  color: var(--ink-600);
+  max-width: 400px;
+  margin: 0;
+  line-height: 1.6;
+}
+.empty-btn {
+  height: 44px;
+  margin-top: 8px;
+}
 
 /* Nav cards */
 .nav-cards {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 16px;
 }
 .nav-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-  background: var(--paper);
-  border-radius: var(--r);
-  box-shadow: inset 0 0 0 1px var(--line);
+  gap: 16px;
+  padding: 20px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 14px;
   cursor: pointer;
-  transition: box-shadow .12s, background .12s;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-xs);
 }
 .nav-card:hover {
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1.5px var(--teal-300);
+  background: var(--surface-1);
+  border-color: var(--accent-dim);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
 }
 .nav-card-icon {
-  width: 44px; height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
   display: grid;
   place-items: center;
   flex: none;
+  transition: all var(--transition-fast);
 }
-.nav-icon-teal { background: var(--teal-50);  color: var(--teal-700); }
-.nav-icon-navy { background: #e8edf5;          color: #163058; }
-.nav-icon-ink  { background: var(--paper-2);  color: var(--ink-700); }
-.nav-icon-gray { background: var(--surface);  color: var(--ink-500); box-shadow: inset 0 0 0 1px var(--line); }
+.nav-icon-teal {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(6, 182, 212, 0.05));
+  color: var(--accent-dark);
+  box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.15);
+}
+.nav-icon-navy {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+  color: #2563eb;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.15);
+}
+.nav-icon-ink {
+  background: var(--surface-2);
+  color: var(--ink-700);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.nav-icon-gray {
+  background: var(--surface-2);
+  color: var(--ink-600);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
 
-.nav-card-text { flex: 1; min-width: 0; }
-.nav-card-title { font-size: 14px; font-weight: 600; color: var(--ink-900); margin-bottom: 2px; }
-.nav-card-sub   { font-size: 12.5px; color: var(--ink-500); }
-.nav-chevron    { color: var(--ink-400); flex: none; }
+.nav-card-text {
+  flex: 1;
+  min-width: 0;
+}
+.nav-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-900);
+  margin-bottom: 3px;
+  letter-spacing: -0.01em;
+}
+.nav-card-sub {
+  font-size: 12px;
+  color: var(--ink-500);
+  line-height: 1.5;
+}
+.nav-chevron {
+  color: var(--ink-300);
+  flex: none;
+  transition: all var(--transition-fast);
+}
+.nav-card:hover .nav-chevron {
+  color: var(--accent-dark);
+  transform: translateX(3px);
+}
+[dir="rtl"] .nav-card:hover .nav-chevron {
+  transform: translateX(-3px);
+}
 </style>
