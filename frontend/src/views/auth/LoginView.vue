@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import DpcLogo from '@/components/DpcLogo.vue'
 import DpcBtn from '@/components/DpcBtn.vue'
@@ -22,12 +22,29 @@ const showPass   = ref(false)
 const error      = ref('')
 const submitting = ref(false)
 
+// Load saved username on mount
+onMounted(() => {
+  const savedUsername = localStorage.getItem('dpc_remember_username')
+  if (savedUsername) {
+    username.value = savedUsername
+    remember.value = true
+  }
+})
+
 async function submit() {
   if (!username.value || !password.value) { error.value = 'Please fill in all fields.'; return }
   submitting.value = true
   error.value = ''
   try {
     await auth.login(username.value, password.value)
+
+    // Save or clear username based on remember me
+    if (remember.value) {
+      localStorage.setItem('dpc_remember_username', username.value)
+    } else {
+      localStorage.removeItem('dpc_remember_username')
+    }
+
     const oc = auth.user?.onboarding_completed
     router.push(oc === 0 || oc === false ? '/setup' : '/app/dashboard')
   } catch (e) {
