@@ -98,9 +98,21 @@ export const useClinicStore = defineStore('clinic', () => {
   async function updateMaterial(id, data)    { await crud.materials.update(id, data); mergeById(materials.value, id, data) }
   async function deleteMaterial(id)          { await crud.materials.remove(id); materials.value = materials.value.filter(x => x.id !== id) }
 
+  // Reset all clinic data (call on logout)
+  function reset() {
+    clinic.value      = null
+    fixedCosts.value  = []
+    salaries.value    = []
+    equipment.value   = []
+    capacity.value    = null
+    consumables.value = []
+    materials.value   = []
+    categories.value  = []
+  }
+
   return {
     clinic, fixedCosts, salaries, equipment, capacity, consumables, materials, categories,
-    loadAll, updateCapacity, updateClinic,
+    loadAll, updateCapacity, updateClinic, reset,
     loadFixedCosts, createFixedCost, updateFixedCost, deleteFixedCost,
     loadSalaries, createSalary, updateSalary, deleteSalary,
     loadEquipment, createEquipment, updateEquipment, deleteEquipment,

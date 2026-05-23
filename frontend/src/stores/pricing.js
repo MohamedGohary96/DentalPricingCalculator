@@ -69,10 +69,20 @@ export const usePricingStore = defineStore('pricing', () => {
     return data
   }
 
+  // Reset all pricing data (call on logout)
+  function reset() {
+    services.value = []
+    priceList.value = []
+    priceListLoaded.value = false
+    chairCostPerHour.value = 0
+    setupStatus.value = null
+    dashboardStats.value = null
+  }
+
   return {
     services, priceList, priceListLoaded, chairCostPerHour, setupStatus, dashboardStats,
     loadServices, createService, updateService, deleteService,
     loadPriceList, computeCalc, loadSetupStatus, loadDashboardStats,
-    completeOnboarding,
+    completeOnboarding, reset,
   }
 })

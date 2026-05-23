@@ -32,6 +32,8 @@ export const useAuthStore = defineStore('auth', () => {
     const { data } = await api.post('/login', { username, password })
     if (data.success) {
       user.value = data.user
+      // Extract subscription from user object (login returns it nested)
+      subscription.value = data.user.subscription || null
     } else {
       throw new Error(data.error || 'Login failed')
     }
@@ -41,6 +43,14 @@ export const useAuthStore = defineStore('auth', () => {
     await api.get('/logout').catch(() => {})
     user.value         = null
     subscription.value = null
+
+    // Clear all store data
+    const { useClinicStore } = await import('./clinic.js')
+    const { usePricingStore } = await import('./pricing.js')
+    const clinic = useClinicStore()
+    const pricing = usePricingStore()
+    clinic.reset()
+    pricing.reset()
   }
 
   async function register(payload) {
