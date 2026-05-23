@@ -23,7 +23,7 @@ const SubscriptionView      = () => import('@/views/app/SubscriptionView.vue')
 const SuperAdminView        = () => import('@/views/app/SuperAdminView.vue')
 
 const routes = [
-  { path: '/', redirect: '/login' },
+  { path: '/', redirect: '/welcome' },
   { path: '/welcome',           component: WelcomeView },
   { path: '/login',             component: LoginView },
   { path: '/register',          component: RegisterView },
@@ -43,7 +43,7 @@ const routes = [
   { path: '/app/cases',         component: CaseTrackerView,    meta: { requiresAuth: true } },
   { path: '/app/subscription',  component: SubscriptionView,   meta: { requiresAuth: true } },
   { path: '/app/super-admin',   component: SuperAdminView,     meta: { requiresAuth: true } },
-  { path: '/:pathMatch(.*)*',   redirect: '/login' },
+  { path: '/:pathMatch(.*)*',   redirect: '/welcome' },
 ]
 
 const router = createRouter({
