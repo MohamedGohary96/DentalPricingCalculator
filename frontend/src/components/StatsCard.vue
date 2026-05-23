@@ -20,7 +20,8 @@ const mounted = ref(false)
 // Animate number counting on mount
 onMounted(() => {
   mounted.value = true
-  if (props.animate && typeof props.value === 'number') {
+  // Don't animate if loading or value is 0
+  if (!props.loading && props.animate && typeof props.value === 'number' && props.value !== 0) {
     animateValue(0, props.value, 800)
   } else {
     displayValue.value = props.value
@@ -29,10 +30,21 @@ onMounted(() => {
 
 // Watch for value changes
 watch(() => props.value, (newVal, oldVal) => {
+  if (props.loading) return // Don't update while loading
   if (mounted.value && props.animate && typeof newVal === 'number' && typeof oldVal === 'number') {
     animateValue(oldVal, newVal, 500)
   } else {
     displayValue.value = newVal
+  }
+})
+
+// Watch for loading state change
+watch(() => props.loading, (isLoading, wasLoading) => {
+  // When loading changes from true to false, animate to the actual value
+  if (wasLoading && !isLoading && props.animate && typeof props.value === 'number' && props.value !== 0) {
+    animateValue(0, props.value, 800)
+  } else if (!isLoading) {
+    displayValue.value = props.value
   }
 })
 
