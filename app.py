@@ -178,6 +178,7 @@ def login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
+    remember = data.get('remember', False)
 
     user = authenticate_user(username, password)
     if user:
@@ -189,7 +190,8 @@ def login():
         session['role'] = user.get('role', 'staff')
         # Super admin is the user with username 'admin'
         session['is_super_admin'] = user['username'] == 'admin'
-        session.permanent = True
+        # Only make session permanent if "remember me" is checked
+        session.permanent = remember
 
         # Get subscription status for frontend
         subscription = get_subscription_status(user['clinic_id'])

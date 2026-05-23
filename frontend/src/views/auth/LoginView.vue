@@ -27,7 +27,7 @@ async function submit() {
   submitting.value = true
   error.value = ''
   try {
-    await auth.login(username.value, password.value)
+    await auth.login(username.value, password.value, remember.value)
     const oc = auth.user?.onboarding_completed
     router.push(oc === 0 || oc === false ? '/setup' : '/app/dashboard')
   } catch (e) {
