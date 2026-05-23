@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "cd frontend && npm ci && npm run build && cd .. && mkdir -p static && cp -r frontend/dist static/",
-    "vercel-build": "cd frontend && npm ci && npm run build && cd .. && mkdir -p static && cp -r frontend/dist static/",
+    "build": "cd frontend && npm ci && npm run build",
+    "vercel-build": "cd frontend && npm ci && npm run build",
     "dev": "cd frontend && npm run dev"
   },
   "engines": {
