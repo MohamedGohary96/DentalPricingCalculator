@@ -10,7 +10,7 @@ export const useI18nStore = defineStore('i18n', () => {
 
   async function loadTranslations(lang) {
     try {
-      const res = await fetch(`/static/translations/${lang}.json`)
+      const res = await fetch(`/translations/${lang}.json`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       messages.value = await res.json()
       locale.value = lang
