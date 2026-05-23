@@ -1,12 +1,18 @@
 {
   "version": 2,
   "regions": ["fra1"],
+  "buildCommand": "npm run build",
   "builds": [
     { "src": "api/index.py", "use": "@vercel/python" },
-    { "src": "static/**",    "use": "@vercel/static" }
+    { "src": "static/**", "use": "@vercel/static" }
   ],
   "routes": [
+    { "src": "/static/dist/(.*)", "dest": "/static/dist/$1" },
     { "src": "/static/(.*)", "dest": "/static/$1" },
-    { "src": "/(.*)",        "dest": "/api/index.py" }
+    { "src": "/api/(.*)", "dest": "/api/index.py" },
+    { "src": "/login", "methods": ["POST"], "dest": "/api/index.py" },
+    { "src": "/logout", "methods": ["POST"], "dest": "/api/index.py" },
+    { "src": "/register", "methods": ["POST"], "dest": "/api/index.py" },
+    { "src": "/(.*)", "dest": "/static/dist/index.html" }
   ]
 }
