@@ -1,14 +1,9 @@
 {
   "version": 2,
   "regions": ["ams1"],
+  "installCommand": "npm install && cd frontend && npm install",
+  "buildCommand": "cd frontend && npm run build",
   "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "static/dist"
-      }
-    },
     {
       "src": "api/index.py",
       "use": "@vercel/python"

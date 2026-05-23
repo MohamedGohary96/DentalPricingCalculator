@@ -1348,6 +1348,29 @@ def spa(path):
     return send_from_directory(dist, 'index.html')
 
 
+# ============== Debug & Health ==============
+
+@app.route('/api/debug/files', methods=['GET'])
+def debug_files():
+    """Debug endpoint to check if built files exist"""
+    import os
+    dist_path = os.path.join(app.root_path, 'static', 'dist')
+
+    files_exist = {
+        'dist_dir_exists': os.path.exists(dist_path),
+        'dist_is_dir': os.path.isdir(dist_path) if os.path.exists(dist_path) else False,
+        'root_path': app.root_path,
+        'dist_path': dist_path,
+    }
+
+    if os.path.exists(dist_path) and os.path.isdir(dist_path):
+        files_exist['files'] = os.listdir(dist_path)
+        index_path = os.path.join(dist_path, 'index.html')
+        files_exist['index_html_exists'] = os.path.exists(index_path)
+
+    return jsonify(files_exist)
+
+
 # ============== Cron Jobs ==============
 
 @app.route('/api/cron/keep-alive', methods=['GET'])
