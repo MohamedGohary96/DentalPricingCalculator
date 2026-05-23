@@ -144,7 +144,8 @@ def super_admin_required(f):
 @app.route('/login')
 def login_page():
     """Redirect legacy login URL — Vue SPA handles this route"""
-    pass
+    from flask import redirect
+    return redirect('/')
 
 
 @app.route('/login', methods=['POST'])
@@ -169,6 +170,9 @@ def login():
         # Get subscription status for frontend
         subscription = get_subscription_status(user['clinic_id'])
 
+        clinic_row = get_clinic_by_id(user['clinic_id'])
+        onboarding_completed = clinic_row.get('onboarding_completed', 1) if clinic_row else 1
+
         return jsonify({'success': True, 'user': {
             'id': user['id'],
             'username': user['username'],
@@ -177,7 +181,8 @@ def login():
             'role': user.get('role', 'staff'),
             'clinic_name': user.get('clinic_name', ''),
             'is_super_admin': user['username'] == 'admin',
-            'subscription': subscription
+            'subscription': subscription,
+            'onboarding_completed': onboarding_completed
         }})
 
     return jsonify({'error': 'Invalid credentials'}), 401
@@ -234,7 +239,6 @@ def get_current_user():
 def api_dashboard_stats():
     """Get dashboard statistics"""
     clinic_id = get_clinic_id()
-    services = get_all_services(clinic_id)
     fixed_costs = get_all_fixed_costs(clinic_id)
     salaries = get_all_salaries(clinic_id)
     equipment_list = get_all_equipment(clinic_id)
@@ -259,7 +263,7 @@ def api_dashboard_stats():
     chair_hourly_rate = total_monthly_fixed / effective_hours if effective_hours > 0 else 0
 
     return jsonify({
-        'total_services': len(services),
+        'total_services': len(get_all_services(clinic_id)),
         'total_fixed_monthly': round(total_monthly_fixed, 2),
         'chair_hourly_rate': round(chair_hourly_rate, 2),
         'effective_hours': round(effective_hours, 2),
@@ -985,6 +989,43 @@ def api_super_admin_record_payment(clinic_id):
         currency=data.get('currency', 'EGP')
     )
     return jsonify({'success': True, **result})
+
+
+@app.route('/api/super-admin/settings/contact')
+@super_admin_required
+def api_super_admin_get_contact_settings():
+    """Get contact settings (super admin only)"""
+    from modules.models import get_contact_info
+    return jsonify(get_contact_info())
+
+
+@app.route('/api/super-admin/settings/contact', methods=['PUT'])
+@super_admin_required
+def api_super_admin_update_contact_settings():
+    """Update contact settings (super admin only)"""
+    from modules.models import update_app_settings
+    data = request.get_json()
+
+    # Validate allowed keys
+    allowed_keys = {'contact_email', 'contact_phone', 'contact_whatsapp',
+                    'contact_email_ar', 'contact_phone_ar', 'contact_whatsapp_ar'}
+    filtered_data = {k: v for k, v in data.items() if k in allowed_keys}
+
+    update_app_settings(filtered_data)
+    return jsonify({'success': True})
+
+
+@app.route('/api/contact-info')
+def api_public_contact_info():
+    """Get contact info (public, no auth required) - used in SubscriptionView"""
+    from modules.models import get_contact_info
+    info = get_contact_info()
+
+    # Cache for 1 hour to reduce DB load
+    response = jsonify(info)
+    response.cache_control.max_age = 3600
+    response.cache_control.public = True
+    return response
 
 
 # ============== Clinic Registration ==============

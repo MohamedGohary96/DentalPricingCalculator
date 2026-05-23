@@ -10,18 +10,19 @@ export const useAuthStore = defineStore('auth', () => {
   const loading      = ref(false)
 
   const isLoggedIn = computed(() => !!user.value)
+  const isTrial = computed(() => {
+    // Return false if no subscription data yet (prevents flickering)
+    if (!subscription.value) return false
+    return subscription.value.restriction_level === 'trial'
+  })
 
   async function fetchUser() {
     loading.value = true
     try {
       const { data } = await api.get('/api/user')
       user.value = data
-      // Subscription comes from the user endpoint or a separate call
+      // Subscription always comes from the /api/user response
       subscription.value = data.subscription || null
-      if (!subscription.value) {
-        const sub = await api.get('/api/subscription').catch(() => ({ data: null }))
-        subscription.value = sub.data
-      }
     } finally {
       loading.value = false
     }
@@ -47,5 +48,5 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  return { user, subscription, loading, isLoggedIn, fetchUser, login, logout, register }
+  return { user, subscription, loading, isLoggedIn, isTrial, fetchUser, login, logout, register }
 })

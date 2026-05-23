@@ -38,6 +38,16 @@ async function next() {
     saving.value = false
   }
 }
+
+async function skipWithDefaults() {
+  // Pre-fill with average values from 300+ clinics
+  rent.value = 15000
+  chairs.value = 2
+  hours_per_day.value = 8
+  days_per_month.value = 22
+  utilization_pct.value = 75
+  await next()
+}
 </script>
 
 <template>
@@ -119,7 +129,7 @@ async function next() {
         <div class="summary-row">
           <DpcIcon name="Info" :size="13" :stroke-width="1.6" />
           <span>
-            {{ i18n.locale === 'ar' ? 'إجمالي ساعات قابلة للفوترة:' : 'Billable hours/month:' }}
+            {{ i18n.locale === 'ar' ? 'إجمالي الساعات التشغيليه الفعليه:' : 'Total Actual Operational Hours:' }}
             <strong class="dpc-num">
               {{ Math.round(chairs * hours_per_day * days_per_month * (utilization_pct / 100)) }}
             </strong>
@@ -131,13 +141,29 @@ async function next() {
     </div>
 
     <template #footer>
-      <button class="dpc-btn dpc-btn-ghost back-btn" @click="router.push('/setup/1')">
-        <DpcIcon :name="i18n.dir === 'rtl' ? 'ArrowRight' : 'ArrowLeft'" :size="15" :stroke-width="1.8" />
+      <DpcBtn
+        variant="ghost"
+        :icon="i18n.dir === 'rtl' ? 'ArrowRight' : 'ArrowLeft'"
+        @click="router.push('/setup/1')"
+      >
         {{ i18n.locale === 'ar' ? 'رجوع' : 'Back' }}
-      </button>
-      <DpcBtn variant="primary" :loading="saving" style="min-width:180px;" @click="next">
+      </DpcBtn>
+      <DpcBtn
+        variant="ghost"
+        icon="FastForward"
+        :disabled="saving"
+        @click="skipWithDefaults"
+      >
+        {{ i18n.locale === 'ar' ? 'تخطي مع القيم الافتراضية' : 'Skip — use average values' }}
+      </DpcBtn>
+      <DpcBtn
+        variant="primary"
+        :trailing-icon="i18n.dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight'"
+        :loading="saving"
+        style="min-width:180px;"
+        @click="next"
+      >
         {{ i18n.locale === 'ar' ? 'التالي' : 'Next' }}
-        <DpcIcon :name="i18n.dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight'" :size="15" :stroke-width="2" />
       </DpcBtn>
     </template>
   </WizardShell>
@@ -223,5 +249,14 @@ async function next() {
 .summary-row strong { color: var(--ink-900); margin-inline: 2px; }
 
 .back-btn { color: var(--ink-500); }
+.skip-btn {
+  color: var(--accent-dark);
+  font-size: 12px;
+  padding: 0 16px;
+}
+.skip-btn:hover:not(:disabled) {
+  background: var(--teal-50);
+  color: var(--accent);
+}
 .err-msg  { color: var(--danger-700); font-size: 13px; }
 </style>

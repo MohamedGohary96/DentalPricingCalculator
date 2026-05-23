@@ -19,7 +19,7 @@ const sent       = ref(false)
 const submitting = ref(false)
 
 async function submit() {
-  if (!email.value) { error.value = 'Enter your email.'; return }
+  if (!email.value) { error.value = i18n.t('auth.errorEnterEmail'); return }
   submitting.value = true
   error.value = ''
   try {
@@ -67,9 +67,9 @@ async function submit() {
       </template>
 
       <template v-else>
-        <h1 class="dpc-h" style="font-size:26px;margin-bottom:8px;">Check your inbox</h1>
+        <h1 class="dpc-h" style="font-size:26px;margin-bottom:8px;">{{ i18n.t('auth.checkInbox') }}</h1>
         <p style="color:var(--ink-500);font-size:14px;line-height:1.55;">
-          We sent a reset link to <strong>{{ email }}</strong>. Check your spam folder if you don't see it.
+          {{ i18n.t('auth.resetLinkSentPre') }} <strong>{{ email }}</strong>. {{ i18n.t('auth.resetLinkSentPost') }}
         </p>
       </template>
 

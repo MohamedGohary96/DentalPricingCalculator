@@ -626,7 +626,7 @@ body.app-scaled .main-content { zoom: 0.82; }
 .dpc-chip-rose  { background: var(--danger-50);  color: var(--danger-700);  box-shadow: inset 0 0 0 1px var(--danger-100); }
 .dpc-chip-navy  { background: rgba(15,37,69,.06); color: var(--navy-900);  box-shadow: inset 0 0 0 1px rgba(15,37,69,.10); }
 
-/* ── 13. Buttons ──────────────────────────────────────────────── */
+/* ── 13. Buttons (Premium Polish) ────────────────────────────── */
 .btn, .dpc-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   height: 40px; padding: 0 16px;
@@ -635,12 +635,26 @@ body.app-scaled .main-content { zoom: 0.82; }
   font-size: 13.5px;
   letter-spacing: -0.005em;
   white-space: nowrap;
-  transition: background .15s, box-shadow .15s, transform .1s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
   flex-shrink: 0;
+  position: relative;
+  border: none;
 }
-.btn:active, .dpc-btn:active { transform: scale(.98); }
-.btn svg, .dpc-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+.btn:active, .dpc-btn:active { transform: scale(0.98) translateY(1px); }
+.btn:disabled, .dpc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.btn svg, .dpc-btn svg { width: 15px; height: 15px; flex-shrink: 0; transition: transform 0.2s; }
+.btn:hover svg, .dpc-btn:hover svg { transform: scale(1.05); }
+
+/* Enhanced focus states for accessibility */
+.btn:focus-visible, .dpc-btn:focus-visible {
+  outline: 2px solid var(--teal-600);
+  outline-offset: 2px;
+}
 
 /* Primary — ink-900 */
 .btn-primary, .dpc-btn-primary {
@@ -648,7 +662,11 @@ body.app-scaled .main-content { zoom: 0.82; }
   color: #fff;
   box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, var(--shadow-sm);
 }
-.btn-primary:hover, .dpc-btn-primary:hover { background: #000; }
+.btn-primary:hover, .dpc-btn-primary:hover {
+  background: #000;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 6px 20px rgba(0,0,0,.15);
+}
 
 /* Teal — for the most affirmative CTAs */
 .btn-teal, .dpc-btn-teal {
@@ -656,7 +674,11 @@ body.app-scaled .main-content { zoom: 0.82; }
   color: #fff;
   box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 4px 14px rgba(13,148,136,.20);
 }
-.btn-teal:hover, .dpc-btn-teal:hover { background: var(--teal-700); }
+.btn-teal:hover, .dpc-btn-teal:hover {
+  background: var(--teal-700);
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 6px 20px rgba(13,148,136,.30);
+}
 
 /* Secondary / Outline */
 .btn-secondary, .btn-outline, .dpc-btn-outline {
@@ -2843,3 +2865,152 @@ html[dir="rtl"] .register-card-header h2 { font-family: var(--font-arabic); }
 
 /* ── 91. Subscription plan grid ─────────────────────────────── */
 .subscription-plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 20px; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   92. Premium Animation Utilities (Final Polish)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Fade & slide animations */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Animation utility classes */
+.animate-fade-in {
+  animation: fade-in 0.4s var(--ease-out-expo) backwards;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s var(--ease-out-expo) backwards;
+}
+
+.animate-fade-in-down {
+  animation: fade-in-down 0.4s var(--ease-out-expo) backwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s var(--ease-out-expo) backwards;
+}
+
+.animate-slide-in {
+  animation: slide-in 0.4s var(--ease-out-expo) backwards;
+}
+
+/* Hover lift effect */
+.hover-lift {
+  transition: all 0.2s var(--ease-out-expo);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-fade-in-up,
+  .animate-fade-in-down,
+  .animate-scale-in,
+  .animate-slide-in {
+    animation: none;
+  }
+  
+  .hover-lift:hover {
+    transform: none;
+  }
+}
+
+/* Skeleton loading shimmer */
+@keyframes shimmer {
+  0% { background-position: -468px 0; }
+  100% { background-position: 468px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(to right, var(--surface) 0%, var(--paper-2) 20%, var(--surface) 40%, var(--surface) 100%);
+  background-size: 800px 104px;
+  animation: shimmer 1.8s infinite linear;
+  border-radius: var(--r);
+}
+
+/* Pulse animation for loading states */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Smooth transitions for interactive elements */
+.smooth-all {
+  transition: all 0.2s var(--ease-out-expo);
+}
+
+/* Text gradient effect */
+.text-gradient-teal {
+  background: linear-gradient(135deg, var(--teal-600), var(--teal-800));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass effect */
+.glass-effect {
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+[dir="rtl"] .glass-effect {
+  backdrop-filter: blur(12px);
+}
+

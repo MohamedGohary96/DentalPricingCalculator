@@ -57,6 +57,21 @@ router.beforeEach(async (to) => {
 
   const auth = useAuthStore()
 
+  // Wait for any pending auth fetch to complete
+  if (auth.loading) {
+    await new Promise(resolve => {
+      const check = () => {
+        if (!auth.loading) {
+          resolve()
+        } else {
+          setTimeout(check, 50)
+        }
+      }
+      check()
+    })
+  }
+
+  // If still not logged in after loading completes, fetch user
   if (!auth.isLoggedIn) {
     try {
       await auth.fetchUser()
@@ -67,9 +82,12 @@ router.beforeEach(async (to) => {
   }
 
   // Redirect to onboarding wizard if not yet completed
+  // Check both the user object and ensure the value is explicitly 0
+  const oc = auth.user?.onboarding_completed
   if (
-    auth.user?.onboarding_completed === 0 &&
-    !to.path.startsWith('/setup')
+    (oc === 0 || oc === false) &&
+    !to.path.startsWith('/setup') &&
+    !to.path.startsWith('/verify-email')
   ) {
     return '/setup'
   }

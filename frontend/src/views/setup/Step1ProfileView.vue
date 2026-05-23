@@ -13,16 +13,21 @@ const setup  = useSetupStore()
 const i18n   = useI18nStore()
 const api    = axios.create({ withCredentials: true })
 
-const saving = ref(false)
-const error  = ref('')
+const saving       = ref(false)
+const error        = ref('')
+const customCountry = ref('')
 
 async function next() {
   if (!setup.country) { error.value = 'Select a country.'; return }
+  if (setup.country === 'Other' && !customCountry.value.trim()) {
+    error.value = i18n.locale === 'ar' ? 'يرجى تحديد بلدك.' : 'Please specify your country.'
+    return
+  }
   saving.value = true
   error.value  = ''
   try {
     await api.put('/api/onboarding/location', {
-      country:  setup.country,
+      country:  setup.country === 'Other' ? customCountry.value.trim() : setup.country,
       province: setup.province,
     })
     router.push('/setup/2')
@@ -65,6 +70,21 @@ async function next() {
         </p>
       </div>
 
+      <!-- Other country text input -->
+      <div v-if="setup.country === 'Other'" class="field-wrap other-field">
+        <label class="dpc-field-label">{{ i18n.locale === 'ar' ? 'حدد بلدك' : 'Specify your country' }}</label>
+        <div class="field-inner">
+          <DpcIcon name="MapPin" :size="16" :stroke-width="1.6" class="field-icon" />
+          <input
+            v-model="customCountry"
+            type="text"
+            class="dpc-field-input field-with-icon"
+            :placeholder="i18n.locale === 'ar' ? 'مثال: ليبيا، المغرب، تونس…' : 'e.g. Libya, Morocco, Tunisia…'"
+            autofocus
+          />
+        </div>
+      </div>
+
       <!-- Province / City -->
       <div class="field-wrap">
         <label class="dpc-field-label">{{ i18n.t('onboarding.province') || 'City / Province' }}</label>
@@ -94,13 +114,21 @@ async function next() {
     </div>
 
     <template #footer>
-      <button class="dpc-btn dpc-btn-ghost back-btn" @click="router.push('/setup')">
-        <DpcIcon :name="i18n.dir === 'rtl' ? 'ArrowRight' : 'ArrowLeft'" :size="15" :stroke-width="1.8" />
+      <DpcBtn
+        variant="ghost"
+        :icon="i18n.dir === 'rtl' ? 'ArrowRight' : 'ArrowLeft'"
+        @click="router.push('/setup')"
+      >
         {{ i18n.locale === 'ar' ? 'رجوع' : 'Back' }}
-      </button>
-      <DpcBtn variant="primary" :loading="saving" style="min-width:180px;" @click="next">
+      </DpcBtn>
+      <DpcBtn
+        variant="primary"
+        :trailing-icon="i18n.dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight'"
+        :loading="saving"
+        style="min-width:180px;"
+        @click="next"
+      >
         {{ i18n.locale === 'ar' ? 'التالي' : 'Next' }}
-        <DpcIcon :name="i18n.dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight'" :size="15" :stroke-width="2" />
       </DpcBtn>
     </template>
   </WizardShell>
@@ -164,4 +192,7 @@ async function next() {
 
 .back-btn { color: var(--ink-500); }
 .err-msg  { color: var(--danger-700); font-size: 13px; }
+
+.other-field { animation: fade-in .15s ease; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 </style>

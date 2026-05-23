@@ -14,6 +14,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter }      from 'vue-router'
 import DpcLogo            from '@/components/DpcLogo.vue'
 import DpcIcon            from '@/components/DpcIcon.vue'
+import DpcBtn             from '@/components/DpcBtn.vue'
 import LangSwitch         from '@/components/LangSwitch.vue'
 import { usePricingStore } from '@/stores/pricing.js'
 import { useI18nStore }   from '@/stores/i18n.js'
@@ -25,40 +26,34 @@ const i18n         = useI18nStore()
 const isAr         = computed(() => i18n.locale === 'ar')
 
 // ── Data ─────────────────────────────────────────────────────────
-const cph       = computed(() => pricingStore.chairCostPerHour || 0)
-const totalCost = computed(() => pricingStore.setupStatus?.total_cost || 0)
-const billableH = computed(() => pricingStore.setupStatus?.billable_hours_per_month || 0)
+const stats     = computed(() => pricingStore.dashboardStats || {})
+const cph       = computed(() => stats.value.chair_hourly_rate || 0)
+const totalCost = computed(() => stats.value.total_fixed_monthly || 0)
+const billableH = computed(() => stats.value.effective_hours || 0)
 
 const breakdown = computed(() => {
-  const s = pricingStore.setupStatus || {}
+  const s     = stats.value
   const total = totalCost.value || 1
   return [
     {
-      id: 'fixed',
-      label:  isAr.value ? 'التكاليف الثابتة / ساعة' : 'Fixed costs / hr',
-      value:  s.rent || 0,
-      raw:    Math.round(((s.rent || 0) / total) * cph.value),
-      color:  '#0F2545',
+      id:    'fixed',
+      label: isAr.value ? 'التكاليف الثابتة / ساعة' : 'Fixed costs / hr',
+      value: s.fixed_costs || 0,
+      raw:   Math.round(((s.fixed_costs || 0) / total) * cph.value),
+      color: '#0F2545',
     },
     {
-      id: 'salaries',
+      id:    'salaries',
       label: isAr.value ? 'الرواتب / ساعة' : 'Salaries / hr',
-      value: s.salaries || 0,
-      raw:   Math.round(((s.salaries || 0) / total) * cph.value),
+      value: s.staff_salaries || 0,
+      raw:   Math.round(((s.staff_salaries || 0) / total) * cph.value),
       color: '#0D9488',
     },
     {
-      id: 'utilities',
-      label: isAr.value ? 'المرافق / ساعة' : 'Utilities / hr',
-      value: s.utilities || 0,
-      raw:   Math.round(((s.utilities || 0) / total) * cph.value),
-      color: '#5EE0B9',
-    },
-    {
-      id: 'depreciation',
+      id:    'depreciation',
       label: isAr.value ? 'إهلاك المعدات / ساعة' : 'Equipment depreciation / hr',
-      value: s.depreciation || 0,
-      raw:   Math.round(((s.depreciation || 0) / total) * cph.value),
+      value: s.equipment_depreciation || 0,
+      raw:   Math.round(((s.equipment_depreciation || 0) / total) * cph.value),
       color: '#94A3B8',
     },
   ]
@@ -130,7 +125,7 @@ async function runSequence() {
 }
 
 onMounted(async () => {
-  await pricingStore.loadSetupStatus()
+  await pricingStore.loadDashboardStats()
   await nextTick()
   runSequence()
 })
@@ -142,10 +137,14 @@ onMounted(async () => {
     <header class="cc-topbar">
       <DpcLogo />
       <div class="cc-topbar-end">
-        <button class="cc-back-btn" @click="router.push('/app/dashboard')">
-          <DpcIcon :name="i18n.dir === 'rtl' ? 'ArrowRight' : 'ArrowLeft'" :size="14" :stroke-width="2" />
+        <DpcBtn
+          variant="ghost"
+          size="sm"
+          :icon="i18n.dir === 'rtl' ? 'ArrowRight' : 'ArrowLeft'"
+          @click="router.push('/app/dashboard')"
+        >
           {{ isAr ? 'لوحة التحكم' : 'Dashboard' }}
-        </button>
+        </DpcBtn>
         <LangSwitch />
       </div>
     </header>
@@ -272,17 +271,15 @@ onMounted(async () => {
                   : 'See which services cover this cost — and which ones bleed.' }}
               </div>
             </div>
-            <button
-              class="dpc-btn dpc-btn-teal cta-btn"
+            <DpcBtn
+              variant="teal"
+              size="lg"
+              :trailing-icon="i18n.dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight'"
+              class="cta-btn"
               @click="router.push('/results/price-list')"
             >
               {{ isAr ? 'اعرف أي خدماتك تغطي هذه التكلفة' : 'See which services cover this cost' }}
-              <DpcIcon
-                :name="i18n.dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight'"
-                :size="16"
-                :stroke-width="2"
-              />
-            </button>
+            </DpcBtn>
           </div>
         </Transition>
       </div>
@@ -319,22 +316,6 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
 }
-
-.cc-back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: var(--r);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink-600);
-  background: var(--paper-2);
-  border: none;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.cc-back-btn:hover { background: var(--line); }
 
 /* ── Hero (navy panel) ──────────────────────────────────────────── */
 .cc-hero {
@@ -439,6 +420,14 @@ onMounted(async () => {
   border: 1px solid rgba(255,255,255,.10);
   min-width: 100px;
   text-align: center;
+  transition: all var(--duration-fast, 0.2s) var(--ease-out-expo);
+  backdrop-filter: blur(8px);
+}
+
+.cc-slice:hover {
+  background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.20);
+  transform: translateY(-2px);
 }
 
 .slice-label {
@@ -492,7 +481,13 @@ onMounted(async () => {
   background: var(--surface);
   border-radius: var(--r);
   box-shadow: inset 0 0 0 1px var(--line);
-  transition: transform 0.3s var(--ease-spring), opacity 0.3s ease, box-shadow 0.15s;
+  transition: transform 0.3s var(--ease-spring), opacity 0.3s ease, box-shadow 0.2s var(--ease-out-expo);
+  cursor: default;
+}
+
+.cc-breakdown-card:hover {
+  box-shadow: inset 0 0 0 1px var(--line), 0 4px 12px rgba(0,0,0,0.06);
+  transform: translateY(-2px);
 }
 
 .cc-breakdown-card.is-hidden {
@@ -508,6 +503,11 @@ onMounted(async () => {
 .cc-total-card {
   background: var(--teal-50);
   box-shadow: inset 0 0 0 1.5px var(--teal-200);
+}
+
+.cc-total-card:hover {
+  background: var(--teal-100);
+  box-shadow: inset 0 0 0 1.5px var(--teal-300), 0 6px 16px rgba(20,184,166,0.15);
 }
 
 .bd-dot {
@@ -647,31 +647,65 @@ onMounted(async () => {
   background: var(--ink-900);
   box-shadow: 0 0 0 4px #fff, 0 0 0 5px var(--ink-900);
   margin-top: -3px;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    box-shadow: 0 0 0 4px #fff, 0 0 0 5px var(--ink-900);
+  }
+  50% {
+    box-shadow: 0 0 0 4px #fff, 0 0 0 5px var(--ink-900), 0 0 0 10px rgba(10,20,36,0.2);
+  }
 }
 
 /* ── CTA strip ──────────────────────────────────────────────────── */
 .cc-cta {
-  padding: 22px 24px;
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 28px 32px;
+  border-radius: var(--radius-lg, 14px);
+  background: linear-gradient(135deg, var(--paper) 0%, var(--surface) 100%);
+  box-shadow: inset 0 0 0 1px var(--line), 0 4px 16px rgba(0,0,0,0.04);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 24px;
+  position: relative;
+  overflow: hidden;
 }
 
-.cta-title { font-size: 18px; margin-bottom: 6px; }
-.cta-sub   { font-size: 13.5px; color: var(--ink-500); }
+.cc-cta::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(20,184,166,0.05), transparent 70%);
+  pointer-events: none;
+}
+
+.cta-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  letter-spacing: -0.01em;
+}
+
+.cta-sub {
+  font-size: 14px;
+  color: var(--ink-600);
+  line-height: 1.5;
+}
 
 .cta-btn {
-  height: 48px;
-  padding: 0 22px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
   flex: none;
+  white-space: nowrap;
+  transition: all var(--duration-fast, 0.2s) var(--ease-out-expo);
+}
+
+.cta-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(20,184,166,0.25);
 }
 
 /* ── Transitions ────────────────────────────────────────────────── */

@@ -21,12 +21,12 @@
   --teal-800: #115e59;
 
   /* ── Color · neutrals ── */
-  --paper:    #f0f4f8;     /* cool blue-tinted medical canvas */
-  --paper-2:  #e8edf5;     /* subtle elevation/divider band */
+  --paper:    #f9fafb;     /* neutral gray canvas (Tailwind gray-50) */
+  --paper-2:  #f3f4f6;     /* subtle elevation/divider band */
   --surface:  #ffffff;
-  --line:     #e2e8f0;     /* cool-neutral border */
-  --line-2:   #e2e8f0;
-  --line-soft:#eaf0f7;
+  --line:     #e5e7eb;     /* neutral border (Tailwind gray-200) */
+  --line-2:   #e5e7eb;
+  --line-soft:#f3f4f6;
 
   --ink-900: #0a1424;
   --ink-800: #1a2538;
@@ -58,9 +58,9 @@
   --info-600:#2563eb;
 
   /* ── Type ── */
-  --font-sans:   'Rubik', 'IBM Plex Sans Arabic', -apple-system, system-ui, sans-serif;
-  --font-head:   'Poppins', 'IBM Plex Sans Arabic', -apple-system, system-ui, sans-serif;
-  --font-arabic: 'IBM Plex Sans Arabic', 'Rubik', system-ui, sans-serif;
+  --font-sans:   'Geist', 'IBM Plex Sans Arabic', -apple-system, system-ui, sans-serif;
+  --font-head:   'Geist', 'IBM Plex Sans Arabic', -apple-system, system-ui, sans-serif;
+  --font-arabic: 'IBM Plex Sans Arabic', 'Geist', system-ui, sans-serif;
   --font-mono:   'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* ── Radius ── */

@@ -60,12 +60,12 @@
 .slide-right-enter-active {
   transition:
     opacity   var(--transition-slow),
-    transform var(--transition-slow) cubic-bezier(0.22, 1, 0.36, 1);
+    transform var(--transition-slow);
 }
 .slide-right-leave-active {
   transition:
-    opacity   200ms ease,
-    transform 200ms ease;
+    opacity   200ms var(--ease-out-expo),
+    transform 200ms var(--ease-out-expo);
 }
 .slide-right-enter-from {
   opacity:   0;
@@ -85,12 +85,12 @@
 .slide-left-enter-active {
   transition:
     opacity   var(--transition-slow),
-    transform var(--transition-slow) cubic-bezier(0.22, 1, 0.36, 1);
+    transform var(--transition-slow);
 }
 .slide-left-leave-active {
   transition:
-    opacity   200ms ease,
-    transform 200ms ease;
+    opacity   200ms var(--ease-out-expo),
+    transform 200ms var(--ease-out-expo);
 }
 .slide-left-enter-from {
   opacity:   0;
@@ -126,7 +126,7 @@
 
 /* ════════════════════════════════════════════════════════════════
    @keyframes shimmer
-   Used by DpcSkeleton — background-position sweep left-to-right.
+   Used by DpcSkeleton — background-position sweep with accent tint.
    Apply to the shimmer pseudo-element or overlay div.
    ════════════════════════════════════════════════════════════════ */
 
@@ -140,26 +140,92 @@
   background:
     linear-gradient(
       90deg,
-      var(--line)      0%,
-      var(--line-soft) 40%,
-      var(--paper-2)   50%,
-      var(--line-soft) 60%,
-      var(--line)      100%
+      var(--ink-100)     0%,
+      var(--ink-50)      40%,
+      #ffffff            50%,
+      var(--ink-50)      60%,
+      var(--ink-100)     100%
     );
   background-size: 800px 100%;
-  animation: shimmer 1.6s ease-in-out infinite;
+  animation: shimmer 1.6s var(--ease-in-out-expo, cubic-bezier(0.87, 0, 0.13, 1)) infinite;
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   @keyframes number-tick
+   Counter rolls up like a slot machine — for KPI cards.
+   ════════════════════════════════════════════════════════════════ */
+
+@keyframes number-tick {
+  0%   { transform: translateY(20px); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   @keyframes glow-pulse
+   Accent glow pulses outward — for health score ring at 100%.
+   ════════════════════════════════════════════════════════════════ */
+
+@keyframes glow-pulse {
+  0% {
+    filter: drop-shadow(0 0 4px rgba(6, 182, 212, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.5)) drop-shadow(0 0 20px rgba(6, 182, 212, 0.2));
+  }
+  100% {
+    filter: drop-shadow(0 0 4px rgba(6, 182, 212, 0.3));
+  }
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   @keyframes slide-up-fade
+   Element slides 12px up + fades in — staggerable for card reveals.
+   ════════════════════════════════════════════════════════════════ */
+
+@keyframes slide-up-fade {
+  0%   { transform: translateY(12px); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+
+/* Stagger utility for card/list reveals */
+.stagger-children > * {
+  animation: slide-up-fade 0.5s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 80ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 160ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 320ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 400ms; }
+
+
+/* ════════════════════════════════════════════════════════════════
+   @keyframes scanline
+   1px horizontal scan line sweeps top-to-bottom — "loading data" state.
+   ════════════════════════════════════════════════════════════════ */
+
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
 }
 
 
 /* ════════════════════════════════════════════════════════════════
    @keyframes float
-   Used by DpcEmptyState icon — gentle vertical bob, 3s loop.
+   Used by DpcEmptyState icon — gentle vertical bob, 4s loop (slowed).
    ════════════════════════════════════════════════════════════════ */
 
 @keyframes float {
   0%,
   100% { transform: translateY(0);    }
   50%  { transform: translateY(-8px); }
+}
+
+.float {
+  animation: float 4s var(--ease-in-out-expo, cubic-bezier(0.87, 0, 0.13, 1)) infinite;
 }
 
 
@@ -178,25 +244,25 @@
 
 /* ════════════════════════════════════════════════════════════════
    @keyframes pulse-ring
-   Health score at 100% — radial glow pulse on the progress ring.
+   Health score at 100% — radial glow pulse with cyan accent.
    Apply via box-shadow on the ring wrapper element.
    ════════════════════════════════════════════════════════════════ */
 
 @keyframes pulse-ring {
   0% {
     box-shadow:
-      0 0 0  0px rgba(13, 148, 136, 0.40),
-      0 0 0  0px rgba(13, 148, 136, 0.20);
+      0 0 0  0px rgba(6, 182, 212, 0.40),
+      0 0 0  0px rgba(6, 182, 212, 0.20);
   }
   60% {
     box-shadow:
-      0 0 0  8px rgba(13, 148, 136, 0.20),
-      0 0 0 16px rgba(13, 148, 136, 0.06);
+      0 0 0  8px rgba(6, 182, 212, 0.20),
+      0 0 0 16px rgba(6, 182, 212, 0.06);
   }
   100% {
     box-shadow:
-      0 0 0 12px rgba(13, 148, 136, 0.00),
-      0 0 0 24px rgba(13, 148, 136, 0.00);
+      0 0 0 12px rgba(6, 182, 212, 0.00),
+      0 0 0 24px rgba(6, 182, 212, 0.00);
   }
 }
 

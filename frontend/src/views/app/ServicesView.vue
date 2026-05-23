@@ -1,13 +1,21 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import AppShell       from '@/components/AppShell.vue'
+import DpcBtn         from '@/components/DpcBtn.vue'
 import DpcIcon        from '@/components/DpcIcon.vue'
 import DpcCoverageBar from '@/components/DpcCoverageBar.vue'
 import LangSwitch     from '@/components/LangSwitch.vue'
+import DpcTable       from '@/components/table/DpcTable.vue'
+import DpcTableHead   from '@/components/table/DpcTableHead.vue'
+import DpcTableRow    from '@/components/table/DpcTableRow.vue'
+import DpcTableCell   from '@/components/table/DpcTableCell.vue'
+import PageHeader     from '@/components/PageHeader.vue'
+import AlertBanner    from '@/components/AlertBanner.vue'
 import { usePricingStore } from '@/stores/pricing.js'
 import { useClinicStore }  from '@/stores/clinic.js'
 import { useI18nStore }    from '@/stores/i18n.js'
 import { useRestriction }  from '@/composables/useRestriction.js'
+import { useAchievements } from '@/composables/useAchievements.js'
 import { useRouter }       from 'vue-router'
 import axios from 'axios'
 
@@ -16,6 +24,7 @@ const pricingStore = usePricingStore()
 const clinicStore  = useClinicStore()
 const i18n         = useI18nStore()
 const { isTrial, isLockout } = useRestriction()
+const { trackPriceFix } = useAchievements()
 
 const isAr            = computed(() => i18n.locale === 'ar')
 const searchQ         = ref('')
@@ -26,6 +35,82 @@ const viewingRow      = ref(null)
 const viewingPrice    = ref(null)   // full cost breakdown from /api/services/:id/price
 const loadingPrice    = ref(false)
 const saving          = ref(false)
+const loadingTemplate = ref(false)
+const wasUnderpriced  = ref(false)  // tracks if edited service was underpriced before update
+
+// ── Common dental services template ───────────────────────────
+const COMMON_SERVICES = [
+  {
+    name: 'Dental Filling (Composite)',
+    name_ar: 'حشو ضرسي (كومبوزيت)',
+    chair_time_hours: 0.75,
+    doctor_fee_type: 'hourly',
+    doctor_hourly_fee: 200,
+  },
+  {
+    name: 'Root Canal Treatment',
+    name_ar: 'علاج جذور',
+    chair_time_hours: 1.5,
+    doctor_fee_type: 'hourly',
+    doctor_hourly_fee: 300,
+  },
+  {
+    name: 'Crown (Ceramic)',
+    name_ar: 'تاج سيراميك',
+    chair_time_hours: 1.0,
+    doctor_fee_type: 'hourly',
+    doctor_hourly_fee: 250,
+  },
+  {
+    name: 'Teeth Cleaning & Scaling',
+    name_ar: 'تنظيف وتقليح',
+    chair_time_hours: 0.5,
+    doctor_fee_type: 'hourly',
+    doctor_hourly_fee: 150,
+  },
+  {
+    name: 'Tooth Extraction (Simple)',
+    name_ar: 'خلع ضرس بسيط',
+    chair_time_hours: 0.5,
+    doctor_fee_type: 'hourly',
+    doctor_hourly_fee: 180,
+  },
+  {
+    name: 'Teeth Whitening',
+    name_ar: 'تبييض أسنان',
+    chair_time_hours: 1.0,
+    doctor_fee_type: 'hourly',
+    doctor_hourly_fee: 200,
+  },
+  {
+    name: 'Dental Implant',
+    name_ar: 'زراعة سن',
+    chair_time_hours: 2.0,
+    doctor_fee_type: 'hourly',
+    doctor_hourly_fee: 400,
+  },
+  {
+    name: 'Orthodontic Consultation',
+    name_ar: 'استشارة تقويم',
+    chair_time_hours: 0.5,
+    doctor_fee_type: 'fixed',
+    doctor_fixed_fee: 200,
+  },
+  {
+    name: 'X-Ray (Panoramic)',
+    name_ar: 'أشعة بانورامية',
+    chair_time_hours: 0.25,
+    doctor_fee_type: 'fixed',
+    doctor_fixed_fee: 150,
+  },
+  {
+    name: 'Dental Checkup',
+    name_ar: 'كشف عام',
+    chair_time_hours: 0.25,
+    doctor_fee_type: 'fixed',
+    doctor_fixed_fee: 100,
+  },
+]
 
 // ── Essential form fields ─────────────────────────────────────
 const form = ref({
@@ -43,8 +128,8 @@ const openEquipment    = ref(false)
 const openCustomProfit = ref(false)
 
 // ── Per-service items ─────────────────────────────────────────
-const serviceConsumables = ref([])  // [{consumable_id, quantity, custom_unit_price}]
-const serviceMaterials   = ref([])  // [{material_id, quantity, custom_unit_price}]
+const serviceConsumables = ref([])  // [{consumable_id, quantity, use_master, custom_unit_price}]
+const serviceMaterials   = ref([])  // [{material_id,   quantity, use_master, custom_unit_price}]
 const serviceEquipment   = ref([])  // [{equipment_id, hours_used}]
 
 // ── Custom profit ─────────────────────────────────────────────
@@ -165,14 +250,19 @@ function consumableUnitCost(id) {
 
 function consumableRowCost(row) {
   const qty   = parseFloat(row.quantity) || 0
-  const price = row.custom_unit_price !== '' && row.custom_unit_price != null
-    ? parseFloat(row.custom_unit_price)
-    : consumableUnitCost(row.consumable_id)
+  const price = row.use_master
+    ? consumableUnitCost(row.consumable_id)
+    : (parseFloat(row.custom_unit_price) || 0)
   return qty * price
 }
 
 function materialRowCost(row) {
-  return (parseFloat(row.quantity) || 0) * (parseFloat(row.custom_unit_price) || 0)
+  const qty = parseFloat(row.quantity) || 0
+  if (row.use_master) {
+    const m = allMaterials.value.find(x => x.id == row.material_id)
+    return qty * (m?.unit_cost || 0)
+  }
+  return qty * (parseFloat(row.custom_unit_price) || 0)
 }
 
 // ── Coverage bar data ─────────────────────────────────────────
@@ -217,28 +307,39 @@ const rows = computed(() => {
 
 // ── Consumable management ─────────────────────────────────────
 function addConsumableRow() {
-  serviceConsumables.value.push({ consumable_id: '', quantity: 1, custom_unit_price: '' })
+  serviceConsumables.value.push({ consumable_id: '', quantity: 1, use_master: true, custom_unit_price: '' })
   openConsumables.value = true
 }
 function removeConsumableRow(idx) { serviceConsumables.value.splice(idx, 1) }
 function onConsumableSelect(row) {
   if (!row.consumable_id) return
-  if (row.custom_unit_price === '') {
+  if (!row.use_master && row.custom_unit_price === '') {
+    row.custom_unit_price = consumableUnitCost(row.consumable_id).toFixed(3)
+  }
+}
+function toggleConsumableMaster(row) {
+  if (!row.use_master && row.custom_unit_price === '') {
     row.custom_unit_price = consumableUnitCost(row.consumable_id).toFixed(3)
   }
 }
 
 // ── Material management ───────────────────────────────────────
 function addMaterialRow() {
-  serviceMaterials.value.push({ material_id: '', quantity: 1, custom_unit_price: '' })
+  serviceMaterials.value.push({ material_id: '', quantity: 1, use_master: true, custom_unit_price: '' })
   openMaterials.value = true
 }
 function removeMaterialRow(idx) { serviceMaterials.value.splice(idx, 1) }
 function onMaterialSelect(row) {
   if (!row.material_id) return
   const m = allMaterials.value.find(x => x.id == row.material_id)
-  if (m && row.custom_unit_price === '') {
+  if (m && !row.use_master && row.custom_unit_price === '') {
     row.custom_unit_price = (m.unit_cost || 0).toFixed(3)
+  }
+}
+function toggleMaterialMaster(row) {
+  if (!row.use_master && row.custom_unit_price === '') {
+    const m = allMaterials.value.find(x => x.id == row.material_id)
+    row.custom_unit_price = m ? (m.unit_cost || 0).toFixed(3) : ''
   }
 }
 
@@ -264,6 +365,7 @@ function resetSections() {
 
 function openAdd() {
   editingId.value = null
+  wasUnderpriced.value = false  // new service, not fixing an underpriced one
   form.value = {
     name: '', name_ar: '', category_id: '', chair_time_hours: 1,
     doctor_fee_type: 'hourly', doctor_hourly_fee: 0, doctor_fixed_fee: 0, doctor_percentage: 0,
@@ -291,6 +393,15 @@ async function openEdit(s) {
     doctor_percentage: s.doctor_percentage || 0,
     current_price:     s.current_price ?? '',
   }
+
+  // Check if service is currently underpriced for profit_protector achievement tracking
+  const priceData = (pricingStore.priceList || []).find(p => p.id === s.id)
+  if (priceData && priceData.rounded_price > 0 && priceData.current_price > 0) {
+    wasUnderpriced.value = priceData.current_price < priceData.rounded_price * 0.95
+  } else {
+    wasUnderpriced.value = false
+  }
+
   resetSections()
   showModal.value = true
 
@@ -301,9 +412,8 @@ async function openEdit(s) {
       serviceConsumables.value = data.consumables.map(sc => ({
         consumable_id:     sc.consumable_id,
         quantity:          sc.quantity,
-        custom_unit_price: sc.custom_unit_price != null
-          ? sc.custom_unit_price
-          : consumableUnitCost(sc.consumable_id).toFixed(3),
+        use_master:        sc.custom_unit_price == null,
+        custom_unit_price: sc.custom_unit_price != null ? sc.custom_unit_price : '',
       }))
       openConsumables.value = true
     }
@@ -311,10 +421,8 @@ async function openEdit(s) {
       serviceMaterials.value = data.materials.map(sm => ({
         material_id:       sm.material_id,
         quantity:          sm.quantity,
-        custom_unit_price: sm.custom_unit_price != null ? sm.custom_unit_price : (() => {
-          const m = allMaterials.value.find(x => x.id == sm.material_id)
-          return m ? (m.unit_cost || 0).toFixed(3) : ''
-        })(),
+        use_master:        sm.custom_unit_price == null,
+        custom_unit_price: sm.custom_unit_price != null ? sm.custom_unit_price : '',
       }))
       openMaterials.value = true
     }
@@ -349,18 +457,18 @@ async function saveService() {
     category_id:       form.value.category_id || null,
     consumables: serviceConsumables.value
       .filter(r => r.consumable_id && r.quantity)
-      .map(r => {
-        const obj = { consumable_id: parseInt(r.consumable_id), quantity: parseFloat(r.quantity) }
-        if (r.custom_unit_price !== '') obj.custom_unit_price = parseFloat(r.custom_unit_price)
-        return obj
-      }),
+      .map(r => ({
+        consumable_id:     parseInt(r.consumable_id),
+        quantity:          parseFloat(r.quantity),
+        custom_unit_price: r.use_master ? null : (parseFloat(r.custom_unit_price) || null),
+      })),
     materials: serviceMaterials.value
       .filter(r => r.material_id && r.quantity)
-      .map(r => {
-        const obj = { material_id: parseInt(r.material_id), quantity: parseFloat(r.quantity) }
-        if (r.custom_unit_price !== '') obj.custom_unit_price = parseFloat(r.custom_unit_price)
-        return obj
-      }),
+      .map(r => ({
+        material_id:       parseInt(r.material_id),
+        quantity:          parseFloat(r.quantity),
+        custom_unit_price: r.use_master ? null : (parseFloat(r.custom_unit_price) || null),
+      })),
     equipment_list: serviceEquipment.value
       .filter(r => r.equipment_id && r.hours_used)
       .map(r => ({ equipment_id: parseInt(r.equipment_id), hours_used: parseFloat(r.hours_used) })),
@@ -371,13 +479,27 @@ async function saveService() {
   try {
     if (editingId.value) {
       await pricingStore.updateService(editingId.value, payload)
+
+      // Track if user fixed an underpriced service (profit_protector achievement)
+      if (wasUnderpriced.value && payload.current_price != null) {
+        const priceData = (pricingStore.priceList || []).find(p => p.id === editingId.value)
+        if (priceData && priceData.rounded_price > 0) {
+          const newPrice = parseFloat(payload.current_price)
+          const healthyThreshold = priceData.rounded_price * 0.95
+          if (newPrice >= healthyThreshold) {
+            trackPriceFix()
+          }
+        }
+      }
     } else {
       await pricingStore.createService(payload)
     }
-    // Close modal and clear saving immediately — don't wait on price list reload
+    // Close modal and clear saving immediately — don't wait on background refreshes
     showModal.value = false
     saving.value    = false
-    pricingStore.loadPriceList().catch(() => {})  // background refresh
+    wasUnderpriced.value = false
+    pricingStore.loadServices().catch(() => {})
+    pricingStore.loadPriceList().catch(() => {})
   } catch (e) {
     console.error(e)
     saving.value = false
@@ -400,6 +522,23 @@ async function deleteService(id) {
   confirmDeleteId.value = null
 }
 
+async function loadTemplate() {
+  loadingTemplate.value = true
+  try {
+    // Create all common services
+    for (const svc of COMMON_SERVICES) {
+      await pricingStore.createService(svc)
+    }
+    // Reload services list
+    await pricingStore.loadServices()
+    await pricingStore.loadPriceList()
+  } catch (e) {
+    console.error('Failed to load template:', e)
+  } finally {
+    loadingTemplate.value = false
+  }
+}
+
 onMounted(async () => {
   await Promise.all([
     pricingStore.loadSetupStatus().catch(() => {}),
@@ -416,93 +555,126 @@ onMounted(async () => {
 
 <template>
   <AppShell active-key="services">
-    <!-- Page header -->
-    <div class="page-header">
-      <div>
-        <h1 class="dpc-h page-title">{{ isAr ? 'الخدمات' : 'Services' }}</h1>
-        <p class="page-sub">{{ isAr ? 'كل إجراء بوقت الكرسي والخامات وأتعاب الطبيب.' : 'Every procedure with its chair time, materials, and doctor fee.' }}</p>
-      </div>
-      <div class="header-actions">
+    <!-- Premium page header -->
+    <PageHeader
+      :title="isAr ? 'الخدمات' : 'Services'"
+      :subtitle="isAr ? 'كل إجراء بوقت الكرسي والخامات وأتعاب الطبيب.' : 'Every procedure with its chair time, materials, and doctor fee.'"
+      icon="Stethoscope"
+    >
+      <template #actions>
         <div class="search-wrap">
           <DpcIcon name="Search" :size="15" :stroke-width="1.6" class="search-icon" />
           <input v-model="searchQ" :placeholder="isAr ? 'ابحث...' : 'Search...'" class="search-input" />
         </div>
-        <button class="dpc-btn dpc-btn-teal btn-sm" @click="openAdd">
-          <DpcIcon name="Plus" :size="13" :stroke-width="2" />
+        <DpcBtn variant="teal" size="sm" icon="Plus" @click="openAdd">
           {{ isAr ? 'خدمة جديدة' : 'New service' }}
-        </button>
+        </DpcBtn>
         <LangSwitch />
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Lockout wall -->
     <div v-if="isLockout" class="lockout-wall">
       <div class="lockout-icon"><DpcIcon name="Shield" :size="32" :stroke-width="1.4" /></div>
       <h3 class="lockout-title">{{ isAr ? 'انتهت التجربة المجانية' : 'Trial ended' }}</h3>
       <p class="lockout-body">{{ isAr ? 'قم بالترقية للوصول إلى الخدمات.' : 'Upgrade your subscription to access services.' }}</p>
-      <button class="dpc-btn dpc-btn-teal" @click="router.push('/app/subscription')">{{ isAr ? 'عرض الخطط' : 'View plans' }}</button>
+      <DpcBtn variant="teal" @click="router.push('/app/subscription')">{{ isAr ? 'عرض الخطط' : 'View plans' }}</DpcBtn>
     </div>
 
     <div v-else class="svc-body">
-      <!-- Coverage bar -->
+      <!-- Trial banner with premium AlertBanner -->
+      <AlertBanner
+        v-if="isTrial"
+        variant="info"
+        :message="isAr ? 'وضع التجربة — التكاليف مخفية.' : 'Trial mode — cost figures are blurred.'"
+        icon="Info"
+        class="animate-fade-in-down"
+        style="margin-bottom: 20px;"
+      />
+
+      <!-- Coverage bar with animation -->
       <DpcCoverageBar
-        class="coverage-bar-section"
+        class="coverage-bar-section animate-fade-in-up"
         :total-services="pricingStore.services.length"
         :priced-services="pricedServicesCount"
         :underpriced-services="underpricedServicesCount"
         :missing-consumables="missingConsumablesCount"
         @filter="handleCoverageFilter"
+        style="animation-delay: var(--stagger-1);"
       />
 
-      <!-- Trial banner -->
-      <div v-if="isTrial" class="trial-banner">
-        <DpcIcon name="Info" :size="15" :stroke-width="1.6" />
-        {{ isAr ? 'وضع التجربة — التكاليف مخفية.' : 'Trial mode — cost figures are blurred.' }}
-      </div>
-
-      <!-- Services table -->
-      <div class="dpc-panel table-wrap">
-        <div class="table-head">
-          <div>{{ isAr ? 'اسم الخدمة' : 'Service name' }}</div>
-          <div class="col-center">{{ isAr ? 'وقت الكرسي' : 'Chair time' }}</div>
-          <div>{{ isAr ? 'أتعاب الطبيب' : 'Doctor fee' }}</div>
-          <div>{{ isAr ? 'المعدة' : 'Equipment' }}</div>
-          <div class="col-center">{{ isAr ? 'حالة التسعير' : 'Pricing status' }}</div>
-          <div></div>
-        </div>
-
-        <div v-if="rows.length === 0" class="empty-state">
-          <DpcIcon name="Stethoscope" :size="32" :stroke-width="1.3" class="empty-icon" />
-          <p>{{ searchQ ? (isAr ? 'لا توجد نتائج' : 'No services match') : (isAr ? 'لم تُضف أي خدمة بعد' : 'No services added yet') }}</p>
-          <button v-if="!searchQ" class="dpc-btn dpc-btn-teal" style="height:36px;" @click="openAdd">
-            <DpcIcon name="Plus" :size="13" :stroke-width="2" />
-            {{ isAr ? 'أضف خدمة' : 'Add service' }}
-          </button>
-        </div>
-
-        <div v-for="(row, i) in rows" :key="row.id" :class="['table-row', i < rows.length - 1 && 'row-border']">
-          <div class="svc-cell">
-            <div class="svc-icon"><DpcIcon name="Stethoscope" :size="14" :stroke-width="1.7" /></div>
-            <div>
-              <div class="svc-name">{{ svcName(row) }}</div>
-              <div v-if="row.category_name" class="svc-cat">{{ row.category_name }}</div>
-            </div>
+      <!-- Services table with animation -->
+      <DpcTable
+        class="animate-fade-in-up services-table-premium"
+        :empty="rows.length === 0"
+        :empty-icon="searchQ ? 'Search' : 'Stethoscope'"
+        :empty-message="searchQ ? (isAr ? 'لا توجد نتائج' : 'No services match') : (isAr ? 'ابدأ بإضافة خدماتك' : 'Start by adding your services')"
+        style="animation-delay: var(--stagger-2);"
+      >
+        <template v-if="!searchQ" #empty-action>
+          <p class="empty-desc">
+            {{ isAr ? 'احصل على 10 خدمات شائعة في ثوانٍ، أو ابدأ من الصفر' : 'Get 10 common dental services in seconds, or start from scratch' }}
+          </p>
+          <div class="empty-actions">
+            <DpcBtn variant="teal" icon="Zap" :loading="loadingTemplate" @click="loadTemplate">
+              {{ isAr ? 'تحميل 10 خدمات شائعة' : 'Load 10 common services' }}
+            </DpcBtn>
+            <DpcBtn variant="secondary" icon="Plus" @click="openAdd">
+              {{ isAr ? 'إضافة يدوياً' : 'Add manually' }}
+            </DpcBtn>
           </div>
-          <div class="col-center"><span class="dpc-num t-sm">{{ row.chair_time_hours }}<span class="t-unit">{{ isAr ? 'سا' : 'hr' }}</span></span></div>
-          <div class="t-sm">{{ doctorFeeDisplay(row) }}</div>
-          <div class="t-sm text-faint">{{ row.equipment_name || '—' }}</div>
-          <div class="col-center">
-            <span v-if="pricingStatus(row) === 'good'" class="status-chip chip-good">✓ {{ isAr ? 'جيد' : 'Good' }}</span>
-            <span v-else-if="pricingStatus(row) === 'low'" class="status-chip chip-low">⚠ {{ isAr ? 'منخفض' : 'Low' }}</span>
-            <span v-else class="status-chip chip-unset">{{ isAr ? 'غير محدد' : 'Unset' }}</span>
-          </div>
-          <div class="actions-cell">
-            <button class="icon-btn view-btn" :title="isAr ? 'تفاصيل السعر' : 'Price details'" @click="openDetail(row)"><DpcIcon name="Eye" :size="14" :stroke-width="1.7" /></button>
-            <button class="icon-btn edit-btn" :title="isAr ? 'تعديل' : 'Edit'" @click="openEdit(row)"><DpcIcon name="Pencil" :size="14" :stroke-width="1.7" /></button>
-            <button class="icon-btn del-btn" @click="confirmDeleteId = row.id"><DpcIcon name="Trash2" :size="14" :stroke-width="1.7" /></button>
-          </div>
+        </template>
+
+        <div class="services-table-grid">
+          <DpcTableHead>
+            <DpcTableRow variant="header">
+              <DpcTableCell type="header">{{ isAr ? 'اسم الخدمة' : 'Service name' }}</DpcTableCell>
+              <DpcTableCell type="header" align="center">{{ isAr ? 'وقت الكرسي' : 'Chair time' }}</DpcTableCell>
+              <DpcTableCell type="header">{{ isAr ? 'أتعاب الطبيب' : 'Doctor fee' }}</DpcTableCell>
+              <DpcTableCell type="header">{{ isAr ? 'المعدة' : 'Equipment' }}</DpcTableCell>
+              <DpcTableCell type="header" align="center">{{ isAr ? 'حالة التسعير' : 'Pricing status' }}</DpcTableCell>
+              <DpcTableCell type="header"></DpcTableCell>
+            </DpcTableRow>
+          </DpcTableHead>
+
+          <DpcTableRow
+            v-for="row in rows"
+            :key="row.id"
+            @click="openDetail(row)"
+          >
+            <DpcTableCell type="text">
+              <div class="svc-cell">
+                <div class="svc-icon"><DpcIcon name="Stethoscope" :size="14" :stroke-width="1.7" /></div>
+                <div>
+                  <div class="svc-name">{{ svcName(row) }}</div>
+                  <div v-if="row.category_name" class="svc-cat">{{ row.category_name }}</div>
+                </div>
+              </div>
+            </DpcTableCell>
+            <DpcTableCell type="number" align="center">
+              {{ row.chair_time_hours }}<span class="t-unit">{{ isAr ? 'سا' : 'hr' }}</span>
+            </DpcTableCell>
+            <DpcTableCell type="text">
+              <span class="t-sm">{{ doctorFeeDisplay(row) }}</span>
+            </DpcTableCell>
+            <DpcTableCell type="text">
+              <span class="t-sm text-faint">{{ row.equipment_name || '—' }}</span>
+            </DpcTableCell>
+            <DpcTableCell type="status" align="center">
+              <span v-if="pricingStatus(row) === 'good'" class="status-chip chip-good">✓ {{ isAr ? 'جيد' : 'Good' }}</span>
+              <span v-else-if="pricingStatus(row) === 'low'" class="status-chip chip-low">⚠ {{ isAr ? 'منخفض' : 'Low' }}</span>
+              <span v-else class="status-chip chip-unset">{{ isAr ? 'غير محدد' : 'Unset' }}</span>
+            </DpcTableCell>
+            <DpcTableCell type="action">
+              <div class="actions-cell">
+                <DpcBtn variant="ghost" size="xs" square icon="Eye" :aria-label="isAr ? 'تفاصيل السعر' : 'Price details'" @click.stop="openDetail(row)" />
+                <DpcBtn variant="ghost" size="xs" square icon="Pencil" :aria-label="isAr ? 'تعديل' : 'Edit'" @click.stop="openEdit(row)" />
+                <DpcBtn variant="ghost" size="xs" square icon="Trash2" :aria-label="isAr ? 'حذف' : 'Delete'" class="del-btn" @click.stop="confirmDeleteId = row.id" />
+              </div>
+            </DpcTableCell>
+          </DpcTableRow>
         </div>
-      </div>
+      </DpcTable>
     </div>
 
     <!-- ── Add / Edit modal ──────────────────────────────────── -->
@@ -510,14 +682,13 @@ onMounted(async () => {
       <div class="modal-box">
         <div class="modal-header">
           <h2 class="dpc-h modal-title">{{ editingId ? (isAr ? '✏️ تعديل خدمة' : '✏️ Edit service') : (isAr ? '🦷 خدمة جديدة' : '🦷 New service') }}</h2>
-          <button class="icon-btn" @click="showModal = false"><DpcIcon name="X" :size="16" :stroke-width="2" /></button>
+          <DpcBtn variant="ghost" size="xs" square icon="X" aria-label="Close" @click="showModal = false" />
         </div>
 
-        <div class="modal-body">
-
-          <!-- ── Live Price Preview Card ────────────────────── -->
+        <!-- ── Live Price Preview Band (frozen above scroll) ── -->
+        <div v-if="livePrice" class="modal-price-band">
           <Transition name="preview-card">
-            <div v-if="livePrice" :class="['price-preview-card', isTrial && 'preview-locked']">
+            <div :class="['price-preview-card', isTrial && 'preview-locked']">
               <div class="preview-header">
                 <span class="preview-label">
                   {{ isAr ? '🧮 السعر المحسوب' : '🧮 Calculated price' }}
@@ -540,6 +711,9 @@ onMounted(async () => {
               </div>
             </div>
           </Transition>
+        </div>
+
+        <div class="modal-body">
 
           <!-- Name + Category -->
           <div class="form-row">
@@ -567,11 +741,12 @@ onMounted(async () => {
             <label class="field-label">{{ isAr ? 'وقت الكرسي (ساعة) *' : 'Chair time (hours) *' }}</label>
             <div class="input-row">
               <input v-model.number="form.chair_time_hours" type="number" step="0.25" min="0.25" class="modal-input" style="flex:1;min-width:0" />
-              <button type="button" class="quick-btn" @click="form.chair_time_hours = 0.25">15m</button>
-              <button type="button" class="quick-btn" @click="form.chair_time_hours = 0.5">30m</button>
-              <button type="button" class="quick-btn" @click="form.chair_time_hours = 1">1hr</button>
-              <button type="button" class="quick-btn" @click="form.chair_time_hours = 1.5">1.5hr</button>
-              <button type="button" class="quick-btn" @click="form.chair_time_hours = 2">2hr</button>
+              <DpcBtn variant="secondary" size="sm" @click="form.chair_time_hours = 0.25">15m</DpcBtn>
+              <DpcBtn variant="secondary" size="sm" @click="form.chair_time_hours = 0.5">30m</DpcBtn>
+              <DpcBtn variant="secondary" size="sm" @click="form.chair_time_hours = 0.75">45m</DpcBtn>
+              <DpcBtn variant="secondary" size="sm" @click="form.chair_time_hours = 1">1hr</DpcBtn>
+              <DpcBtn variant="secondary" size="sm" @click="form.chair_time_hours = 1.5">1.5hr</DpcBtn>
+              <DpcBtn variant="secondary" size="sm" @click="form.chair_time_hours = 2">2hr</DpcBtn>
             </div>
           </div>
 
@@ -641,7 +816,16 @@ onMounted(async () => {
                   </option>
                 </select>
                 <input v-model.number="row.quantity" type="number" step="0.01" min="0.01" class="item-input" :placeholder="isAr ? 'كمية' : 'Qty'" />
-                <input v-model="row.custom_unit_price" type="number" step="0.001" min="0" class="item-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
+                <div class="unit-price-cell">
+                  <label class="master-toggle" :title="isAr ? 'استخدام السعر الافتراضي من المصدر' : 'Use default price from catalog'">
+                    <input type="checkbox" v-model="row.use_master" @change="toggleConsumableMaster(row)" />
+                    <span class="master-label">{{ isAr ? 'افتراضي' : 'Default' }}</span>
+                  </label>
+                  <span v-if="row.use_master" class="master-price-badge">
+                    {{ fmtCost(consumableUnitCost(row.consumable_id)) }}
+                  </span>
+                  <input v-else v-model="row.custom_unit_price" type="number" step="0.001" min="0" class="item-input price-override-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
+                </div>
                 <span class="item-cost">{{ fmtCost(consumableRowCost(row)) }}</span>
                 <button type="button" class="item-del" @click="removeConsumableRow(idx)"><DpcIcon name="X" :size="12" :stroke-width="2.5" /></button>
               </div>
@@ -656,7 +840,7 @@ onMounted(async () => {
                 <span :class="['toggle-icon', openMaterials && 'is-open']">
                   <DpcIcon name="Plus" :size="14" :stroke-width="2.5" />
                 </span>
-                <span class="coll-title">{{ isAr ? '🔬 مواد المختبر' : '🔬 Lab Materials' }}</span>
+                <span class="coll-title">{{ isAr ? '🔬 مواد المعمل' : '🔬 Lab Materials' }}</span>
                 <span class="coll-badge" :class="serviceMaterials.length && 'badge-active'">
                   {{ serviceMaterials.length > 0 ? serviceMaterials.length + ' ' + (isAr ? 'عناصر' : 'items') : (isAr ? 'اختياري' : 'Optional') }}
                 </span>
@@ -682,7 +866,16 @@ onMounted(async () => {
                   </option>
                 </select>
                 <input v-model.number="row.quantity" type="number" step="0.01" min="0.01" class="item-input" :placeholder="isAr ? 'كمية' : 'Qty'" />
-                <input v-model="row.custom_unit_price" type="number" step="0.001" min="0" class="item-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
+                <div class="unit-price-cell">
+                  <label class="master-toggle" :title="isAr ? 'استخدام السعر الافتراضي من المصدر' : 'Use default price from catalog'">
+                    <input type="checkbox" v-model="row.use_master" @change="toggleMaterialMaster(row)" />
+                    <span class="master-label">{{ isAr ? 'افتراضي' : 'Default' }}</span>
+                  </label>
+                  <span v-if="row.use_master" class="master-price-badge">
+                    {{ fmtCost(allMaterials.find(x => x.id == row.material_id)?.unit_cost || 0) }}
+                  </span>
+                  <input v-else v-model="row.custom_unit_price" type="number" step="0.001" min="0" class="item-input price-override-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
+                </div>
                 <span class="item-cost">{{ fmtCost(materialRowCost(row)) }}</span>
                 <button type="button" class="item-del" @click="removeMaterialRow(idx)"><DpcIcon name="X" :size="12" :stroke-width="2.5" /></button>
               </div>
@@ -757,10 +950,10 @@ onMounted(async () => {
         </div><!-- /modal-body -->
 
         <div class="modal-footer">
-          <button class="dpc-btn dpc-btn-ghost" @click="showModal = false">{{ isAr ? 'إلغاء' : 'Cancel' }}</button>
-          <button class="dpc-btn dpc-btn-teal" :disabled="saving || !form.name" @click="saveService">
-            {{ saving ? (isAr ? 'جاري الحفظ...' : 'Saving...') : editingId ? (isAr ? 'حفظ التعديلات' : 'Save changes') : (isAr ? 'إضافة الخدمة' : 'Add service') }}
-          </button>
+          <DpcBtn variant="ghost" @click="showModal = false">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
+          <DpcBtn variant="teal" :loading="saving" :disabled="!form.name" @click="saveService">
+            {{ editingId ? (isAr ? 'حفظ التعديلات' : 'Save changes') : (isAr ? 'إضافة الخدمة' : 'Add service') }}
+          </DpcBtn>
         </div>
       </div>
     </div>
@@ -771,8 +964,8 @@ onMounted(async () => {
         <div class="dpc-h modal-title" style="padding:20px 24px;">{{ isAr ? 'تأكيد الحذف' : 'Confirm delete' }}</div>
         <p class="confirm-text">{{ isAr ? 'هل تريد حذف هذه الخدمة؟ لا يمكن التراجع.' : 'Delete this service? This cannot be undone.' }}</p>
         <div class="modal-footer">
-          <button class="dpc-btn dpc-btn-ghost" @click="confirmDeleteId = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</button>
-          <button class="dpc-btn" style="background:var(--danger-600);color:#fff;" @click="deleteService(confirmDeleteId)">{{ isAr ? 'حذف' : 'Delete' }}</button>
+          <DpcBtn variant="ghost" @click="confirmDeleteId = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
+          <DpcBtn variant="danger" @click="deleteService(confirmDeleteId)">{{ isAr ? 'حذف' : 'Delete' }}</DpcBtn>
         </div>
       </div>
     </div>
@@ -785,7 +978,7 @@ onMounted(async () => {
             <div class="eyebrow-teal">🦷 {{ viewingRow.category_name || (isAr ? 'خدمة' : 'Service') }}</div>
             <h2 class="dpc-h modal-title">{{ svcName(viewingRow) }}</h2>
           </div>
-          <button class="icon-btn" @click="viewingRow = null"><DpcIcon name="X" :size="16" :stroke-width="2" /></button>
+          <DpcBtn variant="ghost" size="xs" square icon="X" aria-label="Close" @click="viewingRow = null" />
         </div>
 
         <!-- Loading skeleton -->
@@ -912,11 +1105,10 @@ onMounted(async () => {
         </div>
 
         <div class="modal-footer">
-          <button class="dpc-btn dpc-btn-ghost" @click="viewingRow = null">{{ isAr ? 'إغلاق' : 'Close' }}</button>
-          <button class="dpc-btn dpc-btn-teal" @click="openEdit(viewingRow); viewingRow = null">
-            <DpcIcon name="Pencil" :size="13" :stroke-width="1.7" />
+          <DpcBtn variant="ghost" @click="viewingRow = null">{{ isAr ? 'إغلاق' : 'Close' }}</DpcBtn>
+          <DpcBtn variant="teal" icon="Pencil" @click="openEdit(viewingRow); viewingRow = null">
             {{ isAr ? 'تعديل' : 'Edit' }}
-          </button>
+          </DpcBtn>
         </div>
       </div>
     </div>
@@ -924,66 +1116,240 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* ── Page layout ──────────────────────────────────────────── */
-.page-header {
-  padding: 22px 28px;
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
-  background: var(--paper); border-bottom: 1px solid var(--line);
-}
-.page-title { font-size: 24px; margin-bottom: 4px; }
-.page-sub   { color: var(--ink-500); font-size: 13.5px; margin: 0; max-width: 720px; }
+/* ── Search & Actions ─────────────────────────────────────── */
 .header-actions { display: flex; gap: 8px; align-items: center; }
-.btn-sm { height: 36px; }
 .search-wrap { position: relative; }
 .search-icon { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-400); pointer-events: none; }
-.search-input { height: 36px; padding: 0 14px 0 36px; width: 240px; border-radius: 10px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; outline: none; border: none; }
+.search-input {
+  height: 36px; padding: 0 14px 0 36px; width: 240px;
+  border-radius: 10px; background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 13px; outline: none; border: none;
+  transition: all var(--duration-fast);
+}
+.search-input:focus {
+  box-shadow: inset 0 0 0 2px var(--teal-600);
+  background: var(--paper);
+}
 
 /* ── Services body ────────────────────────────────────────── */
 .svc-body { padding: 20px 28px 28px; }
 .coverage-bar-section { margin-bottom: 16px; }
 
-/* ── Table ────────────────────────────────────────────────── */
-.table-wrap { overflow: hidden; }
-.table-head,
-.table-row {
+/* ── Premium Table ────────────────────────────────────────── */
+.services-table-premium {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.services-table-grid {
   display: grid;
   grid-template-columns: minmax(0,2fr) 110px minmax(0,1.2fr) minmax(0,1.2fr) 130px 90px;
   align-items: center;
-  padding: 12px 18px;
+  width: 100%;
 }
-.table-head { background: var(--paper-2); border-bottom: 1px solid var(--line); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-500); }
-.row-border { border-bottom: 1px solid var(--line-2, #f0eeea); }
-.col-center { text-align: center; }
 
-.svc-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.svc-icon { width: 30px; height: 30px; border-radius: 8px; flex: none; background: var(--paper-2); color: var(--ink-600); display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); }
-.svc-name { font-size: 13.5px; font-weight: 500; color: var(--ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.svc-cat  { font-size: 11px; color: var(--ink-500); }
+/* Premium row hover effects */
+.services-table-grid :deep(.dpc-table-row:not(.dpc-table-row--header)) {
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  position: relative;
+}
+
+.services-table-grid :deep(.dpc-table-row:not(.dpc-table-row--header):hover) {
+  background: var(--paper-2);
+  transform: translateX(2px);
+  box-shadow: -3px 0 0 0 var(--teal-600) inset;
+}
+
+.services-table-grid :deep(.dpc-table-row:not(.dpc-table-row--header):active) {
+  transform: translateX(0);
+}
+
+.svc-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.svc-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  flex: none;
+  background: var(--teal-50);
+  color: var(--teal-700);
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+  transition: all var(--duration-fast);
+}
+
+.services-table-grid :deep(.dpc-table-row:hover) .svc-icon {
+  background: var(--teal-100);
+  box-shadow: inset 0 0 0 1px var(--teal-200), 0 2px 4px rgba(20, 184, 166, 0.15);
+  transform: scale(1.05);
+}
+
+.svc-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--duration-fast);
+}
+
+.services-table-grid :deep(.dpc-table-row:hover) .svc-name {
+  color: var(--teal-700);
+}
+
+.svc-cat {
+  font-size: 11px;
+  color: var(--ink-500);
+}
 
 .t-sm       { font-size: 13px; color: var(--ink-700); }
 .t-unit     { font-size: 10px; color: var(--ink-500); margin-inline-start: 2px; }
 .text-faint { color: var(--ink-500); }
 
-.status-chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; }
-.chip-good  { background: var(--teal-50);    color: var(--teal-700); }
-.chip-low   { background: var(--warning-50); color: var(--warning-700); }
-.chip-unset { background: var(--paper-2);    color: var(--ink-500); }
+.status-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 4px 10px; border-radius: var(--radius-full);
+  font-size: 10.5px; font-weight: 600;
+  transition: all var(--duration-fast);
+  box-shadow: inset 0 0 0 1px transparent;
+}
+.chip-good {
+  background: var(--teal-50);
+  color: var(--teal-700);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+.chip-good:hover {
+  background: var(--teal-100);
+  box-shadow: inset 0 0 0 1px var(--teal-200);
+}
+.chip-low {
+  background: var(--warning-50);
+  color: var(--warning-700);
+  box-shadow: inset 0 0 0 1px var(--warning-100);
+  animation: pulse-warning 2s ease-in-out infinite;
+}
+.chip-unset {
+  background: var(--paper-2);
+  color: var(--ink-500);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
 
-.actions-cell { display: flex; justify-content: flex-end; gap: 2px; }
-.icon-btn { width: 28px; height: 28px; border-radius: 7px; color: var(--ink-400); display: grid; place-items: center; cursor: pointer; }
-.view-btn:hover { background: var(--teal-50);   color: var(--teal-700); }
-.edit-btn:hover { background: var(--paper-2);   color: var(--ink-900); }
-.del-btn:hover  { background: var(--danger-50); color: var(--danger-700); }
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
 
-.empty-state { padding: 48px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--ink-400); }
-.empty-icon  { color: var(--ink-300); }
-.empty-state p { font-size: 14px; margin: 0; }
+.actions-cell {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+}
 
-/* ── Modal shell ──────────────────────────────────────────── */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: grid; place-items: center; z-index: 100; }
-.modal-box     { background: var(--surface); border-radius: 16px; width: 660px; box-shadow: 0 20px 60px rgba(0,0,0,.13); overflow: hidden; max-height: 92vh; display: flex; flex-direction: column; }
-.confirm-box   { width: 380px; }
-.detail-box    { width: 440px; }
+.services-table-grid :deep(.dpc-table-row:hover) .actions-cell {
+  opacity: 1;
+}
+
+.del-btn:hover {
+  background: var(--danger-50) !important;
+  color: var(--danger-700) !important;
+}
+
+/* Premium empty state */
+.empty-icon {
+  animation: float 4s var(--ease-in-out-expo, cubic-bezier(0.87, 0, 0.13, 1)) infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.empty-desc {
+  font-size: 14px;
+  color: var(--ink-600);
+  margin: 0;
+  max-width: 400px;
+  line-height: 1.6;
+}
+.empty-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ── Premium Modal ────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.35);
+  backdrop-filter: blur(4px);
+  display: grid; place-items: center;
+  z-index: 100;
+  animation: modal-fade-in 0.2s var(--ease-out-expo);
+}
+
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
+}
+
+.modal-box {
+  background: var(--surface);
+  border-radius: 16px;
+  width: 660px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.13), 0 0 0 1px rgba(0,0,0,.05);
+  overflow: hidden;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  animation: modal-slide-up 0.3s var(--ease-out-expo);
+}
+
+@keyframes modal-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.confirm-box   {
+  width: 380px;
+  animation: modal-slide-up 0.25s var(--ease-out-expo);
+}
+.price-detail-box {
+  width: 540px;
+  animation: modal-slide-up 0.3s var(--ease-out-expo);
+}
 .modal-header  { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); flex: none; }
 .modal-title   { font-size: 18px; }
 .modal-body    { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; min-height: 0; }
@@ -1000,21 +1366,31 @@ onMounted(async () => {
 
 .modal-input {
   height: 38px; padding: 0 10px; width: 100%;
-  border-radius: 8px; background: var(--paper-2); box-shadow: inset 0 0 0 1px var(--line);
-  font-size: 13.5px; border: none; outline: none; box-sizing: border-box;
+  border-radius: 8px; background: var(--paper-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 13.5px; border: none; outline: none;
+  box-sizing: border-box;
+  transition: all var(--duration-fast);
 }
-.modal-input:focus { box-shadow: inset 0 0 0 1.5px var(--teal-600); }
+.modal-input:hover {
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.modal-input:focus {
+  box-shadow: inset 0 0 0 2px var(--teal-600);
+  background: var(--paper);
+}
 
 .input-row { display: flex; align-items: center; gap: 6px; }
-.quick-btn {
-  flex: none; height: 36px; padding: 0 10px; border-radius: 7px;
-  background: var(--paper-2); color: var(--ink-700); font-size: 12px; font-weight: 500;
-  box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; white-space: nowrap;
-}
-.quick-btn:hover { background: var(--teal-50); color: var(--teal-700); }
 .unit-lbl { font-size: 14px; font-weight: 600; color: var(--ink-500); white-space: nowrap; }
 
 /* ── Live price preview card ──────────────────────────────── */
+.modal-price-band {
+  flex: none;
+  padding: 0 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
 .price-preview-card {
   background: linear-gradient(135deg, var(--teal-600), var(--navy-700));
   border-radius: 14px;
@@ -1047,27 +1423,46 @@ onMounted(async () => {
 .preview-card-enter-from { opacity: 0; transform: translateY(-10px) scale(.98); }
 .preview-card-leave-to   { opacity: 0; transform: translateY(-6px) scale(.98); }
 
-/* ── Collapsible sections ─────────────────────────────────── */
+/* ── Premium Collapsible sections ─────────────────────────── */
 .coll-section {
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
   flex-shrink: 0;
   background: var(--paper-2);
+  transition: all var(--duration-fast);
 }
-.coll-section.is-open { background: var(--surface); }
+.coll-section.is-open {
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
 
 .coll-header {
-  display: flex; align-items: center;
-  transition: background .12s;
+  display: flex;
+  align-items: center;
+  transition: all var(--duration-fast);
 }
-.coll-section.is-open .coll-header { border-bottom: 1px solid var(--line); }
+.coll-section.is-open .coll-header {
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-2);
+}
 
 .coll-toggle {
-  flex: 1; display: flex; align-items: center; gap: 10px;
-  padding: 12px 16px; cursor: pointer; text-align: start;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  text-align: start;
+  transition: background var(--duration-fast);
 }
-.coll-toggle:hover { background: rgba(0,0,0,.03); }
+.coll-toggle:hover {
+  background: var(--paper-3);
+}
+.coll-toggle:active {
+  background: var(--paper-2);
+}
 
 /* + icon that rotates 45° to become × when open */
 .toggle-icon {
@@ -1132,12 +1527,66 @@ onMounted(async () => {
 
 /* ── Item inputs ──────────────────────────────────────────── */
 .item-input {
-  width: 100%; height: 34px; padding: 0 8px;
-  border-radius: 7px; background: var(--paper-2); box-shadow: inset 0 0 0 1px var(--line);
-  font-size: 13px; border: none; outline: none; box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: var(--paper-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 13px;
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  transition: all var(--duration-fast);
 }
-.item-input:focus { box-shadow: inset 0 0 0 1.5px var(--teal-600); }
+.item-input:hover {
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.item-input:focus {
+  box-shadow: inset 0 0 0 2px var(--teal-600);
+  background: var(--paper);
+}
 .item-cost { font-size: 12.5px; font-weight: 500; color: var(--ink-700); text-align: end; }
+
+.unit-price-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.master-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  width: fit-content;
+}
+.master-toggle input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  accent-color: var(--teal-600);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.master-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--teal-700);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.master-price-badge {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-500);
+  background: var(--paper-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+.price-override-input { margin-top: 0; }
+
 .item-del  {
   width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center;
   color: var(--ink-400); cursor: pointer;
@@ -1172,36 +1621,138 @@ onMounted(async () => {
 
 .detail-body { padding: 0 0 8px; overflow-y: auto; max-height: 70vh; }
 
-/* Hero recommended price */
+/* Premium hero recommended price */
 .detail-hero {
   background: linear-gradient(135deg, var(--teal-600), var(--navy-700));
-  padding: 20px 24px; margin-bottom: 0; color: #fff;
+  padding: 24px;
+  margin-bottom: 0;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  animation: slide-in-right 0.3s var(--ease-out-expo);
+}
+.detail-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  animation: shimmer-hero 2s infinite;
 }
 .detail-hero-locked { opacity: .85; }
-.detail-hero-label  { font-size: 12px; font-weight: 600; opacity: .8; margin-bottom: 6px; }
-.detail-hero-price  { font-size: 36px; font-weight: 800; font-family: var(--font-mono); display: flex; align-items: baseline; gap: 8px; }
-.detail-hero-currency { font-size: 16px; opacity: .7; font-weight: 500; }
-.detail-hero-sub    { font-size: 12.5px; opacity: .8; margin-top: 6px; }
-
-/* Variance card */
-.variance-card {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 24px; border-bottom: 1px solid var(--line);
+.detail-hero-label {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: .85;
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
 }
-.variance-under { background: var(--warning-50); }
-.variance-ok    { background: rgba(20,184,166,.06); }
-.variance-icon  { font-size: 20px; flex: none; }
-.variance-title { font-size: 13px; font-weight: 600; color: var(--ink-900); }
-.variance-detail{ font-size: 12px; color: var(--ink-500); margin-top: 2px; }
+.detail-hero-price {
+  font-size: 38px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  animation: scale-in 0.4s var(--ease-out-expo) 0.1s backwards;
+}
+.detail-hero-currency {
+  font-size: 16px;
+  opacity: .75;
+  font-weight: 500;
+}
+.detail-hero-sub {
+  font-size: 12.5px;
+  opacity: .85;
+  margin-top: 8px;
+}
 
-/* Cost breakdown */
-.breakdown-section { padding: 16px 24px; border-bottom: 1px solid var(--line); }
+@keyframes shimmer-hero {
+  to { left: 100%; }
+}
+
+/* Premium variance card */
+.variance-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  animation: slide-in-right 0.3s var(--ease-out-expo);
+}
+.variance-under {
+  background: var(--warning-50);
+  box-shadow: inset 0 0 0 1px var(--warning-100);
+}
+.variance-ok {
+  background: var(--teal-50);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+.variance-icon {
+  font-size: 22px;
+  flex: none;
+  animation: scale-in 0.4s var(--ease-bounce) 0.2s backwards;
+}
+.variance-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+.variance-detail {
+  font-size: 12px;
+  color: var(--ink-600);
+  margin-top: 2px;
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Premium cost breakdown */
+.breakdown-section {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+  animation: fade-in 0.3s var(--ease-out-expo);
+}
 .breakdown-section:last-child { border-bottom: none; }
-.breakdown-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-500); margin-bottom: 12px; }
+.breakdown-section:nth-child(1) { animation-delay: 0.1s; opacity: 0; animation-fill-mode: forwards; }
+.breakdown-section:nth-child(2) { animation-delay: 0.2s; opacity: 0; animation-fill-mode: forwards; }
+.breakdown-section:nth-child(3) { animation-delay: 0.3s; opacity: 0; animation-fill-mode: forwards; }
+
+.breakdown-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ink-500);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 .breakdown-row {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line-2, #f0eeea);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 8px;
+  margin: 0 -8px;
+  border-bottom: 1px solid var(--line-2, #f0eeea);
+  border-radius: var(--radius-sm);
+  transition: all var(--duration-fast);
+}
+.breakdown-row:hover {
+  background: var(--paper-2);
 }
 .breakdown-row:last-child { border-bottom: none; }
 .breakdown-label { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-800); font-weight: 500; }
@@ -1221,9 +1772,43 @@ onMounted(async () => {
 .sub-total { border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 4px; font-weight: 600; color: var(--ink-800); }
 
 /* ── Lockout / trial ──────────────────────────────────────── */
-.lockout-wall  { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 400px; text-align: center; padding: 40px; }
-.lockout-icon  { width: 72px; height: 72px; border-radius: 18px; background: var(--paper-2); color: var(--ink-400); display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); }
-.lockout-title { font-size: 22px; font-weight: 700; color: var(--ink-900); margin: 0; }
-.lockout-body  { font-size: 14px; color: var(--ink-500); max-width: 360px; margin: 0; }
-.trial-banner  { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: var(--r); background: var(--warning-50); color: var(--warning-700); font-size: 13px; font-weight: 500; margin-bottom: 14px; box-shadow: inset 0 0 0 1px var(--warning-200); }
+.lockout-wall  {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 400px;
+  text-align: center;
+  padding: 40px;
+  animation: fade-in 0.4s var(--ease-out-expo);
+}
+.lockout-icon  {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: var(--paper-2);
+  color: var(--ink-400);
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1px var(--line);
+  animation: scale-in 0.5s var(--ease-bounce);
+}
+.lockout-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 0;
+}
+.lockout-body  {
+  font-size: 14px;
+  color: var(--ink-500);
+  max-width: 360px;
+  margin: 0;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 </style>

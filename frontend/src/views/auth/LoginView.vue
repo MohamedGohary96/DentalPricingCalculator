@@ -6,6 +6,8 @@ import DpcBtn from '@/components/DpcBtn.vue'
 import DpcField from '@/components/DpcField.vue'
 import DpcIcon from '@/components/DpcIcon.vue'
 import LangSwitch from '@/components/LangSwitch.vue'
+import TrustBadge from '@/components/TrustBadge.vue'
+import AuthHeroCard from '@/components/AuthHeroCard.vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useI18nStore } from '@/stores/i18n.js'
 
@@ -26,7 +28,8 @@ async function submit() {
   error.value = ''
   try {
     await auth.login(username.value, password.value)
-    router.push('/app/dashboard')
+    const oc = auth.user?.onboarding_completed
+    router.push(oc === 0 || oc === false ? '/setup' : '/app/dashboard')
   } catch (e) {
     error.value = e.response?.data?.error || e.message || 'Login failed.'
   } finally {
@@ -48,13 +51,22 @@ async function submit() {
       </div>
 
       <div class="hero-body">
+        <!-- Floating testimonial card -->
+        <AuthHeroCard
+          variant="testimonial"
+          title=""
+          :content="i18n.locale === 'ar' ? 'وفّرت ٢٦٪ من تكاليفنا الشهرية بفضل رؤى التسعير الدقيقة.' : 'Saved 26% on monthly overhead thanks to accurate pricing insights.'"
+          :author="i18n.locale === 'ar' ? 'د. أحمد — القاهرة' : 'Dr. Ahmed — Cairo'"
+          :delay="300"
+        />
+
         <div class="eyebrow-pill">{{ i18n.locale === 'ar' ? 'ذكاء العيادة' : 'Clinic Intelligence' }}</div>
-        <h1 class="dpc-h hero-title">{{ i18n.locale === 'ar' ? 'سعّر كل خدمة بثقة' : 'Price every service with confidence' }}</h1>
-        <p class="hero-body-text">{{ i18n.locale === 'ar' ? 'حاسبة الأسعار المصممة للعيادات — مبنية على بيانات ٣٠٠+ عيادة.' : 'The pricing calculator built for dental clinics — backed by data from 300+ practices.' }}</p>
+        <h1 class="dpc-h hero-title">{{ i18n.locale === 'ar' ? 'أوقف خسارة المال على الخدمات' : 'Stop losing money on services' }}</h1>
+        <p class="hero-body-text">{{ i18n.locale === 'ar' ? 'اكتشف التكاليف الحقيقية لعيادتك واحصل على أسعار مربحة لكل خدمة — مبني على بيانات ٣٠٠+ عيادة.' : 'Discover your clinic\'s real costs and get profitable prices for every service — backed by 300+ clinics.' }}</p>
         <div class="bullets">
           <div v-for="(b, i) in (i18n.locale === 'ar'
-            ? ['تفصيل التكلفة الحقيقية لكل ساعة كرسي', 'تحليل الهامش الفوري لكل خدمة', 'واجهة ثنائية اللغة EN / AR']
-            : ['Real cost breakdown per chair-hour', 'Live margin analysis on every service', 'Bilingual EN / AR interface'])"
+            ? ['تكلفة ساعة الكرسي الدقيقة لعيادتك', 'اكتشف الخدمات ناقصة السعر على الفور', 'أسعار مربحة تلقائياً لكل خدمة']
+            : ['Know your exact chair-hour cost', 'Spot underpriced services instantly', 'Get profitable prices automatically'])"
             :key="i" class="bullet">
             <div class="bullet-dot"><DpcIcon name="Check" :size="12" :stroke-width="2.4" /></div>
             <span>{{ b }}</span>
@@ -75,8 +87,11 @@ async function submit() {
       </div>
 
       <div class="form-body">
-        <h2 class="dpc-h form-title">{{ i18n.t('auth.login') }}</h2>
-        <p class="form-sub">{{ i18n.locale === 'ar' ? 'مرحباً بعودتك. أدخل بياناتك للمتابعة.' : 'Welcome back. Enter your details below.' }}</p>
+        <h2 class="dpc-h form-title">
+          {{ i18n.locale === 'ar' ? 'مرحباً ' : 'Welcome ' }}
+          <span class="text-teal">{{ i18n.locale === 'ar' ? 'بعودتك' : 'back' }}</span>
+        </h2>
+        <p class="form-sub">{{ i18n.locale === 'ar' ? 'أدخل بياناتك للمتابعة.' : 'Enter your details below.' }}</p>
 
         <form class="fields" @submit.prevent="submit">
           <DpcField
@@ -94,9 +109,15 @@ async function submit() {
               placeholder="••••••••"
               :error="error"
             />
-            <button type="button" class="eye-btn" @click="showPass = !showPass">
-              <DpcIcon :name="showPass ? 'EyeOff' : 'Eye'" :size="16" :stroke-width="1.6" />
-            </button>
+            <DpcBtn
+              variant="ghost"
+              size="xs"
+              square
+              :icon="showPass ? 'EyeOff' : 'Eye'"
+              :aria-label="showPass ? 'Hide password' : 'Show password'"
+              class="eye-btn"
+              @click="showPass = !showPass"
+            />
           </div>
 
           <div class="row-between">
@@ -111,24 +132,52 @@ async function submit() {
             </router-link>
           </div>
 
-          <DpcBtn type="submit" variant="primary" :loading="submitting" :full="true" style="margin-top:6px;height:48px;">
+          <DpcBtn
+            type="submit"
+            variant="primary"
+            size="lg"
+            :trailing-icon="i18n.dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight'"
+            :loading="submitting"
+            :full="true"
+            style="margin-top:6px;"
+          >
             {{ i18n.t('auth.login') }}
-            <DpcIcon :name="i18n.dir === 'rtl' ? 'ArrowLeft' : 'ArrowRight'" :size="16" :stroke-width="2" />
           </DpcBtn>
         </form>
+
+        <!-- Quick benefits -->
+        <div class="quick-benefits">
+          <div class="benefit-item">
+            <DpcIcon name="TrendingUp" :size="14" :stroke-width="1.8" />
+            <span>{{ i18n.locale === 'ar' ? 'أسعار مربحة' : 'Profitable pricing' }}</span>
+          </div>
+          <div class="benefit-item">
+            <DpcIcon name="PieChart" :size="14" :stroke-width="1.8" />
+            <span>{{ i18n.locale === 'ar' ? 'تحليل التكاليف' : 'Cost analysis' }}</span>
+          </div>
+          <div class="benefit-item">
+            <DpcIcon name="AlertCircle" :size="14" :stroke-width="1.8" />
+            <span>{{ i18n.locale === 'ar' ? 'كشف نقص الأسعار' : 'Underpricing alerts' }}</span>
+          </div>
+        </div>
 
         <div class="or-divider">
           <div class="or-line" /><span>{{ i18n.t('common.or') || 'or' }}</span><div class="or-line" />
         </div>
 
-        <div class="register-box">
-          <div class="register-text">
-            <div class="register-sub">{{ i18n.t('auth.noAccount') }}</div>
-            <div class="register-main">{{ i18n.locale === 'ar' ? 'أنشئ ملف عيادتك مجاناً' : 'Create your clinic profile free' }}</div>
+        <!-- Premium register CTA -->
+        <router-link to="/register" class="register-cta">
+          <div class="cta-content">
+            <div class="cta-eyebrow">{{ i18n.t('auth.noAccount') || 'New to DPC?' }}</div>
+            <div class="cta-title">{{ i18n.locale === 'ar' ? 'أنشئ حسابك مجاناً' : 'Create your free clinic account' }}</div>
           </div>
-          <router-link to="/register" class="register-link">
-            {{ i18n.t('auth.register') || 'Register' }}
-          </router-link>
+          <DpcIcon :name="i18n.locale === 'ar' ? 'ArrowLeft' : 'ArrowRight'" :size="18" :stroke-width="2" />
+        </router-link>
+
+        <!-- Trust badges -->
+        <div class="trust-badges">
+          <TrustBadge icon="Lock" :label="i18n.locale === 'ar' ? 'مشفر SSL' : 'SSL Encrypted'" size="sm" />
+          <TrustBadge icon="Shield" :label="i18n.locale === 'ar' ? 'أمان بنكي' : 'Secure'" size="sm" />
         </div>
       </div>
     </div>
@@ -244,7 +293,7 @@ async function submit() {
   inset-inline-end: 28px;
 }
 .form-body { display: flex; flex-direction: column; }
-.form-title { font-size: 28px; margin-bottom: 8px; }
+.form-title { font-size: 32px; margin-bottom: 8px; letter-spacing: -0.02em; }
 .form-sub   { color: var(--ink-500); font-size: 14.5px; margin-bottom: 28px; }
 
 .fields { display: flex; flex-direction: column; gap: 16px; }
@@ -252,12 +301,9 @@ async function submit() {
 .pass-wrap { position: relative; }
 .eye-btn {
   position: absolute;
-  inset-inline-end: 14px;
+  inset-inline-end: 12px;
   top: 50%;
   transform: translateY(-50%) translateY(11px);
-  color: var(--ink-400);
-  padding: 4px;
-  cursor: pointer;
 }
 
 .row-between {
@@ -275,42 +321,92 @@ async function submit() {
   cursor: pointer;
 }
 .checkbox {
-  width: 16px; height: 16px;
-  border-radius: 4px;
+  width: 18px; height: 18px;
+  border-radius: 5px;
   background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1.5px var(--line);
   display: grid;
   place-items: center;
   flex: none;
   cursor: pointer;
+  transition: all var(--transition-fast);
 }
+.checkbox:hover { box-shadow: inset 0 0 0 1.5px var(--ink-400); }
 .checkbox.checked {
   background: var(--teal-600);
-  box-shadow: none;
+  box-shadow: inset 0 0 0 1.5px var(--teal-600);
   color: #fff;
 }
 .forgot { color: var(--teal-700); font-size: 13.5px; font-weight: 500; }
+
+/* Quick benefits strip */
+.quick-benefits {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--paper-2);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-600);
+  font-size: 12px;
+  font-weight: 500;
+}
 
 .or-divider {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 26px 0;
+  margin: 20px 0 16px;
   color: var(--ink-400);
   font-size: 12px;
 }
 .or-line { flex: 1; height: 1px; background: var(--line); }
 
-.register-box {
+/* Premium register CTA */
+.register-cta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 18px;
-  border-radius: var(--r);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--teal-600), var(--teal-700));
+  color: #fff;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);
+  margin-bottom: 16px;
 }
-.register-sub  { color: var(--ink-500); font-size: 13.5px; }
-.register-main { color: var(--ink-900); font-weight: 500; font-size: 13.5px; }
-.register-link { color: var(--teal-700); font-size: 13.5px; font-weight: 600; }
+.register-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(13, 148, 136, 0.3);
+}
+.cta-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  margin-bottom: 2px;
+}
+.cta-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Trust badges */
+.trust-badges {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 </style>

@@ -1,26 +1,37 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppShell from '@/components/AppShell.vue'
+import DpcBtn from '@/components/DpcBtn.vue'
 import DpcIcon from '@/components/DpcIcon.vue'
 import LangSwitch from '@/components/LangSwitch.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import SectionCard from '@/components/SectionCard.vue'
 import { useClinicStore } from '@/stores/clinic.js'
 import { useI18nStore } from '@/stores/i18n.js'
+import { useToast } from '@/composables/useToast.js'
 import axios from 'axios'
 
-const clinicStore = useClinicStore()
-const i18n        = useI18nStore()
-const api         = axios.create({ withCredentials: true })
-const isAr        = computed(() => i18n.locale === 'ar')
+const clinicStore   = useClinicStore()
+const i18n          = useI18nStore()
+const route         = useRoute()
+const router        = useRouter()
+const api           = axios.create({ withCredentials: true })
+const isAr          = computed(() => i18n.locale === 'ar')
+const { showToast } = useToast()
 
-const activeTab = ref('costs')
-const saving    = ref(false)
+const VALID_TABS = ['general', 'capacity', 'costs', 'salaries', 'equipment']
+const activeTab  = computed(() =>
+  VALID_TABS.includes(route.query.tab) ? route.query.tab : 'general'
+)
+function setTab(id) { router.replace({ query: { tab: id } }) }
 
 const tabs = computed(() => [
-  { id: 'costs',    label: isAr.value ? 'التكاليف الثابتة' : 'Fixed costs',   icon: 'CircleDollarSign' },
+  { id: 'general',  label: isAr.value ? 'عام'              : 'General',        icon: 'Settings' },
+  { id: 'capacity', label: isAr.value ? 'الطاقة الاستيعابية' : 'Clinic Capacity', icon: 'Clock' },
+  { id: 'costs',    label: isAr.value ? 'التكاليف الثابتة' : 'Fixed costs',    icon: 'CircleDollarSign' },
   { id: 'salaries', label: isAr.value ? 'الرواتب'          : 'Salaries',       icon: 'Users' },
   { id: 'equipment',label: isAr.value ? 'المعدات'          : 'Equipment',      icon: 'Package' },
-  { id: 'capacity', label: isAr.value ? 'الطاقة'           : 'Capacity',       icon: 'Clock' },
-  { id: 'general',  label: isAr.value ? 'عام'              : 'General',        icon: 'Settings' },
 ])
 
 // Editable copies of store data
@@ -68,7 +79,6 @@ async function saveAdd() {
         included:       newRow.value.included,
         notes:          newRow.value.notes,
       })
-      costRows.value = clinicStore.fixedCosts
     } else if (addingTo.value === 'salaries') {
       await clinicStore.createSalary({
         role_name:      newRow.value.role_name,
@@ -76,7 +86,6 @@ async function saveAdd() {
         included:       newRow.value.included,
         notes:          newRow.value.notes,
       })
-      salaryRows.value = clinicStore.salaries
     } else if (addingTo.value === 'equipment') {
       const eq = {
         asset_name:      newRow.value.asset_name,
@@ -88,10 +97,14 @@ async function saveAdd() {
         eq.monthly_usage_hours = parseFloat(newRow.value.monthly_usage_hours) || 0
       }
       await clinicStore.createEquipment(eq)
-      equipRows.value = clinicStore.equipment
     }
     addingTo.value = null
-  } catch (e) { console.error(e) }
+    await loadData()
+    showToast(isAr.value ? 'تمت الإضافة بنجاح' : 'Added successfully', 'success')
+  } catch (e) {
+    console.error(e)
+    showToast(isAr.value ? 'فشل الحفظ' : 'Save failed', 'error')
+  }
 }
 
 async function updateFixedCost(row) {
@@ -102,7 +115,11 @@ async function updateFixedCost(row) {
       included:       row.included ?? 1,
       notes:          row.notes || '',
     })
-  } catch (e) { console.error(e) }
+    showToast(isAr.value ? 'تم تحديث التكلفة' : 'Cost updated', 'success')
+  } catch (e) {
+    console.error(e)
+    showToast(isAr.value ? 'فشل الحفظ' : 'Save failed', 'error')
+  }
 }
 
 async function updateSalary(row) {
@@ -113,7 +130,11 @@ async function updateSalary(row) {
       included:       row.included ?? 1,
       notes:          row.notes || '',
     })
-  } catch (e) { console.error(e) }
+    showToast(isAr.value ? 'تم تحديث الراتب' : 'Salary updated', 'success')
+  } catch (e) {
+    console.error(e)
+    showToast(isAr.value ? 'فشل الحفظ' : 'Save failed', 'error')
+  }
 }
 
 async function updateEquipment(row) {
@@ -124,8 +145,13 @@ async function updateEquipment(row) {
     allocation_type: row.allocation_type,
   }
   if (row.allocation_type === 'per-hour') payload.monthly_usage_hours = row.monthly_usage_hours || 0
-  try { await clinicStore.updateEquipment(row.id, payload) }
-  catch (e) { console.error(e) }
+  try {
+    await clinicStore.updateEquipment(row.id, payload)
+    showToast(isAr.value ? 'تم تحديث المعدة' : 'Equipment updated', 'success')
+  } catch (e) {
+    console.error(e)
+    showToast(isAr.value ? 'فشل الحفظ' : 'Save failed', 'error')
+  }
 }
 
 async function deleteRow(section, id) {
@@ -134,7 +160,11 @@ async function deleteRow(section, id) {
     if (section === 'salaries')  await clinicStore.deleteSalary(id)
     if (section === 'equipment') await clinicStore.deleteEquipment(id)
     await loadData()
-  } catch (e) { console.error(e) }
+    showToast(isAr.value ? 'تم الحذف' : 'Deleted', 'success')
+  } catch (e) {
+    console.error(e)
+    showToast(isAr.value ? 'فشل الحذف' : 'Delete failed', 'error')
+  }
 }
 
 async function saveCapacity() {
@@ -146,7 +176,11 @@ async function saveCapacity() {
       days_per_month:      capDays.value,
       utilization_percent: capUtil.value,
     })
-  } catch (e) { console.error(e) }
+    showToast(isAr.value ? 'تم حفظ الطاقة الاستيعابية' : 'Clinic capacity saved', 'success')
+  } catch (e) {
+    console.error(e)
+    showToast(isAr.value ? 'فشل الحفظ' : 'Save failed', 'error')
+  }
   capSaving.value = false
 }
 
@@ -159,14 +193,20 @@ async function saveGlobalSettings() {
       default_profit_percent: genProfit.value,
       rounding_nearest:       genRounding.value,
     })
-  } catch (e) { console.error(e) }
+    showToast(isAr.value ? 'تم حفظ الإعدادات العامة' : 'General settings saved', 'success')
+  } catch (e) {
+    console.error(e)
+    showToast(isAr.value ? 'فشل الحفظ' : 'Save failed', 'error')
+  }
   genSaving.value = false
 }
 
 const totalMonthly = computed(() =>
   costRows.value.reduce((s, r)   => s + (r.monthly_amount || 0), 0) +
   salaryRows.value.reduce((s, r) => s + (r.monthly_salary || 0), 0) +
-  equipRows.value.reduce((s, r)  => s + Math.round((r.purchase_cost || 0) / ((r.life_years || 7) * 12)), 0)
+  equipRows.value
+    .filter(r => r.allocation_type === 'fixed')
+    .reduce((s, r)  => s + Math.round((r.purchase_cost || 0) / ((r.life_years || 7) * 12)), 0)
 )
 
 async function loadData() {
@@ -194,31 +234,50 @@ onMounted(loadData)
 
 <template>
   <AppShell active-key="settings">
-    <!-- Page header -->
-    <div class="page-header">
-      <div>
-        <h1 class="dpc-h page-title">{{ isAr ? 'الإعدادات' : 'Settings' }}</h1>
-        <p class="page-sub">{{ isAr ? 'أي تغيير هنا يُعيد حساب أسعارك تلقائياً.' : 'Any change here recalculates your prices automatically.' }}</p>
-      </div>
-      <LangSwitch />
-    </div>
+    <!-- Premium page header -->
+    <PageHeader
+      :title="isAr ? 'الإعدادات' : 'Settings'"
+      :subtitle="isAr ? 'أي تغيير هنا يُعيد حساب أسعارك تلقائياً.' : 'Any change here recalculates your prices automatically.'"
+      icon="Settings"
+    >
+      <template #actions>
+        <LangSwitch />
+      </template>
+    </PageHeader>
 
     <div class="settings-body">
       <div class="settings-grid">
-        <!-- Left nav -->
-        <nav class="settings-nav">
+        <!-- Premium left nav with animation -->
+        <nav class="settings-nav animate-fade-in-up" style="animation-delay: var(--stagger-1);">
           <div
             v-for="tab in tabs" :key="tab.id"
             :class="['nav-item', activeTab === tab.id && 'nav-item-active']"
-            @click="activeTab = tab.id"
+            @click="setTab(tab.id)"
           >
             <DpcIcon :name="tab.icon" :size="16" :stroke-width="1.6" />
             {{ tab.label }}
           </div>
         </nav>
 
-        <!-- Content -->
-        <div class="settings-content">
+        <!-- Premium content with animation -->
+        <div class="settings-content animate-fade-in-up" style="animation-delay: var(--stagger-2);">
+
+          <!-- Premium sticky summary bar -->
+          <div class="summary-bar animate-fade-in-down">
+            <div class="summary-card">
+              <div class="summary-label">{{ isAr ? 'إجمالي شهري' : 'Total / month' }}</div>
+              <div class="dpc-num summary-value">{{ fmt(totalMonthly) }} <span class="summary-unit">{{ isAr ? 'ج.م' : 'EGP' }}</span></div>
+            </div>
+            <div class="summary-card summary-card-teal">
+              <div class="summary-label-teal">{{ isAr ? 'الساعات التشغيليه الفعليه' : 'Actual Operational Hours' }}</div>
+              <div class="dpc-num summary-value-teal">{{ Math.round(capChairs * capHours * capDays * (capUtil / 100)) }}</div>
+            </div>
+            <div class="summary-card summary-card-ink">
+              <div class="summary-label-ink">{{ isAr ? 'آخر تعديل' : 'Last edited' }}</div>
+              <div class="summary-value-ink">{{ isAr ? 'اليوم' : 'Today' }}</div>
+            </div>
+          </div>
+
           <!-- Fixed costs tab -->
           <template v-if="activeTab === 'costs'">
             <div class="tab-header">
@@ -227,25 +286,19 @@ onMounted(loadData)
               <p class="tab-sub">{{ isAr ? 'تنقسم هذه إلى تكلفة ساعة الكرسي.' : 'These are spread across your chair-hours.' }}</p>
             </div>
 
-            <!-- Stats row -->
-            <div class="stat-grid">
-              <div class="stat-card">
-                <div class="stat-label">{{ isAr ? 'إجمالي شهري' : 'Total / month' }}</div>
-                <div class="dpc-num stat-value">{{ fmt(totalMonthly) }} <span class="stat-unit">{{ isAr ? 'ج.م' : 'EGP' }}</span></div>
-              </div>
-              <div class="stat-card stat-card-teal">
-                <div class="stat-label-teal">{{ isAr ? 'آخر تعديل' : 'Last edited' }}</div>
-                <div class="stat-value-teal">{{ isAr ? 'اليوم' : 'Today' }}</div>
-              </div>
-            </div>
-
             <div class="dpc-panel cost-table">
               <div class="cost-table-header">
                 <span class="cost-section-title">{{ isAr ? 'التكاليف الثابتة' : 'Fixed costs' }}</span>
-                <button class="add-link" @click="startAdd('costs')">
-                  <DpcIcon name="Plus" :size="13" :stroke-width="2" />
+                <DpcBtn variant="secondary" size="sm" icon="Plus" @click="startAdd('costs')">
                   {{ isAr ? 'أضف بنداً' : 'Add item' }}
-                </button>
+                </DpcBtn>
+              </div>
+              <div class="col-headers cost-row-costs">
+                <span>{{ isAr ? 'الفئة' : 'Category' }}</span>
+                <span>{{ isAr ? 'المبلغ / شهر' : 'Amount / month' }}</span>
+                <span>{{ isAr ? 'الحالة' : 'Status' }}</span>
+                <span>{{ isAr ? 'ملاحظات' : 'Notes' }}</span>
+                <span></span>
               </div>
               <div v-for="row in costRows" :key="row.id" class="cost-row cost-row-costs">
                 <input v-model="row.category" class="cost-input cost-input-name" :placeholder="isAr ? 'الفئة' : 'Category'" @change="updateFixedCost(row)" />
@@ -255,9 +308,7 @@ onMounted(loadData)
                   <option :value="0">{{ isAr ? 'مستبعد' : 'Excluded' }}</option>
                 </select>
                 <input v-model="row.notes" class="cost-input cost-input-notes" :placeholder="isAr ? 'ملاحظات' : 'Notes'" @change="updateFixedCost(row)" />
-                <button class="icon-btn" @click="deleteRow('costs', row.id)">
-                  <DpcIcon name="Trash2" :size="14" :stroke-width="1.7" />
-                </button>
+                <DpcBtn variant="ghost" size="xs" square icon="Trash2" aria-label="Delete" @click="deleteRow('costs', row.id)" />
               </div>
               <div v-if="addingTo === 'costs'" class="add-form">
                 <input v-model="newRow.category" :placeholder="isAr ? 'الفئة' : 'Category'" class="add-input" />
@@ -267,8 +318,8 @@ onMounted(loadData)
                   <option :value="0">{{ isAr ? 'مستبعد' : 'Excluded' }}</option>
                 </select>
                 <input v-model="newRow.notes" :placeholder="isAr ? 'ملاحظات' : 'Notes (optional)'" class="add-input" />
-                <button class="dpc-btn dpc-btn-teal add-btn" @click="saveAdd">{{ isAr ? 'حفظ' : 'Save' }}</button>
-                <button class="dpc-btn dpc-btn-ghost" @click="addingTo = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</button>
+                <DpcBtn variant="teal" @click="saveAdd">{{ isAr ? 'حفظ' : 'Save' }}</DpcBtn>
+                <DpcBtn variant="ghost" @click="addingTo = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
               </div>
             </div>
           </template>
@@ -282,10 +333,16 @@ onMounted(loadData)
             <div class="dpc-panel cost-table">
               <div class="cost-table-header">
                 <span class="cost-section-title">{{ isAr ? 'الموظفون' : 'Team members' }}</span>
-                <button class="add-link" @click="startAdd('salaries')">
-                  <DpcIcon name="Plus" :size="13" :stroke-width="2" />
+                <DpcBtn variant="secondary" size="sm" icon="Plus" @click="startAdd('salaries')">
                   {{ isAr ? 'أضف موظفاً' : 'Add member' }}
-                </button>
+                </DpcBtn>
+              </div>
+              <div class="col-headers cost-row-costs">
+                <span>{{ isAr ? 'المسمى الوظيفي' : 'Role' }}</span>
+                <span>{{ isAr ? 'الراتب / شهر' : 'Salary / month' }}</span>
+                <span>{{ isAr ? 'الحالة' : 'Status' }}</span>
+                <span>{{ isAr ? 'ملاحظات' : 'Notes' }}</span>
+                <span></span>
               </div>
               <div v-for="row in salaryRows" :key="row.id" class="cost-row cost-row-costs">
                 <input v-model="row.role_name" class="cost-input cost-input-name" :placeholder="isAr ? 'المسمى الوظيفي' : 'Role name'" @change="updateSalary(row)" />
@@ -295,9 +352,7 @@ onMounted(loadData)
                   <option :value="0">{{ isAr ? 'مستبعد' : 'Excluded' }}</option>
                 </select>
                 <input v-model="row.notes" class="cost-input cost-input-notes" :placeholder="isAr ? 'ملاحظات' : 'Notes'" @change="updateSalary(row)" />
-                <button class="icon-btn" @click="deleteRow('salaries', row.id)">
-                  <DpcIcon name="Trash2" :size="14" :stroke-width="1.7" />
-                </button>
+                <DpcBtn variant="ghost" size="xs" square icon="Trash2" aria-label="Delete" @click="deleteRow('salaries', row.id)" />
               </div>
               <div v-if="addingTo === 'salaries'" class="add-form">
                 <input v-model="newRow.role_name" :placeholder="isAr ? 'المسمى الوظيفي' : 'Role title'" class="add-input" />
@@ -307,8 +362,8 @@ onMounted(loadData)
                   <option :value="0">{{ isAr ? 'مستبعد' : 'Excluded' }}</option>
                 </select>
                 <input v-model="newRow.notes" :placeholder="isAr ? 'ملاحظات' : 'Notes (optional)'" class="add-input" />
-                <button class="dpc-btn dpc-btn-teal add-btn" @click="saveAdd">{{ isAr ? 'حفظ' : 'Save' }}</button>
-                <button class="dpc-btn dpc-btn-ghost" @click="addingTo = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</button>
+                <DpcBtn variant="teal" @click="saveAdd">{{ isAr ? 'حفظ' : 'Save' }}</DpcBtn>
+                <DpcBtn variant="ghost" @click="addingTo = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
               </div>
             </div>
           </template>
@@ -318,14 +373,24 @@ onMounted(loadData)
             <div class="tab-header">
               <div class="eyebrow-teal">{{ isAr ? 'المعدات' : 'Equipment' }}</div>
               <h2 class="dpc-h tab-title">{{ isAr ? 'قائمة الأصول والإهلاك' : 'Assets & depreciation' }}</h2>
+              <p class="tab-subtitle">{{ isAr
+                ? 'أدخل معداتك الثابتة (كرسي الأسنان، الوحدة، جهاز الأشعة…). سيحسب النظام تلقائياً الإهلاك الشهري لكل أصل بقسمة تكلفة الشراء على عدد سنوات العمر، ويضيفه إلى تكلفة ساعة الكرسي.'
+                : 'Enter your fixed assets (dental chair, unit, X-ray machine…). The system automatically calculates monthly depreciation for each asset by dividing the purchase cost by its useful life in years, then adds it to your chair-hour cost.' }}</p>
             </div>
             <div class="dpc-panel cost-table">
               <div class="cost-table-header">
                 <span class="cost-section-title">{{ isAr ? 'قائمة المعدات' : 'Equipment list' }}</span>
-                <button class="add-link" @click="startAdd('equipment')">
-                  <DpcIcon name="Plus" :size="13" :stroke-width="2" />
+                <DpcBtn variant="secondary" size="sm" icon="Plus" @click="startAdd('equipment')">
                   {{ isAr ? 'أضف معدة' : 'Add equipment' }}
-                </button>
+                </DpcBtn>
+              </div>
+              <div class="col-headers equip-row">
+                <span>{{ isAr ? 'اسم الأصل' : 'Asset' }}</span>
+                <span>{{ isAr ? 'تكلفة الشراء' : 'Purchase cost' }}</span>
+                <span>{{ isAr ? 'العمر (سنة)' : 'Life (yrs)' }}</span>
+                <span>{{ isAr ? 'التخصيص' : 'Allocation' }}</span>
+                <span>{{ isAr ? 'إهلاك / شهر' : 'Depr / month' }}</span>
+                <span></span>
               </div>
               <div v-for="row in equipRows" :key="row.id" class="cost-row equip-row">
                 <input v-model="row.asset_name" class="cost-input cost-input-name" :placeholder="isAr ? 'اسم الأصل' : 'Asset name'" @change="updateEquipment(row)" />
@@ -335,17 +400,8 @@ onMounted(loadData)
                   <option value="fixed">{{ isAr ? 'ثابت' : 'fixed' }}</option>
                   <option value="per-hour">{{ isAr ? 'بالساعة' : 'per-hour' }}</option>
                 </select>
-                <input
-                  v-if="row.allocation_type === 'per-hour'"
-                  v-model.number="row.monthly_usage_hours" type="number" step="0.5"
-                  class="cost-input cost-input-short"
-                  :placeholder="isAr ? 'سا/شهر' : 'hrs/mo'"
-                  @change="updateEquipment(row)"
-                />
-                <span v-else class="cost-badge">{{ isAr ? 'إهلاك/شهر:' : 'depr/mo:' }} {{ fmt(Math.round((row.purchase_cost || 0) / ((row.life_years || 7) * 12))) }}</span>
-                <button class="icon-btn" @click="deleteRow('equipment', row.id)">
-                  <DpcIcon name="Trash2" :size="14" :stroke-width="1.7" />
-                </button>
+                <span class="cost-badge">{{ isAr ? 'إهلاك/شهر:' : 'depr/mo:' }} {{ fmt(Math.round((row.purchase_cost || 0) / ((row.life_years || 7) * 12))) }}</span>
+                <DpcBtn variant="ghost" size="xs" square icon="Trash2" aria-label="Delete" @click="deleteRow('equipment', row.id)" />
               </div>
               <div v-if="addingTo === 'equipment'" class="add-form equip-add-form">
                 <input v-model="newRow.asset_name" :placeholder="isAr ? 'اسم الأصل' : 'Asset name'" class="add-input" />
@@ -355,14 +411,8 @@ onMounted(loadData)
                   <option value="fixed">{{ isAr ? 'ثابت' : 'fixed' }}</option>
                   <option value="per-hour">{{ isAr ? 'بالساعة' : 'per-hour' }}</option>
                 </select>
-                <input
-                  v-if="newRow.allocation_type === 'per-hour'"
-                  v-model="newRow.monthly_usage_hours" type="number" step="0.5"
-                  :placeholder="isAr ? 'ساعات/شهر' : 'hrs/month'"
-                  class="add-input" style="width:110px;"
-                />
-                <button class="dpc-btn dpc-btn-teal add-btn" @click="saveAdd">{{ isAr ? 'حفظ' : 'Save' }}</button>
-                <button class="dpc-btn dpc-btn-ghost" @click="addingTo = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</button>
+                <DpcBtn variant="teal" @click="saveAdd">{{ isAr ? 'حفظ' : 'Save' }}</DpcBtn>
+                <DpcBtn variant="ghost" @click="addingTo = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
               </div>
             </div>
           </template>
@@ -370,7 +420,7 @@ onMounted(loadData)
           <!-- Capacity tab -->
           <template v-else-if="activeTab === 'capacity'">
             <div class="tab-header">
-              <div class="eyebrow-teal">{{ isAr ? 'طاقة العيادة' : 'Clinic capacity' }}</div>
+              <div class="eyebrow-teal">{{ isAr ? 'الطاقة الاستيعابية' : 'Clinic Capacity' }}</div>
               <h2 class="dpc-h tab-title">{{ isAr ? 'ساعات العمل وعدد الكراسي' : 'Working hours & chairs' }}</h2>
               <p class="tab-sub">{{ isAr ? 'تحدد تكلفة ساعة الكرسي.' : 'Drives your chair-hour cost calculation.' }}</p>
             </div>
@@ -388,16 +438,27 @@ onMounted(loadData)
                 <input v-model.number="capDays" type="number" min="1" max="31" class="gen-input" />
               </div>
               <div class="gen-row">
-                <label class="gen-label"><DpcIcon name="TrendingUp" :size="14" :stroke-width="1.6" /> {{ isAr ? 'معدل الإشغال %' : 'Utilization %' }}</label>
+                <label class="gen-label">
+                  <DpcIcon name="TrendingUp" :size="14" :stroke-width="1.6" />
+                  {{ isAr ? 'معدل الإشغال %' : 'Utilization %' }}
+                  <span class="tip-wrap">
+                    <span class="tip-icon">?</span>
+                    <span class="tip-box">
+                      {{ isAr
+                        ? 'النسبة المئوية للوقت الفعلي الذي يكون فيه الكرسي مشغولاً. مثال: إذا كانت العيادة تعمل ٨ ساعات يومياً لكن الكرسي مشغول ٦ ساعات فقط، فمعدل الإشغال ٧٥٪.'
+                        : 'The percentage of time the chair is actually in use. Example: if your clinic runs 8 hrs/day but the chair is occupied for only 6 hrs, utilization is 75%. Higher utilization lowers your cost per hour.' }}
+                    </span>
+                  </span>
+                </label>
                 <input v-model.number="capUtil" type="number" min="0" max="100" class="gen-input" />
               </div>
               <div class="gen-summary">
-                {{ isAr ? 'ساعات قابلة للفوترة/شهر:' : 'Billable hours/month:' }}
+                {{ isAr ? 'الساعات التشغيليه الفعليه/شهر:' : 'Actual Operational Hours/month:' }}
                 <strong class="dpc-num">{{ Math.round(capChairs * capHours * capDays * (capUtil / 100)) }}</strong>
               </div>
-              <button class="dpc-btn dpc-btn-teal save-inline-btn" :disabled="capSaving" @click="saveCapacity">
-                {{ capSaving ? (isAr ? 'جاري الحفظ...' : 'Saving...') : (isAr ? 'حفظ الطاقة' : 'Save capacity') }}
-              </button>
+              <DpcBtn variant="teal" :loading="capSaving" @click="saveCapacity" style="margin-top:8px;align-self:flex-start;">
+                {{ isAr ? 'حفظ الطاقة الاستيعابية' : 'Save Clinic Capacity' }}
+              </DpcBtn>
             </div>
           </template>
 
@@ -423,7 +484,17 @@ onMounted(loadData)
                 <input v-model.number="genProfit" type="number" min="0" max="500" class="gen-input" />
               </div>
               <div class="gen-row">
-                <label class="gen-label">{{ isAr ? 'تقريب السعر' : 'Price rounding' }}</label>
+                <label class="gen-label">
+                  {{ isAr ? 'تقريب السعر' : 'Price rounding' }}
+                  <span class="tip-wrap">
+                    <span class="tip-icon">?</span>
+                    <span class="tip-box" :class="isAr ? 'tip-box-ltr' : ''">
+                      {{ isAr
+                        ? 'يقرّب السعر النهائي إلى أقرب مضاعف للرقم المختار. مثال: إذا اخترت ٥ وكان السعر ٢٣٢ج.م، سيصبح ٢٣٥ج.م.'
+                        : 'Rounds the final price up to the nearest multiple of the selected number. Example: with rounding 5, a price of EGP 232 becomes EGP 235.' }}
+                    </span>
+                  </span>
+                </label>
                 <select v-model.number="genRounding" class="gen-select">
                   <option v-for="r in [1,5,10,25,50,100]" :key="r" :value="r">{{ r }}</option>
                 </select>
@@ -435,9 +506,9 @@ onMounted(loadData)
                   <span :class="['lang-opt', i18n.locale === 'ar' && 'lang-opt-active']" @click="i18n.loadTranslations('ar')">العربية</span>
                 </div>
               </div>
-              <button class="dpc-btn dpc-btn-teal save-inline-btn" :disabled="genSaving" @click="saveGlobalSettings">
-                {{ genSaving ? (isAr ? 'جاري الحفظ...' : 'Saving...') : (isAr ? 'حفظ الإعدادات' : 'Save settings') }}
-              </button>
+              <DpcBtn variant="teal" :loading="genSaving" @click="saveGlobalSettings" style="margin-top:8px;align-self:flex-start;">
+                {{ isAr ? 'حفظ الإعدادات' : 'Save settings' }}
+              </DpcBtn>
             </div>
           </template>
         </div>
@@ -447,13 +518,7 @@ onMounted(loadData)
 </template>
 
 <style scoped>
-.page-header {
-  padding: 22px 28px; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
-  background: var(--paper); border-bottom: 1px solid var(--line);
-}
-.page-title { font-size: 24px; margin-bottom: 4px; }
-.page-sub   { color: var(--ink-500); font-size: 13.5px; margin: 0; max-width: 720px; }
-
+/* ── Premium layout ───────────────────────────────────────── */
 .settings-body { padding: 20px 28px; }
 .settings-grid {
   display: grid;
@@ -462,40 +527,159 @@ onMounted(loadData)
   align-items: start;
 }
 
+/* ── Premium navigation ───────────────────────────────────── */
 .settings-nav {
-  display: flex; flex-direction: column; gap: 2px;
-  padding-inline-end: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-inline-end: 20px;
   border-inline-end: 1px solid var(--line);
+  position: sticky;
+  top: 20px;
 }
 
 .nav-item {
-  padding: 10px 12px; border-radius: 8px;
-  display: flex; align-items: center; gap: 10px;
-  font-size: 13.5px; font-weight: 500; color: var(--ink-600);
-  cursor: pointer; transition: background .12s, color .12s;
-}
-.nav-item:hover:not(.nav-item-active) { background: var(--paper-2); }
-.nav-item-active {
-  background: var(--paper-2); color: var(--ink-900); font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 11px 14px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-600);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  position: relative;
 }
 
-.settings-content { padding-inline-start: 28px; }
+.nav-item:hover:not(.nav-item-active) {
+  background: var(--paper-2);
+  color: var(--ink-900);
+  transform: translateX(2px);
+}
+
+.nav-item-active {
+  background: var(--teal-50);
+  color: var(--teal-800);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1.5px var(--teal-200);
+}
+
+.nav-item-active::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  background: var(--teal-600);
+  border-radius: 0 2px 2px 0;
+}
+
+.settings-content { padding-inline-start: 28px; min-width: 0; }
 
 .tab-header { margin-bottom: 18px; }
 .eyebrow-teal { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal-700); margin-bottom: 4px; }
-.tab-title { font-size: 22px; margin-bottom: 4px; }
-.tab-sub   { color: var(--ink-500); font-size: 13px; }
+.tab-title    { font-size: 22px; margin-bottom: 4px; }
+.tab-sub      { color: var(--ink-500); font-size: 13px; }
+.tab-subtitle { font-size: 13.5px; color: var(--ink-500); line-height: 1.6; margin: 6px 0 0; max-width: 680px; }
 
-/* Stats */
-.stat-grid  { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 18px; }
-.stat-card  { padding: 14px; border-radius: 12px; background: var(--paper-2); box-shadow: inset 0 0 0 1px var(--line); }
-.stat-card-teal { background: var(--teal-50); box-shadow: inset 0 0 0 1px var(--teal-100); }
-.stat-label { font-size: 11px; color: var(--ink-500); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 6px; }
-.stat-value { font-size: 19px; font-weight: 600; color: var(--ink-900); }
-.stat-unit  { font-size: 11.5px; color: var(--ink-500); }
-.stat-label-teal { font-size: 11px; color: var(--teal-700); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 6px; }
-.stat-value-teal { font-size: 19px; font-weight: 600; color: var(--teal-800); }
+/* ── Premium sticky summary bar ───────────────────────────── */
+.summary-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+  padding: 16px 0 18px;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper) 85%, transparent 100%);
+  border-bottom: 1px solid var(--line);
+}
+
+.summary-card {
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: all var(--duration-fast);
+}
+
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 0 0 1px var(--line-strong), 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.summary-card-teal {
+  background: var(--teal-50);
+  box-shadow: inset 0 0 0 1.5px var(--teal-200);
+}
+
+.summary-card-teal:hover {
+  box-shadow: inset 0 0 0 1.5px var(--teal-300), 0 4px 12px rgba(20, 184, 166, 0.15);
+}
+
+.summary-card-ink {
+  background: var(--paper-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.summary-label {
+  font-size: 10.5px;
+  color: var(--ink-500);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.summary-label-teal {
+  font-size: 10.5px;
+  color: var(--teal-700);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.summary-label-ink {
+  font-size: 10.5px;
+  color: var(--ink-500);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-value-teal {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--teal-800);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-value-ink {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink-800);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-unit {
+  font-size: 11px;
+  color: var(--ink-500);
+  font-weight: 500;
+  margin-inline-start: 4px;
+}
 
 /* Cost table */
 .cost-table { margin-bottom: 14px; overflow: hidden; }
@@ -504,9 +688,22 @@ onMounted(loadData)
   background: var(--paper-2); border-bottom: 1px solid var(--line-2, #eee);
 }
 .cost-section-title { font-size: 13.5px; font-weight: 600; color: var(--ink-800); }
-.add-link {
-  font-size: 12px; color: var(--teal-700); font-weight: 500;
-  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+
+/* Column header row — inherits same grid from .cost-row-costs / .equip-row */
+.col-headers {
+  display: grid;
+  gap: 14px;
+  align-items: center;
+  padding: 7px 20px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--line-2, #eee);
+}
+.col-headers span {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-400);
 }
 
 .cost-row {
@@ -529,9 +726,6 @@ onMounted(loadData)
 }
 .cost-input:focus { box-shadow: inset 0 0 0 1.5px var(--teal-600); }
 
-.icon-btn { width: 32px; height: 32px; border-radius: 8px; color: var(--ink-500); display: grid; place-items: center; }
-.icon-btn:hover { background: var(--paper-2); }
-
 /* Add form */
 .add-form {
   display: flex; gap: 8px; padding: 12px 20px;
@@ -544,12 +738,52 @@ onMounted(loadData)
   font-size: 13px; border: none; outline: none;
 }
 .add-input-short { flex: 0 0 110px; }
-.add-btn { height: 36px; }
 
 /* General settings */
 .general-panel { padding: 22px; display: flex; flex-direction: column; gap: 20px; }
 .gen-row { display: flex; align-items: center; gap: 24px; }
-.gen-label { font-size: 13.5px; font-weight: 500; color: var(--ink-700); min-width: 100px; }
+.gen-label { font-size: 13.5px; font-weight: 500; color: var(--ink-700); min-width: 100px; display: flex; align-items: center; gap: 6px; }
+
+.tip-wrap { position: relative; display: inline-flex; align-items: center; }
+.tip-icon {
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--ink-200); color: var(--ink-600);
+  font-size: 10px; font-weight: 700; font-style: normal;
+  display: grid; place-items: center; cursor: default;
+  flex-shrink: 0; line-height: 1;
+  transition: background .12s, color .12s;
+}
+.tip-wrap:hover .tip-icon { background: var(--teal-600); color: #fff; }
+.tip-box {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  width: 240px;
+  background: var(--ink-900);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.55;
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 100;
+  white-space: normal;
+  text-align: start;
+}
+.tip-box::after {
+  content: '';
+  position: absolute;
+  top: 100%; left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--ink-900);
+}
+.tip-wrap:hover .tip-box { opacity: 1; }
 .gen-select {
   height: 40px; padding: 0 12px; min-width: 240px;
   border-radius: 8px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line);
@@ -608,6 +842,4 @@ onMounted(loadData)
   padding: 10px 0 4px; border-top: 1px solid var(--line);
 }
 .gen-summary strong { color: var(--teal-700); margin-inline-start: 4px; }
-
-.save-inline-btn { height: 40px; margin-top: 8px; align-self: flex-start; }
 </style>

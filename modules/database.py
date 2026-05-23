@@ -97,6 +97,7 @@ def init_database():
             max_users INT DEFAULT 10,
             max_services INT DEFAULT 100,
             is_active TINYINT(1) DEFAULT 1,
+            onboarding_completed TINYINT(1) DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -412,6 +413,31 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
+    # App-wide settings table (super-admin configurable)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS app_settings (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            setting_key VARCHAR(100) UNIQUE NOT NULL,
+            setting_value TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_key (setting_key)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
+    # Initialize default contact settings if they don't exist
+    cursor.execute('SELECT COUNT(*) as cnt FROM app_settings WHERE setting_key LIKE "contact_%"')
+    if cursor.fetchone()['cnt'] == 0:
+        cursor.execute('''
+            INSERT INTO app_settings (setting_key, setting_value) VALUES
+            ('contact_email', 'support@example.com'),
+            ('contact_phone', '+201015755890'),
+            ('contact_whatsapp', '+201015755890'),
+            ('contact_email_ar', 'support@example.com'),
+            ('contact_phone_ar', '+201015755890'),
+            ('contact_whatsapp_ar', '+201015755890')
+        ''')
+        conn.commit()
+
     # Migration: Add is_super_admin to users if it doesn't exist
     user_columns = _get_table_columns(cursor, 'users')
     if 'is_super_admin' not in user_columns:
@@ -605,6 +631,12 @@ def create_clinic_starter_data(clinic_id, conn=None):
         (clinic_id, 'Dental Chair / كرسي الأسنان', 0, 10, 'fixed', None),
         (clinic_id, 'Autoclave Sterilizer / جهاز التعقيم', 0, 7, 'fixed', None),
         (clinic_id, 'Dental X-Ray Unit / جهاز أشعة الأسنان', 0, 8, 'per-hour', 40),
+        (clinic_id, 'Finishing & Decorations / التشطيبات والديكورات', 0, 10, 'fixed', None),
+        (clinic_id, 'Furniture / الأثاث', 0, 7, 'fixed', None),
+        (clinic_id, 'Intraoral Scanner / ماسح داخل الفم', 0, 5, 'per-hour', 20),
+        (clinic_id, 'Light Cure Unit / جهاز التثبيت الضوئي', 0, 5, 'fixed', None),
+        (clinic_id, 'Rotary Endo Motor / موتور علاج الجذور الدوار', 0, 5, 'per-hour', 15),
+        (clinic_id, 'Implant Motor / موتور الزراعة السنية', 0, 7, 'per-hour', 10),
     ]
     cursor.executemany('''
         INSERT INTO equipment (clinic_id, asset_name, purchase_cost, life_years, allocation_type, monthly_usage_hours)

@@ -19,9 +19,14 @@ async function boot() {
   const auth = useAuthStore()
 
   const savedLocale = localStorage.getItem('dpc_locale') || 'en'
-  await i18n.loadTranslations(savedLocale)
-  await auth.fetchUser().catch(() => {})
 
+  // Load translations and user data in parallel
+  await Promise.all([
+    i18n.loadTranslations(savedLocale),
+    auth.fetchUser().catch(() => {})
+  ])
+
+  // Mount app only after auth data is ready
   app.mount('#app')
 }
 

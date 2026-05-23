@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════════════
+   Google Fonts — Space Grotesk (display) + Inter (body)
+   ═══════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #app {
@@ -6,13 +11,19 @@ html, body, #app {
 }
 
 body {
-  font-family: var(--font-sans);
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: 15px;
   color: var(--ink-900);
-  background: var(--paper);
+  background: var(--canvas);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
+}
+
+/* Custom selection color - premium accent */
+::selection {
+  background: var(--accent);
+  color: #ffffff;
 }
 
 html[dir="rtl"] body {

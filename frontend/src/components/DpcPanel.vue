@@ -12,8 +12,15 @@ defineProps({
 
 <style scoped>
 .dpc-panel {
-  background: var(--surface);
-  border-radius: var(--r-lg);
-  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.dpc-panel:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
 }
 </style>

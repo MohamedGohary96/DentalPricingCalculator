@@ -1,9 +1,11 @@
 /**
- * useMonthlyNudge — shows a soft pricing-review nudge once per calendar month.
+ * useMonthlyNudge — shows pricing-review nudges based on EVENTS, not just calendar.
  *
  * Storage keys:
- *   'dpc_last_nudge'        → 'YYYY-MM'  (dismissed month)
- *   'dpc_last_health_score' → number     (score at last review)
+ *   'dpc_last_nudge'                → 'YYYY-MM'  (dismissed month - legacy)
+ *   'dpc_last_health_score'         → number     (score at last review)
+ *   'dpc_last_underpriced_count'    → number     (track changes)
+ *   'dpc_last_costs_hash'           → string     (detect cost updates)
  */
 import { ref, computed } from 'vue'
 
@@ -14,15 +16,39 @@ export function useMonthlyNudge() {
   }
 
   const shouldShowNudge = ref(false)
+  const nudgeReason = ref('') // 'monthly' | 'underpriced' | 'costs_changed'
 
   function check() {
     const stored = localStorage.getItem('dpc_last_nudge') || ''
-    shouldShowNudge.value = stored !== _currentMonth()
+    if (stored !== _currentMonth()) {
+      shouldShowNudge.value = true
+      nudgeReason.value = 'monthly'
+    }
+  }
+
+  function checkUnderpricedIncrease(currentCount) {
+    const lastCount = parseInt(localStorage.getItem('dpc_last_underpriced_count') || '0')
+    if (currentCount > lastCount && currentCount > 0) {
+      shouldShowNudge.value = true
+      nudgeReason.value = 'underpriced'
+    }
+    localStorage.setItem('dpc_last_underpriced_count', String(currentCount))
+  }
+
+  function checkCostsChanged(costsHash) {
+    // costsHash = hash of (rent + salaries + depreciation)
+    const lastHash = localStorage.getItem('dpc_last_costs_hash') || ''
+    if (lastHash && lastHash !== costsHash) {
+      shouldShowNudge.value = true
+      nudgeReason.value = 'costs_changed'
+    }
+    localStorage.setItem('dpc_last_costs_hash', costsHash)
   }
 
   function dismissNudge() {
     localStorage.setItem('dpc_last_nudge', _currentMonth())
     shouldShowNudge.value = false
+    nudgeReason.value = ''
   }
 
   function saveHealthScore(score) {
@@ -36,5 +62,14 @@ export function useMonthlyNudge() {
   // Run check immediately on composable init
   check()
 
-  return { shouldShowNudge, dismissNudge, check, saveHealthScore, getStoredHealthScore }
+  return {
+    shouldShowNudge,
+    nudgeReason,
+    dismissNudge,
+    check,
+    checkUnderpricedIncrease,
+    checkCostsChanged,
+    saveHealthScore,
+    getStoredHealthScore,
+  }
 }

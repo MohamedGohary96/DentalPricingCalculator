@@ -30,26 +30,29 @@ const strength = computed(() => {
   return s
 })
 
-const strengthLabel = computed(() => ['', 'Weak', 'Fair', 'Strong', 'Very strong'][strength.value] || '')
+const strengthLabel = computed(() => [
+  '', i18n.t('auth.strengthWeak'), i18n.t('auth.strengthFair'),
+  i18n.t('auth.strengthStrong'), i18n.t('auth.strengthVeryStrong'),
+][strength.value] || '')
 const strengthColor = computed(() => ['', 'var(--danger-600)', 'var(--warning-600)', 'var(--teal-600)', 'var(--teal-600)'][strength.value] || '')
 
 const rules = computed(() => [
-  { ok: password.value.length >= 8,       label: '8+ characters' },
-  { ok: /[A-Z]/.test(password.value) && /[a-z]/.test(password.value), label: 'Upper & lower case' },
-  { ok: /\d/.test(password.value),        label: 'One number' },
-  { ok: /[^A-Za-z0-9]/.test(password.value), label: 'Symbol (recommended)' },
+  { ok: password.value.length >= 8,                                    label: i18n.t('auth.ruleChars') },
+  { ok: /[A-Z]/.test(password.value) && /[a-z]/.test(password.value), label: i18n.t('auth.ruleCase') },
+  { ok: /\d/.test(password.value),                                     label: i18n.t('auth.ruleNumber') },
+  { ok: /[^A-Za-z0-9]/.test(password.value),                          label: i18n.t('auth.ruleSymbol') },
 ])
 
 async function submit() {
-  if (password.value !== confirm.value) { error.value = 'Passwords do not match.'; return }
-  if (strength.value < 2) { error.value = 'Password is too weak.'; return }
+  if (password.value !== confirm.value) { error.value = i18n.t('auth.errorPasswordMismatch'); return }
+  if (strength.value < 2) { error.value = i18n.t('auth.errorPasswordWeak'); return }
   submitting.value = true
   error.value = ''
   try {
     await api.post('/api/reset-password', { token: route.query.token, password: password.value })
     router.push('/login')
   } catch (e) {
-    error.value = e.response?.data?.error || 'Reset failed.'
+    error.value = e.response?.data?.error || i18n.t('auth.errorResetFailed')
   } finally {
     submitting.value = false
   }

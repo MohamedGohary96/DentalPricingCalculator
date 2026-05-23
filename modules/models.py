@@ -29,10 +29,13 @@ def create_clinic(name, email, phone=None, address=None, city=None, country='Egy
         slug = f"{base_slug}-{counter}"
         counter += 1
 
+    # Set trial expiration to 7 days from now
+    trial_expires = (datetime.now() + timedelta(days=7)).date()
+
     cursor.execute('''
-        INSERT INTO clinics (name, slug, email, phone, address, city, country, subscription_status)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, 'trial')
-    ''', (name, slug, email, phone, address, city, country))
+        INSERT INTO clinics (name, slug, email, phone, address, city, country, subscription_status, subscription_expires_at, onboarding_completed)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 'trial', %s, 0)
+    ''', (name, slug, email, phone, address, city, country, trial_expires))
     clinic_id = cursor.lastrowid
 
     # Create default settings for the clinic
@@ -287,7 +290,7 @@ def get_all_fixed_costs(clinic_id):
     """Get all fixed costs for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM fixed_costs WHERE clinic_id = %s ORDER BY category', (clinic_id,))
+    cursor.execute('SELECT * FROM fixed_costs WHERE clinic_id = %s ORDER BY created_at ASC', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
@@ -344,7 +347,7 @@ def get_all_salaries(clinic_id):
     """Get all salaries for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM salaries WHERE clinic_id = %s ORDER BY role_name', (clinic_id,))
+    cursor.execute('SELECT * FROM salaries WHERE clinic_id = %s ORDER BY created_at ASC', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
@@ -401,7 +404,7 @@ def get_all_equipment(clinic_id):
     """Get all equipment for a clinic"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM equipment WHERE clinic_id = %s ORDER BY asset_name', (clinic_id,))
+    cursor.execute('SELECT * FROM equipment WHERE clinic_id = %s ORDER BY created_at ASC', (clinic_id,))
     rows = cursor.fetchall()
     conn.close()
     return [dict_from_row(r) for r in rows]
@@ -1358,7 +1361,8 @@ def get_all_clinics_admin():
     cursor.execute('''
         SELECT c.*,
                (SELECT COUNT(*) FROM users WHERE clinic_id = c.id AND is_active = 1) as user_count,
-               (SELECT COUNT(*) FROM services WHERE clinic_id = c.id) as service_count
+               (SELECT COUNT(*) FROM services WHERE clinic_id = c.id) as service_count,
+               (SELECT u.email FROM users u WHERE u.clinic_id = c.id ORDER BY FIELD(u.role,'owner','admin','staff') ASC, u.id ASC LIMIT 1) as owner_email
         FROM clinics c
         ORDER BY c.created_at DESC
     ''')
@@ -2037,3 +2041,58 @@ def get_case_tracker_history(clinic_id, months=12):
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ============== App Settings (Super Admin) ==============
+
+def get_app_setting(key):
+    """Get a single app-wide setting by key"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT setting_value FROM app_settings WHERE setting_key = %s', (key,))
+    row = cursor.fetchone()
+    conn.close()
+    return row['setting_value'] if row else None
+
+
+def get_app_settings(keys=None):
+    """Get app-wide settings. If keys provided, fetch only those keys."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if keys:
+        placeholders = ','.join(['%s'] * len(keys))
+        cursor.execute(f'SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ({placeholders})', keys)
+    else:
+        cursor.execute('SELECT setting_key, setting_value FROM app_settings')
+
+    rows = cursor.fetchall()
+    conn.close()
+    return {row['setting_key']: row['setting_value'] for row in rows}
+
+
+def update_app_settings(settings_dict):
+    """Update multiple app settings. settings_dict = {key: value, ...}"""
+    if not settings_dict:
+        return True
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    for key, value in settings_dict.items():
+        cursor.execute('''
+            INSERT INTO app_settings (setting_key, setting_value)
+            VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE setting_value = %s, updated_at = CURRENT_TIMESTAMP
+        ''', (key, value, value))
+
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_contact_info():
+    """Get contact info for display (used in SubscriptionView)"""
+    keys = ['contact_email', 'contact_phone', 'contact_whatsapp',
+            'contact_email_ar', 'contact_phone_ar', 'contact_whatsapp_ar']
+    return get_app_settings(keys)

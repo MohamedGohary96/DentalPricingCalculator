@@ -18,6 +18,81 @@ const stats    = ref(null)
 const search   = ref('')
 const toggling = ref(null)
 const loaded   = ref(false)
+const editing    = ref(null)
+const editPlan   = ref('')
+const editStatus = ref('')
+const editExpiry = ref('')
+const saving     = ref(false)
+
+// Contact settings state
+const contactSettings = ref({})
+const editingContact = ref(false)
+const savingContact = ref(false)
+const editContactForm = ref({
+  contact_email: '',
+  contact_phone: '',
+  contact_whatsapp: '',
+  contact_email_ar: '',
+  contact_phone_ar: '',
+  contact_whatsapp_ar: ''
+})
+
+const PLANS   = ['professional']
+const STATUSES = ['trial', 'active', 'grace_period', 'expired', 'suspended']
+
+function startEdit(clinic) {
+  editing.value    = clinic.id
+  editPlan.value   = clinic.subscription_plan || 'professional'
+  editStatus.value = clinic.subscription_info?.status || 'trial'
+  editExpiry.value = clinic.subscription_expires_at
+    ? new Date(clinic.subscription_expires_at).toISOString().slice(0, 10)
+    : ''
+}
+
+function cancelEdit() {
+  editing.value = null
+}
+
+async function saveSubscription(id) {
+  saving.value = true
+  try {
+    await axios.put(`/api/super-admin/clinics/${id}/subscription`, {
+      subscription_plan:        editPlan.value,
+      subscription_status:      editStatus.value,
+      subscription_expires_at:  editExpiry.value || null,
+    }, { withCredentials: true })
+    const clinic = clinics.value.find(x => x.id === id)
+    if (clinic) {
+      clinic.subscription_plan        = editPlan.value
+      clinic.subscription_expires_at  = editExpiry.value || null
+      clinic.subscription_info        = { ...clinic.subscription_info, status: editStatus.value }
+    }
+    editing.value = null
+  } catch { /* ignore */ }
+  finally { saving.value = false }
+}
+
+function startEditContact() {
+  editContactForm.value = { ...contactSettings.value }
+  editingContact.value = true
+}
+
+function cancelEditContact() {
+  editingContact.value = false
+}
+
+async function saveContactSettings() {
+  savingContact.value = true
+  try {
+    await axios.put('/api/super-admin/settings/contact', editContactForm.value, { withCredentials: true })
+    contactSettings.value = { ...editContactForm.value }
+    editingContact.value = false
+  } catch (err) {
+    console.error('Failed to save contact settings:', err)
+  } finally {
+    savingContact.value = false
+  }
+}
 
 const statusMap = computed(() => ({
   active:       { label: isAr.value ? 'نشط'    : 'Active',    bg: 'var(--teal-50)',       fg: 'var(--teal-700)',    dot: 'var(--teal-600)'    },
@@ -42,9 +117,11 @@ const displayClinics = computed(() => {
   if (!search.value) return clinics.value
   const q = search.value.toLowerCase()
   return clinics.value.filter(c =>
-    (c.name  || '').toLowerCase().includes(q) ||
-    (c.email || '').toLowerCase().includes(q) ||
-    (c.city  || '').toLowerCase().includes(q)
+    (c.name        || '').toLowerCase().includes(q) ||
+    (c.email       || '').toLowerCase().includes(q) ||
+    (c.owner_email || '').toLowerCase().includes(q) ||
+    (c.phone       || '').toLowerCase().includes(q) ||
+    (c.city        || '').toLowerCase().includes(q)
   )
 })
 
@@ -75,12 +152,14 @@ onMounted(async () => {
     return
   }
   try {
-    const [c, s] = await Promise.all([
+    const [c, s, contact] = await Promise.all([
       axios.get('/api/super-admin/clinics', { withCredentials: true }),
       axios.get('/api/super-admin/stats',   { withCredentials: true }),
+      axios.get('/api/super-admin/settings/contact', { withCredentials: true }),
     ])
     clinics.value = c.data
     stats.value   = s.data
+    contactSettings.value = contact.data
   } catch { /* show empty */ }
   loaded.value = true
 })
@@ -151,11 +230,112 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- Contact Settings Section -->
+      <div class="dpc-panel contact-settings-panel">
+        <div class="section-header">
+          <div>
+            <div class="section-title">
+              <DpcIcon name="Headphones" :size="18" :stroke-width="1.7" style="margin-inline-end: 8px;" />
+              {{ isAr ? 'معلومات التواصل' : 'Contact Information' }}
+            </div>
+            <div class="section-subtitle">
+              {{ isAr ? 'تظهر في صفحة الاشتراكات لجميع المستخدمين' : 'Displayed on subscription page for all users' }}
+            </div>
+          </div>
+          <button
+            v-if="!editingContact"
+            class="edit-contact-btn"
+            @click="startEditContact"
+          >
+            <DpcIcon name="Pencil" :size="14" :stroke-width="1.7" />
+            {{ isAr ? 'تعديل' : 'Edit' }}
+          </button>
+        </div>
+
+        <!-- View mode -->
+        <div v-if="!editingContact" class="contact-view-grid">
+          <div class="contact-view-item">
+            <div class="contact-view-label">{{ isAr ? 'البريد الإلكتروني (EN)' : 'Email (EN)' }}</div>
+            <div class="contact-view-value">{{ contactSettings.contact_email || '—' }}</div>
+          </div>
+          <div class="contact-view-item">
+            <div class="contact-view-label">{{ isAr ? 'الهاتف (EN)' : 'Phone (EN)' }}</div>
+            <div class="contact-view-value">{{ contactSettings.contact_phone || '—' }}</div>
+          </div>
+          <div class="contact-view-item">
+            <div class="contact-view-label">{{ isAr ? 'واتساب (EN)' : 'WhatsApp (EN)' }}</div>
+            <div class="contact-view-value">{{ contactSettings.contact_whatsapp || '—' }}</div>
+          </div>
+          <div class="contact-view-item">
+            <div class="contact-view-label">{{ isAr ? 'البريد الإلكتروني (AR)' : 'Email (AR)' }}</div>
+            <div class="contact-view-value">{{ contactSettings.contact_email_ar || '—' }}</div>
+          </div>
+          <div class="contact-view-item">
+            <div class="contact-view-label">{{ isAr ? 'الهاتف (AR)' : 'Phone (AR)' }}</div>
+            <div class="contact-view-value">{{ contactSettings.contact_phone_ar || '—' }}</div>
+          </div>
+          <div class="contact-view-item">
+            <div class="contact-view-label">{{ isAr ? 'واتساب (AR)' : 'WhatsApp (AR)' }}</div>
+            <div class="contact-view-value">{{ contactSettings.contact_whatsapp_ar || '—' }}</div>
+          </div>
+        </div>
+
+        <!-- Edit mode -->
+        <div v-else class="contact-edit-form">
+          <div class="contact-edit-group">
+            <div class="contact-edit-header">{{ isAr ? 'النسخة الإنجليزية' : 'English Version' }}</div>
+            <div class="contact-edit-grid">
+              <div class="form-field">
+                <label class="field-label">{{ isAr ? 'البريد الإلكتروني' : 'Email' }}</label>
+                <input v-model="editContactForm.contact_email" type="email" class="field-input" placeholder="support@example.com" />
+              </div>
+              <div class="form-field">
+                <label class="field-label">{{ isAr ? 'الهاتف' : 'Phone' }}</label>
+                <input v-model="editContactForm.contact_phone" type="text" class="field-input" placeholder="+201015755890" />
+              </div>
+              <div class="form-field">
+                <label class="field-label">{{ isAr ? 'واتساب' : 'WhatsApp' }}</label>
+                <input v-model="editContactForm.contact_whatsapp" type="text" class="field-input" placeholder="+201015755890" />
+              </div>
+            </div>
+          </div>
+
+          <div class="contact-edit-group">
+            <div class="contact-edit-header">{{ isAr ? 'النسخة العربية' : 'Arabic Version' }}</div>
+            <div class="contact-edit-grid">
+              <div class="form-field">
+                <label class="field-label">{{ isAr ? 'البريد الإلكتروني' : 'Email' }}</label>
+                <input v-model="editContactForm.contact_email_ar" type="email" class="field-input" placeholder="support@example.com" />
+              </div>
+              <div class="form-field">
+                <label class="field-label">{{ isAr ? 'الهاتف' : 'Phone' }}</label>
+                <input v-model="editContactForm.contact_phone_ar" type="text" class="field-input" placeholder="+201015755890" dir="ltr" />
+              </div>
+              <div class="form-field">
+                <label class="field-label">{{ isAr ? 'واتساب' : 'WhatsApp' }}</label>
+                <input v-model="editContactForm.contact_whatsapp_ar" type="text" class="field-input" placeholder="+201015755890" dir="ltr" />
+              </div>
+            </div>
+          </div>
+
+          <div class="contact-edit-actions">
+            <button class="save-contact-btn" :disabled="savingContact" @click="saveContactSettings">
+              <DpcIcon name="Check" :size="14" :stroke-width="2" />
+              {{ isAr ? 'حفظ التغييرات' : 'Save changes' }}
+            </button>
+            <button class="cancel-contact-btn" @click="cancelEditContact">
+              {{ isAr ? 'إلغاء' : 'Cancel' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Clinics table -->
       <div class="dpc-panel table-wrap">
         <div class="table-head">
           <div>{{ isAr ? 'العيادة' : 'Clinic' }}</div>
           <div>{{ isAr ? 'المدينة' : 'City' }}</div>
+          <div>{{ isAr ? 'تواصل' : 'Contact' }}</div>
           <div class="col-center">{{ isAr ? 'مستخدمون' : 'Users' }}</div>
           <div class="col-center">{{ isAr ? 'خدمات' : 'Services' }}</div>
           <div class="col-center">{{ isAr ? 'الاشتراك' : 'Status' }}</div>
@@ -169,53 +349,103 @@ onMounted(async () => {
           <p>{{ search ? (isAr ? 'لا توجد نتائج' : 'No clinics match your search') : (isAr ? 'لا توجد عيادات بعد' : 'No clinics yet') }}</p>
         </div>
 
-        <div
-          v-for="(c, i) in displayClinics" :key="c.id"
-          :class="['table-row', i < displayClinics.length - 1 && 'row-border', !c.is_active && 'row-inactive']"
-        >
-          <!-- Clinic name + email -->
-          <div class="clinic-cell">
-            <div class="clinic-avatar">{{ initials(c.name) }}</div>
-            <div class="clinic-info">
-              <div class="clinic-name">{{ c.name }}</div>
-              <div class="clinic-last">{{ c.email }}</div>
+        <template v-for="(c, i) in displayClinics" :key="c.id">
+          <div :class="['table-row', (i < displayClinics.length - 1 || editing === c.id) && 'row-border', !c.is_active && 'row-inactive']">
+            <!-- Clinic name + email -->
+            <div class="clinic-cell">
+              <div class="clinic-avatar">{{ initials(c.name) }}</div>
+              <div class="clinic-info">
+                <div class="clinic-name">{{ c.name }}</div>
+                <div class="clinic-last">{{ c.email }}</div>
+              </div>
+            </div>
+            <!-- City -->
+            <div class="t-sm">{{ c.city || '—' }}</div>
+            <!-- Contact: owner email + phone -->
+            <div class="contact-cell">
+              <div v-if="c.owner_email" class="contact-row">
+                <span class="contact-tag">{{ isAr ? 'المالك' : 'Owner' }}</span>
+                <span class="contact-email">{{ c.owner_email }}</span>
+              </div>
+              <div v-if="c.email" class="contact-row">
+                <span class="contact-tag">{{ isAr ? 'العيادة' : 'Clinic' }}</span>
+                <span class="contact-email">{{ c.email }}</span>
+              </div>
+              <div v-if="c.phone" class="contact-phone">{{ c.phone }}</div>
+            </div>
+            <!-- Users -->
+            <div class="dpc-num col-center t-sm">{{ c.user_count ?? '—' }}</div>
+            <!-- Services -->
+            <div class="dpc-num col-center t-sm">{{ c.service_count ?? '—' }}</div>
+            <!-- Subscription status badge -->
+            <div class="col-center">
+              <span
+                class="status-badge"
+                :style="{
+                  background: (statusMap[c.subscription_info?.status] || statusMap.expired).bg,
+                  color:      (statusMap[c.subscription_info?.status] || statusMap.expired).fg
+                }"
+              >
+                <span class="badge-dot" :style="{ background: (statusMap[c.subscription_info?.status] || statusMap.expired).dot }" />
+                {{ (statusMap[c.subscription_info?.status] || statusMap.expired).label }}
+              </span>
+            </div>
+            <!-- Expires -->
+            <div class="col-center t-sm">{{ fmtDate(c.subscription_expires_at) }}</div>
+            <!-- Actions -->
+            <div class="col-end actions-cell">
+              <button
+                class="toggle-btn"
+                :class="c.is_active ? 'toggle-lock' : 'toggle-unlock'"
+                :disabled="toggling === c.id || c.id === 1"
+                :title="c.is_active ? (isAr ? 'تعطيل' : 'Suspend') : (isAr ? 'تفعيل' : 'Activate')"
+                @click="toggleStatus(c.id)"
+              >
+                <DpcIcon :name="c.is_active ? 'Lock' : 'LockOpen'" :size="12" :stroke-width="1.7" />
+                {{ c.is_active ? (isAr ? 'تعطيل' : 'Suspend') : (isAr ? 'تفعيل' : 'Activate') }}
+              </button>
+              <button
+                class="edit-btn"
+                :class="editing === c.id && 'edit-btn-active'"
+                :title="isAr ? 'تعديل الاشتراك' : 'Edit subscription'"
+                @click="editing === c.id ? cancelEdit() : startEdit(c)"
+              >
+                <DpcIcon :name="editing === c.id ? 'X' : 'Pencil'" :size="12" :stroke-width="1.7" />
+              </button>
             </div>
           </div>
-          <!-- City -->
-          <div class="t-sm">{{ c.city || '—' }}</div>
-          <!-- Users -->
-          <div class="dpc-num col-center t-sm">{{ c.user_count ?? '—' }}</div>
-          <!-- Services -->
-          <div class="dpc-num col-center t-sm">{{ c.service_count ?? '—' }}</div>
-          <!-- Subscription status badge -->
-          <div class="col-center">
-            <span
-              class="status-badge"
-              :style="{
-                background: (statusMap[c.subscription_info?.status] || statusMap.expired).bg,
-                color:      (statusMap[c.subscription_info?.status] || statusMap.expired).fg
-              }"
-            >
-              <span class="badge-dot" :style="{ background: (statusMap[c.subscription_info?.status] || statusMap.expired).dot }" />
-              {{ (statusMap[c.subscription_info?.status] || statusMap.expired).label }}
-            </span>
+
+          <!-- Inline subscription editor -->
+          <div v-if="editing === c.id" class="edit-row">
+            <div class="edit-row-inner">
+              <div class="edit-field">
+                <label class="edit-label">{{ isAr ? 'الخطة' : 'Plan' }}</label>
+                <select v-model="editPlan" class="edit-select">
+                  <option v-for="p in PLANS" :key="p" :value="p">{{ p }}</option>
+                </select>
+              </div>
+              <div class="edit-field">
+                <label class="edit-label">{{ isAr ? 'الحالة' : 'Status' }}</label>
+                <select v-model="editStatus" class="edit-select">
+                  <option v-for="s in STATUSES" :key="s" :value="s">{{ statusMap[s]?.label || s }}</option>
+                </select>
+              </div>
+              <div class="edit-field">
+                <label class="edit-label">{{ isAr ? 'تاريخ الانتهاء' : 'Expiry date' }}</label>
+                <input v-model="editExpiry" type="date" class="edit-select" />
+              </div>
+              <div class="edit-actions">
+                <button class="save-btn" :disabled="saving" @click="saveSubscription(c.id)">
+                  <DpcIcon name="Check" :size="12" :stroke-width="2" />
+                  {{ isAr ? 'حفظ' : 'Save' }}
+                </button>
+                <button class="cancel-btn" @click="cancelEdit">
+                  {{ isAr ? 'إلغاء' : 'Cancel' }}
+                </button>
+              </div>
+            </div>
           </div>
-          <!-- Expires -->
-          <div class="col-center t-sm">{{ fmtDate(c.subscription_expires_at) }}</div>
-          <!-- Toggle action -->
-          <div class="col-end">
-            <button
-              class="toggle-btn"
-              :class="c.is_active ? 'toggle-lock' : 'toggle-unlock'"
-              :disabled="toggling === c.id || c.id === 1"
-              :title="c.is_active ? (isAr ? 'تعطيل' : 'Suspend') : (isAr ? 'تفعيل' : 'Activate')"
-              @click="toggleStatus(c.id)"
-            >
-              <DpcIcon :name="c.is_active ? 'Lock' : 'LockOpen'" :size="12" :stroke-width="1.7" />
-              {{ c.is_active ? (isAr ? 'تعطيل' : 'Suspend') : (isAr ? 'تفعيل' : 'Activate') }}
-            </button>
-          </div>
-        </div>
+        </template>
       </div>
     </div>
   </AppShell>
@@ -263,7 +493,7 @@ onMounted(async () => {
 .table-head,
 .table-row {
   display: grid;
-  grid-template-columns: minmax(0,1.8fr) 120px 80px 80px 120px 110px 110px;
+  grid-template-columns: minmax(0,1.6fr) 100px minmax(0,1.4fr) 70px 70px 120px 110px 110px;
   align-items: center;
   padding: 12px 18px;
 }
@@ -287,6 +517,12 @@ onMounted(async () => {
 .clinic-name { font-size: 13.5px; font-weight: 500; color: var(--ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clinic-last { font-size: 11px; color: var(--ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+.contact-cell  { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.contact-row   { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.contact-tag   { font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-400); flex: none; }
+.contact-email { font-size: 11.5px; color: var(--ink-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.contact-phone { font-size: 11px; color: var(--ink-500); font-family: var(--font-mono); }
+
 .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; }
 .badge-dot    { width: 5px; height: 5px; border-radius: 50%; flex: none; }
 
@@ -308,4 +544,225 @@ onMounted(async () => {
 }
 .empty-icon { color: var(--ink-300); }
 .empty-state p { font-size: 14px; margin: 0; }
+
+.actions-cell { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+
+.edit-btn {
+  width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center;
+  background: var(--paper-2); color: var(--ink-500); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.edit-btn:hover   { background: var(--teal-50); color: var(--teal-700); }
+.edit-btn-active  { background: var(--paper-3, #e8e5e0); color: var(--ink-700); }
+
+.edit-row { border-bottom: 1px solid var(--line-2, #f0eeea); }
+.edit-row-inner {
+  display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+  padding: 14px 18px; background: var(--paper-2);
+}
+.edit-field { display: flex; flex-direction: column; gap: 5px; }
+.edit-label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-500); }
+.edit-select {
+  height: 32px; padding: 0 10px; border-radius: 8px; font-size: 12.5px;
+  background: var(--paper); box-shadow: inset 0 0 0 1px var(--line);
+  border: none; outline: none; cursor: pointer; color: var(--ink-900); min-width: 140px;
+}
+.edit-actions { display: flex; align-items: center; gap: 6px; margin-inline-start: auto; }
+.save-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 32px; padding: 0 14px; border-radius: 8px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  background: var(--teal-600, #0d9488); color: #fff;
+  transition: opacity 0.15s;
+}
+.save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.save-btn:hover:not(:disabled) { opacity: 0.88; }
+.cancel-btn {
+  height: 32px; padding: 0 12px; border-radius: 8px;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  background: transparent; color: var(--ink-500);
+}
+.cancel-btn:hover { color: var(--ink-900); }
+
+/* Contact Settings Section */
+.contact-settings-panel {
+  margin-bottom: 20px;
+  padding: 20px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line-2, #f0eeea);
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-900);
+  display: flex;
+  align-items: center;
+}
+
+.section-subtitle {
+  font-size: 12px;
+  color: var(--ink-500);
+  margin-top: 4px;
+}
+
+.edit-contact-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--teal-50);
+  color: var(--teal-700);
+  transition: background 0.15s;
+}
+
+.edit-contact-btn:hover {
+  background: var(--teal-100, #ccfbf1);
+}
+
+/* View Mode */
+.contact-view-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.contact-view-item {
+  padding: 12px;
+  background: var(--paper-2);
+  border-radius: 8px;
+}
+
+.contact-view-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-500);
+  margin-bottom: 6px;
+}
+
+.contact-view-value {
+  font-size: 13px;
+  color: var(--ink-900);
+  font-family: var(--font-mono, monospace);
+}
+
+/* Edit Mode */
+.contact-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.contact-edit-group {
+  padding: 16px;
+  background: var(--paper-2);
+  border-radius: 10px;
+}
+
+.contact-edit-header {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-600);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-2, #f0eeea);
+}
+
+.contact-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+}
+
+.field-input {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border: none;
+  outline: none;
+  color: var(--ink-900);
+  transition: box-shadow 0.15s;
+}
+
+.field-input:focus {
+  box-shadow: inset 0 0 0 1.5px var(--teal-500);
+}
+
+.contact-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.save-contact-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 20px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--teal-600, #0d9488);
+  color: #fff;
+  transition: opacity 0.15s;
+}
+
+.save-contact-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.save-contact-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.cancel-contact-btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink-500);
+}
+
+.cancel-contact-btn:hover {
+  color: var(--ink-900);
+}
 </style>

@@ -30,7 +30,7 @@ const transitionName = computed(() =>
         <span class="wiz-setup-label">{{ i18n.locale === 'ar' ? 'إعداد العيادة' : 'Clinic setup' }}</span>
         <div class="wiz-divider" />
         <button class="dpc-btn dpc-btn-ghost wiz-save-btn" @click="router.push('/app/dashboard')">
-          {{ i18n.t('wiz.save_exit') || 'Save & exit' }}
+          {{ i18n.locale === 'ar' ? 'حفظ وخروج' : 'Save & exit' }}
         </button>
         <LangSwitch />
       </div>

@@ -42,12 +42,12 @@
      Gray-* names are kept as aliases for backwards compatibility.
      ──────────────────────────────────────────────────────────── */
 
-  --paper:      #f0f4f8;   /* cool blue-tinted medical canvas     */
-  --paper-2:    #e8edf5;   /* subtle elevation / divider band     */
-  --surface:    #ffffff;   /* cards, inputs, modals               */
-  --line:       #e2e8f0;   /* cool-neutral border                 */
-  --line-2:     #e2e8f0;
-  --line-soft:  #eaf0f7;
+  --paper:      #f9fafb;   /* neutral gray canvas (Tailwind gray-50) */
+  --paper-2:    #f3f4f6;   /* subtle elevation / divider band        */
+  --surface:    #ffffff;   /* cards, inputs, modals                  */
+  --line:       #e5e7eb;   /* neutral border (Tailwind gray-200)      */
+  --line-2:     #e5e7eb;
+  --line-soft:  #f3f4f6;
 
   --ink-900: #0a1424;
   --ink-800: #1a2538;
@@ -75,6 +75,14 @@
   /* ────────────────────────────────────────────────────────────
      COLOR · Semantic
      ──────────────────────────────────────────────────────────── */
+
+  /* Brand accent (teal) */
+  --accent:      var(--teal-600);
+  --accent-dark: var(--teal-700);
+
+  /* Surface layers */
+  --surface-1:   var(--surface);
+  --surface-2:   var(--paper-2);
 
   --success-50:  #ecfdf5;
   --success-100: #d1fae5;
@@ -104,9 +112,9 @@
      TYPOGRAPHY · Font stacks
      ──────────────────────────────────────────────────────────── */
 
-  --font-sans:   'Rubik', 'IBM Plex Sans Arabic', -apple-system, system-ui, sans-serif;
-  --font-head:   'Poppins', 'IBM Plex Sans Arabic', -apple-system, system-ui, sans-serif;
-  --font-arabic: 'IBM Plex Sans Arabic', 'Rubik', system-ui, sans-serif;
+  --font-sans:   'Geist', 'IBM Plex Sans Arabic', -apple-system, system-ui, sans-serif;
+  --font-head:   'Geist', 'IBM Plex Sans Arabic', -apple-system, system-ui, sans-serif;
+  --font-arabic: 'IBM Plex Sans Arabic', 'Geist', system-ui, sans-serif;
   --font-mono:   'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* ────────────────────────────────────────────────────────────
@@ -232,3 +240,337 @@
   --z-tooltip:  70;  /* tooltips — always on top   */
 
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   TRIAL MODE STYLES
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Blur effect for trial accounts - applied to price displays */
+.trial-blur {
+  filter: blur(8px);
+  user-select: none;
+  pointer-events: none;
+  transition: filter 0.3s ease;
+  opacity: 0.7;
+}
+
+.trial-blur:hover {
+  filter: blur(6px);
+}
+
+/* Trial upgrade banner */
+.trial-upgrade-banner {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem 2rem;
+  margin-bottom: 1.5rem;
+  color: white;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  box-shadow: var(--shadow-lg);
+}
+
+.trial-upgrade-content {
+  flex: 1;
+  min-width: 240px;
+}
+
+.trial-upgrade-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.trial-upgrade-message {
+  font-size: 0.875rem;
+  opacity: 0.9;
+}
+
+.trial-upgrade-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trial-blur {
+    transition: none;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   AUTH PAGES · Specific tokens and utilities
+   ──────────────────────────────────────────────────────────── */
+
+:root {
+  --auth-hero-gradient: linear-gradient(165deg, #0a1424 0%, #0f2545 60%, #163058 100%);
+  --auth-form-max-width: 560px;
+  --auth-card-max-width: 480px;
+}
+
+/* Glassmorphic cards for auth hero sections */
+.glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-lg);
+}
+
+/* Premium eyebrow for form sections */
+.section-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  background: var(--teal-50);
+  color: var(--teal-700);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+
+/* Animated validation check */
+@keyframes check-appear {
+  from {
+    opacity: 0;
+    scale: 0.8;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+.validation-check {
+  animation: check-appear 0.3s var(--ease-spring);
+}
+
+/* Text gradient utility for headings */
+.text-teal {
+  background: linear-gradient(135deg, var(--teal-600), var(--teal-500));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ────────────────────────────────────────────────────────────
+   PREMIUM APP REDESIGN · Additional tokens & utilities
+   Phase 1: Foundation
+   ──────────────────────────────────────────────────────────── */
+
+:root {
+  /* Advanced easing curves */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-expo: cubic-bezier(0.87, 0, 0.13, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Stagger animation delays */
+  --stagger-1: 100ms;
+  --stagger-2: 200ms;
+  --stagger-3: 300ms;
+  --stagger-4: 400ms;
+
+  /* Duration tokens */
+  --duration-instant: 100ms;
+  --duration-fast: 200ms;
+  --duration-base: 300ms;
+  --duration-slow: 500ms;
+  --duration-slower: 700ms;
+}
+
+/* Navy hero gradient preset */
+.navy-hero-gradient {
+  background: linear-gradient(165deg, #0a1424 0%, #0f2545 60%, #163058 100%);
+}
+
+/* Glassmorphic card variants */
+.glass-card-light {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-lg);
+}
+
+.glass-card-dark {
+  background: rgba(10, 20, 36, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+}
+
+/* Hover lift animation utility */
+.hover-lift {
+  transition: transform var(--duration-fast) var(--ease-spring),
+              box-shadow var(--duration-fast) ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+/* Hover glow effect */
+.hover-glow {
+  transition: box-shadow var(--duration-base) ease;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 0 1px var(--teal-200),
+              0 4px 16px rgba(13, 148, 136, 0.15);
+}
+
+/* Skeleton loading pulse */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.skeleton {
+  background: var(--paper-2);
+  border-radius: var(--radius-sm);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--paper-2) 0%,
+    var(--paper-3) 50%,
+    var(--paper-2) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Entrance animations */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s var(--ease-spring);
+}
+
+.animate-fade-in-down {
+  animation: fade-in-down 0.4s var(--ease-spring);
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s var(--ease-spring);
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s var(--ease-spring);
+}
+
+/* Status indicator dots */
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.status-dot--success { background: var(--success-600); }
+.status-dot--warning { background: var(--warning-600); }
+.status-dot--danger { background: var(--danger-600); }
+.status-dot--info { background: var(--info-600); }
+.status-dot--neutral { background: var(--ink-400); }
+
+/* Floating action button */
+.fab {
+  position: fixed;
+  bottom: 24px;
+  inset-inline-end: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--teal-600);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.3);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-spring);
+  z-index: 100;
+}
+
+.fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 24px rgba(13, 148, 136, 0.4);
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+/* Accessibility: Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .hover-lift:hover {
+    transform: none;
+  }
+}
+

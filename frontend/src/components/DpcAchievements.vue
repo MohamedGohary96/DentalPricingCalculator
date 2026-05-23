@@ -62,30 +62,32 @@ function fmtDate(iso) {
 
 <style scoped>
 .ach-root {
-  background: var(--paper);
-  border-radius: var(--r-md);
-  box-shadow: inset 0 0 0 1px var(--line);
-  padding: 18px 20px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  padding: 20px 24px;
 }
 
 .ach-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .ach-title {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--ink-800);
-  letter-spacing: 0.01em;
+  color: var(--ink-500);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .ach-count {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--ink-400);
+  color: var(--accent-dark);
   font-family: var(--font-mono);
 }
 
@@ -115,20 +117,22 @@ function fmtDate(iso) {
 }
 
 .ach-badge.is-unlocked {
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1.5px var(--teal-200), 0 2px 8px rgba(20, 184, 148, 0.10);
-  animation: badge-pop 0.4s var(--ease-spring) both;
+  background: var(--surface-1);
+  border: 1px solid var(--accent-dim);
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.12);
+  animation: badge-pop 0.4s var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
 }
 
 .ach-badge.is-locked {
-  background: var(--paper-2);
-  box-shadow: inset 0 0 0 1px var(--line);
-  opacity: 0.6;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  opacity: 0.5;
 }
 
 .ach-badge.is-unlocked:hover {
   transform: translateY(-2px);
-  box-shadow: inset 0 0 0 1.5px var(--teal-300), 0 6px 16px rgba(20, 184, 148, 0.16);
+  border-color: var(--accent);
+  box-shadow: 0 6px 16px rgba(6, 182, 212, 0.2);
 }
 
 /* ── Badge icon ───────────────────────────────────────────────── */
@@ -143,24 +147,25 @@ function fmtDate(iso) {
 }
 
 .icon-unlocked {
-  background: linear-gradient(135deg, var(--teal-50), var(--teal-100));
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.20);
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(6, 182, 212, 0.05));
+  box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.2), 0 2px 8px rgba(6, 182, 212, 0.15);
 }
 
 .icon-locked {
-  background: var(--line);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
 }
 
 .badge-emoji {
   line-height: 1;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.12));
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.1));
 }
 
 .badge-q {
   font-size: 18px;
   font-weight: 700;
   color: var(--ink-400);
-  font-family: var(--font-head);
+  font-family: var(--font-display);
 }
 
 /* ── Badge text ───────────────────────────────────────────────── */

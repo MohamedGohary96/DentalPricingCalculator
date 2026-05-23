@@ -1,48 +1,58 @@
 <script setup>
-import { computed } from 'vue'
+import { onMounted, ref } from 'vue'
 import { RouterView }      from 'vue-router'
-import DpcMonthlyNudge     from '@/components/DpcMonthlyNudge.vue'
 import ToastContainer      from '@/components/ToastContainer.vue'
 import { useAuthStore }    from '@/stores/auth.js'
-import { usePricingStore } from '@/stores/pricing.js'
-import { useMonthlyNudge } from '@/composables/useMonthlyNudge.js'
 
-const auth         = useAuthStore()
-const pricingStore = usePricingStore()
-const { shouldShowNudge } = useMonthlyNudge()
+const auth = useAuthStore()
 
-// Only show when logged in AND onboarding is complete
-const showNudge = computed(() =>
-  shouldShowNudge.value
-  && auth.isLoggedIn
-  && (auth.user?.onboarding_completed === 1 || auth.user?.onboarding_completed === true)
-)
+// Track if initial auth check is complete
+const isReady = ref(false)
 
-// Pass current health score to the nudge component
-const healthScore = computed(() => {
-  const s = pricingStore.dashboardStats || {}
-  const onboardingDone = auth.user?.onboarding_completed === 1 || auth.user?.onboarding_completed === true
-  const total      = s.total_services       || 0
-  const underpriced = s.underpriced_services || 0
-  const priced     = s.priced_services      || s.market_priced_services || 0
-  const hasFixed   = (s.fixed_costs || s.total_fixed_monthly || 0) > 0
-
-  let score = 0
-  if (onboardingDone)                         score += 20
-  score += Math.min(total      * 5, 30)
-  score += Math.min(priced     * 5, 20)
-  score -= underpriced         * 10
-  if (hasFixed)                               score += 10
-  if (underpriced === 0 && total > 0)         score += 15
-  return Math.max(0, Math.min(100, score))
+onMounted(() => {
+  const checkReady = () => {
+    if (!auth.loading) {
+      isReady.value = true
+    } else {
+      requestAnimationFrame(checkReady)
+    }
+  }
+  checkReady()
 })
 </script>
 
 <template>
-  <RouterView />
-  <DpcMonthlyNudge
-    v-if="showNudge"
-    :current-score="healthScore"
-  />
-  <ToastContainer />
+  <!-- Loading screen until auth data is ready -->
+  <div v-if="!isReady" class="app-loading">
+    <div class="loading-spinner">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10" opacity="0.25"/>
+        <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round">
+          <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/>
+        </path>
+      </svg>
+    </div>
+  </div>
+
+  <!-- App content once ready -->
+  <template v-else>
+    <RouterView />
+    <ToastContainer />
+  </template>
 </template>
+
+<style scoped>
+.app-loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  z-index: 9999;
+}
+
+.loading-spinner {
+  color: var(--teal-600);
+}
+</style>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18nStore } from '@/stores/i18n.js'
 import { usePricingStore } from '@/stores/pricing.js'
@@ -13,35 +13,118 @@ const pricingStore = usePricingStore()
 
 const isAr = computed(() => i18n.locale === 'ar')
 
-// Calculator widget state
-const calcInputs = reactive({ chairs: 3, hoursPerDay: 8, daysPerWeek: 5 })
-const calcResult = ref(270)
-const calcLoading = ref(false)
+// 3-Step Calculator Wizard State
+const currentStep = ref(1)
+const calcSize = ref(null)  // 'small' | 'medium' | 'large'
+const calcCity = ref(null)  // 'cairo' | 'alex' | 'delta' | 'upper' | 'gulf' | 'other'
+const customCity = ref('')
 
-async function compute() {
-  calcLoading.value = true
-  try {
-    const res = await pricingStore.computeCalc({
-      chairs: calcInputs.chairs,
-      hours_per_day: calcInputs.hoursPerDay,
-      days_per_week: calcInputs.daysPerWeek,
-    })
-    if (res && res.chair_cost_per_hour) {
-      calcResult.value = Math.round(res.chair_cost_per_hour)
-    }
-  } catch {
-    // fallback stays at 270
-  } finally {
-    calcLoading.value = false
-  }
+const calcCosts = reactive({
+  rent: 0,
+  hours: 8,
+  overhead: 0,
+  staff: 0,
+  dep: 0,
+})
+
+const calcResult = reactive({
+  cph: 0,
+  currency: 'EGP',
+  total: 0,
+})
+
+// Clinic templates (from original calculator data)
+const CALC_TEMPLATES = {
+  small: {
+    cairo: { chairs: 1, rent: 6000, overhead: 3500, staff: 2500, dep: 1200, cur: 'ج' },
+    alex: { chairs: 1, rent: 4500, overhead: 2800, staff: 2000, dep: 1000, cur: 'ج' },
+    delta: { chairs: 1, rent: 3500, overhead: 2200, staff: 1800, dep: 900, cur: 'ج' },
+    upper: { chairs: 1, rent: 3000, overhead: 2000, staff: 1600, dep: 800, cur: 'ج' },
+    gulf: { chairs: 1, rent: 8000, overhead: 5000, staff: 4000, dep: 2000, cur: 'ر.س' },
+    other: { chairs: 1, rent: null, overhead: null, staff: null, dep: null, cur: 'ج' },
+  },
+  medium: {
+    cairo: { chairs: 2, rent: 12000, overhead: 7000, staff: 6000, dep: 3000, cur: 'ج' },
+    alex: { chairs: 2, rent: 9000, overhead: 5500, staff: 4500, dep: 2500, cur: 'ج' },
+    delta: { chairs: 2, rent: 7000, overhead: 4500, staff: 3800, dep: 2000, cur: 'ج' },
+    upper: { chairs: 2, rent: 6000, overhead: 4000, staff: 3500, dep: 1800, cur: 'ج' },
+    gulf: { chairs: 2, rent: 16000, overhead: 10000, staff: 8000, dep: 4000, cur: 'ر.س' },
+    other: { chairs: 2, rent: null, overhead: null, staff: null, dep: null, cur: 'ج' },
+  },
+  large: {
+    cairo: { chairs: 3, rent: 20000, overhead: 12000, staff: 12000, dep: 6000, cur: 'ج' },
+    alex: { chairs: 3, rent: 15000, overhead: 9000, staff: 9000, dep: 4500, cur: 'ج' },
+    delta: { chairs: 3, rent: 12000, overhead: 7000, staff: 7000, dep: 3500, cur: 'ج' },
+    upper: { chairs: 3, rent: 10000, overhead: 6000, staff: 6000, dep: 3000, cur: 'ج' },
+    gulf: { chairs: 3, rent: 25000, overhead: 15000, staff: 15000, dep: 7000, cur: 'ر.س' },
+    other: { chairs: 3, rent: null, overhead: null, staff: null, dep: null, cur: 'ج' },
+  },
 }
 
+const calcTemplate = computed(() => {
+  if (!calcSize.value || !calcCity.value) return null
+  return CALC_TEMPLATES[calcSize.value]?.[calcCity.value] || null
+})
+
+const calcTotalCost = computed(() => {
+  return (calcCosts.rent || 0) + (calcCosts.overhead || 0) + (calcCosts.staff || 0) + (calcCosts.dep || 0)
+})
+
+const calcProgressPercent = computed(() => (currentStep.value / 3) * 100)
+
 const timeSlices = computed(() => [
-  { l: '30 min', v: Math.round(calcResult.value * 0.5) },
-  { l: '45 min', v: Math.round(calcResult.value * 0.75) },
-  { l: '60 min', v: calcResult.value },
-  { l: '90 min', v: Math.round(calcResult.value * 1.5) },
+  { l: isAr.value ? '٣٠ دقيقة' : '30 min', v: Math.round(calcResult.cph * 0.5) },
+  { l: isAr.value ? '٤٥ دقيقة' : '45 min', v: Math.round(calcResult.cph * 0.75) },
+  { l: isAr.value ? '٦٠ دقيقة' : '60 min', v: Math.round(calcResult.cph * 1.0) },
+  { l: isAr.value ? '٩٠ دقيقة' : '90 min', v: Math.round(calcResult.cph * 1.5) },
 ])
+
+// Watch for template changes → auto-fill costs
+watch(calcTemplate, (tpl) => {
+  if (!tpl) return
+  calcCosts.rent = tpl.rent
+  calcCosts.overhead = tpl.overhead
+  calcCosts.staff = tpl.staff
+  calcCosts.dep = tpl.dep
+  calcResult.currency = tpl.cur === 'ر.س' ? 'SAR' : 'EGP'
+})
+
+function selectCalcSize(val) {
+  calcSize.value = val
+}
+
+function selectCalcCity(val) {
+  calcCity.value = val
+}
+
+function goCalcStep(step) {
+  currentStep.value = step
+}
+
+function computeCalcResult() {
+  if (!calcTemplate.value) return
+  const tpl = calcTemplate.value
+  const total = calcTotalCost.value
+  const availHours = tpl.chairs * calcCosts.hours * 24 * 0.7
+  const cph = availHours > 0 ? total / availHours : 0
+  calcResult.cph = Math.round(cph)
+  calcResult.total = total
+  currentStep.value = 3
+}
+
+function restartCalc() {
+  currentStep.value = 1
+  calcSize.value = null
+  calcCity.value = null
+  customCity.value = ''
+  calcCosts.rent = 0
+  calcCosts.hours = 8
+  calcCosts.overhead = 0
+  calcCosts.staff = 0
+  calcCosts.dep = 0
+  calcResult.cph = 0
+  calcResult.total = 0
+}
 
 // FAQ accordion
 const faqOpen = ref(0)
@@ -158,77 +241,188 @@ function fmt(n) {
           </div>
         </div>
 
-        <!-- Right: inline calculator widget -->
+        <!-- Right: 3-step calculator wizard -->
         <div class="calc-card">
+          <!-- Progress header -->
           <div class="calc-card-top">
-            <div class="eyebrow eyebrow-teal">{{ isAr ? 'حاسبة سريعة' : 'Try it · 30 sec' }}</div>
-            <span class="calc-progress-label">3 / 3</span>
+            <div class="eyebrow eyebrow-teal">{{ isAr ? 'جرّبها — ٣٠ ثانية' : 'Try it · 30 sec' }}</div>
+            <span class="calc-progress-label">{{ currentStep }} / 3</span>
           </div>
           <div class="calc-progress-bar">
-            <div class="calc-progress-fill" />
+            <div class="calc-progress-fill" :style="{ width: calcProgressPercent + '%' }" />
           </div>
 
-          <!-- Inputs -->
-          <div class="calc-inputs">
-            <label class="calc-field">
-              <span class="calc-field-label">{{ isAr ? 'عدد الكراسي' : 'Chairs' }}</span>
-              <input
-                v-model.number="calcInputs.chairs"
-                type="number"
-                min="1"
-                max="20"
-                class="calc-input"
-                @change="compute"
-              />
-            </label>
-            <label class="calc-field">
-              <span class="calc-field-label">{{ isAr ? 'ساعات/يوم' : 'Hours / day' }}</span>
-              <input
-                v-model.number="calcInputs.hoursPerDay"
-                type="number"
-                min="2"
-                max="16"
-                class="calc-input"
-                @change="compute"
-              />
-            </label>
-            <label class="calc-field">
-              <span class="calc-field-label">{{ isAr ? 'أيام/أسبوع' : 'Days / week' }}</span>
-              <input
-                v-model.number="calcInputs.daysPerWeek"
-                type="number"
-                min="1"
-                max="7"
-                class="calc-input"
-                @change="compute"
-              />
-            </label>
-          </div>
+          <!-- Step 1: Clinic Type Selection -->
+          <div v-if="currentStep === 1" class="calc-step">
+            <h3 class="calc-step-title">{{ isAr ? 'عيادتك من أي نوع؟' : 'What type of clinic?' }}</h3>
+            <p class="calc-step-sub">{{ isAr ? 'سؤالان — وسنملأ ٨٠٪ تلقائياً' : 'Two questions — we\'ll auto-fill 80%' }}</p>
 
-          <!-- Result -->
-          <div class="calc-result-block">
-            <div class="calc-result-num">
-              <span class="dpc-num" :class="{ 'calc-loading': calcLoading }">{{ fmt(calcResult) }}</span>
-              <span class="calc-result-unit">{{ i18n.t ? i18n.t('currency') || 'EGP' : 'EGP' }}/h</span>
+            <label class="calc-label">{{ isAr ? 'حجم العيادة' : 'Clinic size' }}</label>
+            <div class="calc-chips">
+              <button
+                :class="['calc-chip', calcSize === 'small' && 'is-active']"
+                @click="selectCalcSize('small')"
+              >
+                <span class="calc-chip-main">{{ isAr ? 'كرسي واحد' : '1 chair' }}</span>
+                <span class="calc-chip-sub">{{ isAr ? 'طبيب ± مساعد' : 'Doctor ± assist' }}</span>
+              </button>
+              <button
+                :class="['calc-chip', calcSize === 'medium' && 'is-active']"
+                @click="selectCalcSize('medium')"
+              >
+                <span class="calc-chip-main">{{ isAr ? 'كرسيان' : '2 chairs' }}</span>
+                <span class="calc-chip-sub">{{ isAr ? 'طبيب + مساعد' : 'Doctor + assist' }}</span>
+              </button>
+              <button
+                :class="['calc-chip', calcSize === 'large' && 'is-active']"
+                @click="selectCalcSize('large')"
+              >
+                <span class="calc-chip-main">{{ isAr ? '٣ كراسي+' : '3+ chairs' }}</span>
+                <span class="calc-chip-sub">{{ isAr ? 'عيادة متكاملة' : 'Full clinic' }}</span>
+              </button>
             </div>
-            <div class="calc-result-label">{{ isAr ? 'تكلفة كرسيك التشغيلية' : 'Your chair operating cost' }}</div>
+
+            <label class="calc-label">{{ isAr ? 'موقع العيادة' : 'Clinic location' }}</label>
+            <div class="calc-chips">
+              <button :class="['calc-chip', calcCity === 'cairo' && 'is-active']" @click="selectCalcCity('cairo')">
+                {{ isAr ? 'القاهرة / الجيزة' : 'Cairo / Giza' }}
+              </button>
+              <button :class="['calc-chip', calcCity === 'alex' && 'is-active']" @click="selectCalcCity('alex')">
+                {{ isAr ? 'الإسكندرية' : 'Alexandria' }}
+              </button>
+              <button :class="['calc-chip', calcCity === 'delta' && 'is-active']" @click="selectCalcCity('delta')">
+                {{ isAr ? 'الدلتا' : 'Delta' }}
+              </button>
+              <button :class="['calc-chip', calcCity === 'upper' && 'is-active']" @click="selectCalcCity('upper')">
+                {{ isAr ? 'الصعيد' : 'Upper Egypt' }}
+              </button>
+              <button :class="['calc-chip', calcCity === 'gulf' && 'is-active']" @click="selectCalcCity('gulf')">
+                {{ isAr ? 'الخليج' : 'Gulf' }}
+              </button>
+              <button :class="['calc-chip', calcCity === 'other' && 'is-active']" @click="selectCalcCity('other')">
+                {{ isAr ? 'أخرى' : 'Other' }}
+              </button>
+            </div>
+
+            <!-- Custom city input when "Other" is selected -->
+            <div v-if="calcCity === 'other'" class="calc-other-wrap">
+              <input
+                v-model="customCity"
+                type="text"
+                class="calc-other-input"
+                :placeholder="isAr ? 'اكتب مدينتك أو منطقتك…' : 'Type your city or region…'"
+                autofocus
+              />
+            </div>
+
+            <button
+              class="dpc-btn dpc-btn-teal calc-btn-full"
+              :disabled="!calcSize || !calcCity"
+              @click="goCalcStep(2)"
+            >
+              {{ isAr ? 'التالي — شوف بياناتك' : 'Next — see your data' }}
+              <DpcIcon :name="isAr ? 'ArrowLeft' : 'ArrowRight'" :size="16" :stroke-width="2" />
+            </button>
           </div>
 
-          <!-- Time slices -->
-          <div class="calc-slices">
-            <div v-for="s in timeSlices" :key="s.l" class="calc-slice">
-              <div class="calc-slice-label">{{ s.l }}</div>
-              <div class="dpc-num calc-slice-val">{{ fmt(s.v) }}</div>
+          <!-- Step 2: Review Costs -->
+          <div v-if="currentStep === 2" class="calc-step">
+            <h3 class="calc-step-title">{{ isAr ? 'راجع بياناتك' : 'Review your costs' }}</h3>
+            <p class="calc-step-sub">{{ isAr ? 'عدّل الإيجار حسب رقمك' : 'Adjust rent to your actual' }}</p>
+
+            <div class="calc-cost-rows">
+              <div class="calc-cost-row">
+                <label>{{ isAr ? 'إيجار العيادة' : 'Clinic rent' }}</label>
+                <input v-model.number="calcCosts.rent" type="number" min="0" step="100" class="calc-cost-input" />
+              </div>
+              <div class="calc-cost-row">
+                <label>{{ isAr ? 'ساعات/يوم' : 'Hours / day' }}</label>
+                <input v-model.number="calcCosts.hours" type="number" min="1" max="24" class="calc-cost-input" />
+              </div>
+              <div class="calc-cost-row">
+                <label>
+                  {{ isAr ? 'المرافق والإدارة' : 'Utilities & admin' }}
+                  <span v-if="calcCity !== 'other'" class="calc-auto-badge">{{ isAr ? '✦ ملأناها' : '✦ auto' }}</span>
+                </label>
+                <input v-model.number="calcCosts.overhead" type="number" min="0" step="100" class="calc-cost-input" />
+              </div>
+              <div class="calc-cost-row">
+                <label>
+                  {{ isAr ? 'رواتب الموظفين' : 'Staff salaries' }}
+                  <span v-if="calcCity !== 'other'" class="calc-auto-badge">{{ isAr ? '✦ ملأناها' : '✦ auto' }}</span>
+                </label>
+                <input v-model.number="calcCosts.staff" type="number" min="0" step="100" class="calc-cost-input" />
+              </div>
+              <div class="calc-cost-row">
+                <label>
+                  {{ isAr ? 'إهلاك المعدات' : 'Equipment depreciation' }}
+                  <span v-if="calcCity !== 'other'" class="calc-auto-badge">{{ isAr ? '✦ ملأناها' : '✦ auto' }}</span>
+                  <span class="tip-wrap">
+                    <span class="tip-icon">?</span>
+                    <span class="tip-box" :class="isAr ? 'tip-box-ltr' : ''">
+                      {{ isAr
+                        ? 'التكلفة الشهرية لمعداتك (كرسي، وحدة، أشعة…) موزعةً على سنوات عمرها الإنتاجي. مثال: معدات بـ١٢٠٬٠٠٠ جنيه على ١٠ سنوات = ١٬٠٠٠ جنيه/شهر.'
+                        : 'Monthly cost of your equipment (chair, unit, X-ray…) spread over its useful life. E.g. equipment worth 120,000 over 10 years = 1,000/month.' }}
+                    </span>
+                  </span>
+                </label>
+                <input v-model.number="calcCosts.dep" type="number" min="0" step="100" class="calc-cost-input" />
+              </div>
+              <div class="calc-cost-row calc-cost-total">
+                <label>{{ isAr ? 'الإجمالي شهرياً' : 'Total / month' }}</label>
+                <span class="calc-total-val">{{ fmt(calcTotalCost) }}</span>
+              </div>
+            </div>
+
+            <div class="calc-actions">
+              <button class="dpc-btn dpc-btn-ghost calc-btn-back" @click="goCalcStep(1)">
+                <DpcIcon :name="isAr ? 'ArrowRight' : 'ArrowLeft'" :size="16" />
+                {{ isAr ? 'رجوع' : 'Back' }}
+              </button>
+              <button class="dpc-btn dpc-btn-teal calc-btn-compute" @click="computeCalcResult">
+                {{ isAr ? 'احسب' : 'Compute' }}
+                <DpcIcon :name="isAr ? 'ArrowLeft' : 'ArrowRight'" :size="16" />
+              </button>
             </div>
           </div>
 
-          <!-- Warning note -->
-          <div class="calc-warning">
-            <b>{{ isAr ? 'هذا الأساس فقط.' : "That's just the floor." }}</b>
-            {{ ' ' }}
-            {{ isAr
-              ? 'السعر الحقيقي = الكرسي + خامات + طبيب + ربحك. سجّل لترى قائمتك مُسعّرة بالكامل.'
-              : 'Real price = chair + materials + doctor + your margin. Register to see your full menu priced.' }}
+          <!-- Step 3: Result -->
+          <div v-if="currentStep === 3" class="calc-step">
+            <div class="calc-result-hero">
+              <span class="dpc-num calc-result-num">{{ fmt(calcResult.cph) }}</span>
+              <span class="calc-result-unit">{{ calcResult.currency }}/h</span>
+              <div class="calc-result-label">{{ isAr ? 'تكلفة الكرسي التشغيلية' : 'Your chair operating cost' }}</div>
+            </div>
+
+            <div class="calc-info-box">
+              <strong>{{ isAr ? 'هذا رقمك الأساسي — احفظه' : 'This is your base — remember it' }}</strong>
+              <p>{{ isAr ? 'كل خدمة لازم تغطي هذا الأساس' : 'Every service must cover this floor' }}</p>
+            </div>
+
+            <div class="calc-time-grid">
+              <div v-for="ts in timeSlices" :key="ts.l" class="calc-time-card">
+                <span class="calc-time-label">{{ ts.l }}</span>
+                <span class="dpc-num calc-time-val">{{ fmt(ts.v) }}</span>
+              </div>
+            </div>
+
+            <div class="calc-warning-box">
+              <strong>{{ isAr ? 'لكن ده مش السعر الكامل' : 'But this isn\'t the full price' }}</strong>
+              <p>{{ isAr ? 'السعر = الكرسي + خامات + طبيب + ربح' : 'Price = chair + materials + doctor + margin' }}</p>
+            </div>
+
+            <div class="calc-cta-box">
+              <strong>{{ isAr ? 'عايز السعر الصح لكل خدمة؟' : 'Want the right price per service?' }}</strong>
+              <p>{{ isAr ? 'سجّل مجاناً — هنحسبلك كل حاجة' : 'Sign up free — we compute everything' }}</p>
+              <button @click="router.push('/register')" class="dpc-btn dpc-btn-teal calc-cta-btn">
+                {{ isAr ? 'سجّل مجاناً' : 'Start free' }}
+                <DpcIcon :name="isAr ? 'ArrowLeft' : 'ArrowRight'" :size="16" />
+              </button>
+            </div>
+
+            <button class="calc-restart" @click="restartCalc">
+              ↺ {{ isAr ? 'أعد التجربة' : 'Try again' }}
+            </button>
           </div>
         </div>
 
@@ -544,27 +738,186 @@ function fmt(n) {
   background: var(--teal-600);
 }
 
-.calc-inputs {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 16px;
+/* Calculator wizard steps */
+.calc-step {
+  animation: calcFadeIn 0.3s ease;
 }
 
-.calc-field {
+@keyframes calcFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.calc-step-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.calc-step-sub {
+  font-size: 13px;
+  color: var(--ink-500);
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+
+.calc-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-700);
+  margin-bottom: 8px;
+}
+
+.calc-chips {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.calc-chip {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: var(--paper);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
-.calc-field-label {
+.calc-chip:hover {
+  border-color: var(--teal-400);
+  background: var(--teal-50);
+}
+
+.calc-chip.is-active {
+  border-color: var(--teal-600);
+  background: var(--teal-50);
+  box-shadow: 0 0 0 3px var(--teal-100);
+}
+
+.calc-chip-main {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.calc-chip-sub {
   font-size: 11px;
   color: var(--ink-500);
-  font-weight: 500;
 }
 
-.calc-input {
+.calc-btn-full {
   width: 100%;
+  justify-content: center;
+  height: 44px;
+}
+
+.calc-btn-full:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.calc-other-wrap {
+  animation: fade-in-down .15s ease;
+}
+.calc-other-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--teal-600);
+  font-size: 13.5px;
+  color: var(--ink-900);
+  outline: none;
+  border: none;
+}
+.calc-other-input::placeholder { color: var(--ink-400); }
+.calc-other-input:focus { box-shadow: inset 0 0 0 2px var(--teal-600), 0 0 0 3px rgba(13,148,136,.12); }
+@keyframes fade-in-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Step 2: Cost rows */
+.calc-cost-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.calc-cost-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.calc-cost-row label {
+  font-size: 13px;
+  color: var(--ink-700);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+
+.calc-auto-badge {
+  font-size: 10px;
+  color: var(--teal-600);
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.tip-wrap { position: relative; display: inline-flex; align-items: center; margin-inline-start: 5px; }
+.tip-icon {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--ink-200); color: var(--ink-600);
+  font-size: 9px; font-weight: 700;
+  display: grid; place-items: center; cursor: default;
+  flex-shrink: 0; line-height: 1;
+  transition: background .12s, color .12s;
+}
+.tip-wrap:hover .tip-icon { background: var(--teal-600); color: #fff; }
+.tip-box {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  width: 230px;
+  background: var(--ink-900);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.55;
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.28);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 200;
+  white-space: normal;
+  text-align: start;
+}
+.tip-box::after {
+  content: '';
+  position: absolute;
+  top: 100%; left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--ink-900);
+}
+.tip-box-ltr { direction: ltr; text-align: start; }
+.tip-wrap:hover .tip-box { opacity: 1; }
+
+.calc-cost-input {
+  width: 110px;
   height: 36px;
   padding: 0 10px;
   border-radius: var(--r);
@@ -575,84 +928,160 @@ function fmt(n) {
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--ink-900);
+  text-align: right;
   outline: none;
   transition: box-shadow 0.15s;
 }
 
-.calc-input:focus {
+.calc-cost-input:focus {
   box-shadow: inset 0 0 0 2px var(--teal-500);
 }
 
-.calc-result-block {
+.calc-cost-total {
+  border-top: 2px solid var(--line);
+  padding-top: 12px;
+  margin-top: 8px;
+}
+
+.calc-total-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink-900);
+  font-family: var(--font-mono);
+}
+
+.calc-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.calc-btn-back {
+  flex: 0;
+}
+
+.calc-btn-compute {
+  flex: 1;
+}
+
+/* Step 3: Result */
+.calc-result-hero {
   text-align: center;
-  padding: 10px 0 14px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
 }
 
 .calc-result-num {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 60px;
+  font-size: 56px;
+  font-weight: 800;
+  color: var(--teal-600);
   line-height: 1;
-  color: var(--ink-900);
-  letter-spacing: -0.03em;
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 0;
 }
 
-.calc-result-num .dpc-num { color: var(--ink-900); }
-.calc-loading { opacity: 0.4; }
-
 .calc-result-unit {
-  font-size: 16px;
+  font-size: 18px;
   color: var(--ink-500);
-  font-family: var(--font-sans);
-  margin-inline-start: 8px;
   font-weight: 500;
+  margin-left: 6px;
 }
 
 .calc-result-label {
   font-size: 13px;
-  color: var(--ink-500);
-  margin-top: 6px;
+  color: var(--ink-600);
+  margin-top: 8px;
 }
 
-.calc-slices {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  margin-bottom: 18px;
-}
-
-.calc-slice {
-  padding: 10px;
+.calc-info-box,
+.calc-warning-box,
+.calc-cta-box {
+  padding: 14px;
   border-radius: 10px;
-  text-align: center;
-  background: var(--paper-2);
-  box-shadow: inset 0 0 0 1px var(--line);
+  margin-bottom: 14px;
 }
 
-.calc-slice-label {
+.calc-info-box {
+  background: var(--teal-50);
+  border: 1px solid var(--teal-200);
+}
+
+.calc-info-box strong,
+.calc-warning-box strong,
+.calc-cta-box strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+  margin-bottom: 4px;
+}
+
+.calc-info-box p,
+.calc-warning-box p,
+.calc-cta-box p {
+  font-size: 12px;
+  color: var(--ink-600);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.calc-warning-box {
+  background: var(--warning-50);
+  border: 1px solid var(--warning-200);
+}
+
+.calc-cta-box {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.calc-cta-btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.calc-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.calc-time-card {
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  text-align: center;
+}
+
+.calc-time-label {
+  display: block;
   font-size: 11px;
   color: var(--ink-500);
+  margin-bottom: 4px;
 }
 
-.calc-slice-val {
-  font-weight: 600;
-  font-size: 13px;
+.calc-time-val {
+  font-size: 16px;
+  font-weight: 700;
   color: var(--ink-900);
-  margin-top: 2px;
 }
 
-.calc-warning {
-  background: var(--warning-50, #fffbeb);
-  border-radius: 10px;
-  padding: 12px;
-  font-size: 12px;
-  color: var(--warning-700, #b45309);
-  line-height: 1.5;
-  box-shadow: inset 0 0 0 1px var(--warning-100, #fef3c7);
+.calc-restart {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--ink-500);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.calc-restart:hover {
+  background: var(--paper-2);
+  color: var(--ink-900);
 }
 
 /* ── How it works ──────────────────────────────────────────────── */

@@ -7,6 +7,7 @@ const api = axios.create({ withCredentials: true })
 export const usePricingStore = defineStore('pricing', () => {
   const services          = ref([])
   const priceList         = ref([])
+  const priceListLoaded   = ref(false)
   const chairCostPerHour  = ref(0)
   const setupStatus       = ref(null)
   const dashboardStats    = ref(null)
@@ -37,6 +38,7 @@ export const usePricingStore = defineStore('pricing', () => {
   async function loadPriceList() {
     const { data } = await api.get('/api/price-list')
     priceList.value = data
+    priceListLoaded.value = true
   }
 
   async function computeCalc(payload) {
@@ -68,7 +70,7 @@ export const usePricingStore = defineStore('pricing', () => {
   }
 
   return {
-    services, priceList, chairCostPerHour, setupStatus, dashboardStats,
+    services, priceList, priceListLoaded, chairCostPerHour, setupStatus, dashboardStats,
     loadServices, createService, updateService, deleteService,
     loadPriceList, computeCalc, loadSetupStatus, loadDashboardStats,
     completeOnboarding,
