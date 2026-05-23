@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify, session, send_from_directory
 import os as _os
 from flask.json.provider import DefaultJSONProvider
 from functools import wraps
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import os
 from dotenv import load_dotenv
 
@@ -1346,6 +1346,51 @@ def spa(path):
     if path and _os.path.exists(file_path) and not _os.path.isdir(file_path):
         return send_from_directory(dist, path)
     return send_from_directory(dist, 'index.html')
+
+
+# ============== Cron Jobs ==============
+
+@app.route('/api/cron/keep-alive', methods=['GET'])
+def cron_keep_alive():
+    """
+    Cron endpoint to keep database connection alive
+    Called by Vercel Cron every 5 minutes to prevent connection timeouts
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Simple query to keep connection alive
+        cursor.execute('SELECT 1 as ping')
+        result = cursor.fetchone()
+
+        # Get current stats for monitoring
+        cursor.execute('SELECT COUNT(*) as clinic_count FROM clinics')
+        clinic_count = cursor.fetchone()['clinic_count']
+
+        cursor.execute('SELECT COUNT(*) as user_count FROM users')
+        user_count = cursor.fetchone()['user_count']
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'status': 'ok',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'database': 'alive',
+            'ping': result['ping'],
+            'stats': {
+                'clinics': clinic_count,
+                'users': user_count
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'error': str(e)
+        }), 500
 
 
 # ============== Error Handlers ==============

@@ -16,5 +16,11 @@
   "routes": [
     { "src": "/static/dist/(.*)", "dest": "/static/dist/$1" },
     { "src": "/(.*)", "dest": "/api/index.py" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/keep-alive",
+      "schedule": "*/5 * * * *"
+    }
   ]
 }
