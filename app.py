@@ -189,7 +189,7 @@ def login():
         session['role'] = user.get('role', 'staff')
         # Super admin is the user with username 'admin'
         session['is_super_admin'] = user['username'] == 'admin'
-        # Keep user logged in for 10 days
+        # Sessions always last 10 days unless user logs out
         session.permanent = True
 
         # Get subscription status for frontend
