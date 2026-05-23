@@ -73,13 +73,7 @@ const userName = () => {
 }
 
 async function logout() {
-  try {
-    await fetch('/logout', { method: 'POST', credentials: 'include' })
-  } catch (e) {
-    console.error('Logout failed:', e)
-  }
-  // Clear auth state and redirect
-  auth.user = null
+  await auth.logout()
   router.push('/login')
 }
 </script>
