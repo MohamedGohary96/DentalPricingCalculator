@@ -1126,8 +1126,11 @@ def api_register_clinic():
 
 @app.route('/verify-email')
 def verify_email_page():
-    """Redirect legacy verify-email URL — Vue SPA handles this route"""
-    pass
+    """Let Vue SPA handle email verification page"""
+    dist = _os.path.join(app.root_path, 'static', 'dist')
+    response = send_from_directory(dist, 'index.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
 
 
 @app.route('/api/verify-email', methods=['POST'])
