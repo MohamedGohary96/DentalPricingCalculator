@@ -178,7 +178,6 @@ def login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
-    remember = data.get('remember', False)
 
     user = authenticate_user(username, password)
     if user:
@@ -190,8 +189,8 @@ def login():
         session['role'] = user.get('role', 'staff')
         # Super admin is the user with username 'admin'
         session['is_super_admin'] = user['username'] == 'admin'
-        # Only make session permanent if "remember me" is checked
-        session.permanent = remember
+        # Keep user logged in for 10 days
+        session.permanent = True
 
         # Get subscription status for frontend
         subscription = get_subscription_status(user['clinic_id'])
@@ -1344,6 +1343,11 @@ def api_update_clinic_user(user_id):
 @app.route('/<path:path>')
 def spa(path):
     """Serve the Vue SPA for all non-API routes"""
+    # Redirect to dashboard if user is logged in and accessing root
+    if path == '' and session.get('user_id'):
+        from flask import redirect
+        return redirect('/app/dashboard')
+
     if path.startswith('static/'):
         return app.send_static_file(path[len('static/'):])
     dist = _os.path.join(app.root_path, 'static', 'dist')

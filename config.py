@@ -48,7 +48,7 @@ class Config:
     SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True') == 'True'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
-    PERMANENT_SESSION_LIFETIME = 28800  # 8 hours
+    PERMANENT_SESSION_LIFETIME = 864000  # 10 days
 
     # Email configuration (Flask-Mail)
     MAIL_ENABLED = os.environ.get('MAIL_ENABLED', 'True') == 'True'

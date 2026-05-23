@@ -28,8 +28,8 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function login(username, password, remember = false) {
-    const { data } = await api.post('/login', { username, password, remember })
+  async function login(username, password) {
+    const { data } = await api.post('/login', { username, password })
     if (data.success) {
       user.value = data.user
       // Extract subscription from user object (login returns it nested)
