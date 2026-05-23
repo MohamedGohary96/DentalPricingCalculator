@@ -86,8 +86,13 @@ os.makedirs(os.path.join(app.config['USER_DATA_DIR'], 'data'), exist_ok=True)
 os.makedirs(os.path.join(app.config['USER_DATA_DIR'], 'backups'), exist_ok=True)
 
 # Initialize database (safe for production - uses CREATE TABLE IF NOT EXISTS)
-init_database()
-create_initial_admin()  # Only creates admin if no clinics exist
+# Wrap in try-except for serverless environments where DB might not be immediately available
+try:
+    init_database()
+    create_initial_admin()  # Only creates admin if no clinics exist
+except Exception as e:
+    print(f"Warning: Database initialization skipped: {e}")
+    print("Database will be initialized on first request if needed")
 
 # Create sample data ONLY in development mode AND if explicitly requested
 # NEVER runs in production to protect real data
@@ -109,6 +114,25 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+_db_initialized = False
+
+def ensure_database_initialized():
+    """Lazy database initialization for serverless environments"""
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            init_database()
+            create_initial_admin()
+            _db_initialized = True
+        except Exception as e:
+            print(f"Database initialization failed: {e}")
+            # Don't set _db_initialized = True, will retry on next request
+
+@app.before_request
+def before_request():
+    """Run before each request"""
+    ensure_database_initialized()
 
 def get_clinic_id():
     """Get current user's clinic_id from session"""
