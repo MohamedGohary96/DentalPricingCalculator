@@ -1343,9 +1343,23 @@ def spa(path):
         return app.send_static_file(path[len('static/'):])
     dist = _os.path.join(app.root_path, 'static', 'dist')
     file_path = _os.path.join(dist, path)
+
+    # Serve static assets with proper cache headers
     if path and _os.path.exists(file_path) and not _os.path.isdir(file_path):
-        return send_from_directory(dist, path)
-    return send_from_directory(dist, 'index.html')
+        response = send_from_directory(dist, path)
+        # Hash-based assets can be cached forever, others get no-cache
+        if '/assets/' in path and ('-' in path or '.' in path.split('/')[-1]):
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        elif path.endswith('.json'):
+            response.headers['Cache-Control'] = 'no-cache, must-revalidate'
+        return response
+
+    # index.html should never be cached
+    response = send_from_directory(dist, 'index.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 
 # ============== Debug & Health ==============
