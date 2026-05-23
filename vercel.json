@@ -2,17 +2,19 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/index.py",
-      "use": "@vercel/python",
+      "src": "package.json",
+      "use": "@vercel/static-build",
       "config": {
-        "maxLambdaSize": "15mb"
+        "distDir": "static/dist"
       }
+    },
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.py"
-    }
+    { "src": "/static/dist/(.*)", "dest": "/static/dist/$1" },
+    { "src": "/(.*)", "dest": "/api/index.py" }
   ]
 }
