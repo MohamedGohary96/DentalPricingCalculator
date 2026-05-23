@@ -425,18 +425,23 @@ def init_database():
     ''')
 
     # Initialize default contact settings if they don't exist
-    cursor.execute('SELECT COUNT(*) as cnt FROM app_settings WHERE setting_key LIKE "contact_%"')
-    if cursor.fetchone()['cnt'] == 0:
-        cursor.execute('''
-            INSERT INTO app_settings (setting_key, setting_value) VALUES
-            ('contact_email', 'support@example.com'),
-            ('contact_phone', '+201015755890'),
-            ('contact_whatsapp', '+201015755890'),
-            ('contact_email_ar', 'support@example.com'),
-            ('contact_phone_ar', '+201015755890'),
-            ('contact_whatsapp_ar', '+201015755890')
-        ''')
-        conn.commit()
+    try:
+        cursor.execute('SELECT COUNT(*) as cnt FROM app_settings WHERE setting_key LIKE %s', ('contact_%',))
+        result = cursor.fetchone()
+        if result and result['cnt'] == 0:
+            cursor.execute('''
+                INSERT INTO app_settings (setting_key, setting_value) VALUES
+                ('contact_email', 'support@example.com'),
+                ('contact_phone', '+201015755890'),
+                ('contact_whatsapp', '+201015755890'),
+                ('contact_email_ar', 'support@example.com'),
+                ('contact_phone_ar', '+201015755890'),
+                ('contact_whatsapp_ar', '+201015755890')
+            ''')
+            conn.commit()
+    except Exception as e:
+        print(f"Warning: Could not initialize contact settings: {e}")
+        # Continue anyway - settings can be added later via super admin panel
 
     # Migration: Add is_super_admin to users if it doesn't exist
     user_columns = _get_table_columns(cursor, 'users')
