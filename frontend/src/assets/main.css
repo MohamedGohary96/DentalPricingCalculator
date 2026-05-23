@@ -1,0 +1,71 @@
+/* ═══════════════════════════════════════════════════════════════
+   Google Fonts — Space Grotesk (display) + Inter (body)
+   ═══════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #app {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--ink-900);
+  background: var(--canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+}
+
+/* Custom selection color - premium accent */
+::selection {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+html[dir="rtl"] body {
+  font-family: var(--font-arabic);
+}
+
+a { color: inherit; text-decoration: none; }
+
+button { font: inherit; cursor: pointer; border: 0; background: transparent; color: inherit; }
+
+input, textarea, select { font: inherit; color: inherit; }
+
+/* Numbers — IBM Plex Mono, tabular, LTR even in RTL context */
+.dpc-num {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Headings */
+.dpc-h {
+  font-family: var(--font-head);
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--ink-900);
+  line-height: 1.15;
+}
+html[dir="rtl"] .dpc-h {
+  font-family: var(--font-arabic);
+  letter-spacing: 0;
+}
+
+/* Hero dot-texture overlay */
+.dpc-hero-dots {
+  background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Divider */
+.dpc-divider {
+  height: 1px;
+  background: var(--line);
+  width: 100%;
+}
