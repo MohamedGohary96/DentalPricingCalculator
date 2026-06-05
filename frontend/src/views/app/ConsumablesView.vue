@@ -11,9 +11,11 @@ import DpcTableCell from '@/components/table/DpcTableCell.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { useClinicStore } from '@/stores/clinic.js'
 import { useI18nStore } from '@/stores/i18n.js'
+import axios from 'axios'
 
 const clinicStore = useClinicStore()
 const i18n        = useI18nStore()
+const currency    = ref('EGP')
 
 const isAr       = computed(() => i18n.locale === 'ar')
 const activeTab  = ref('consumables') // 'consumables' | 'materials'
@@ -150,7 +152,12 @@ const computedPerUnit = computed(() => {
 })
 
 onMounted(async () => {
-  await clinicStore.loadAll().catch(() => {})
+  await Promise.all([
+    clinicStore.loadAll().catch(() => {}),
+    axios.get('/api/settings/global', { withCredentials: true })
+      .then(res => { currency.value = res.data.currency || 'EGP' })
+      .catch(() => {}),
+  ])
 })
 </script>
 
@@ -340,7 +347,7 @@ onMounted(async () => {
                   <label class="field-label">{{ isAr ? 'سعر الباكيت' : 'Pack cost' }}</label>
                   <div class="input-with-suffix">
                     <input v-model.number="editForm.pack_cost" type="number" class="edit-input" />
-                    <span class="input-suffix">{{ isAr ? 'ج.م' : 'EGP' }}</span>
+                    <span class="input-suffix">{{ currency }}</span>
                   </div>
                 </div>
                 <div class="two-col">
@@ -355,7 +362,7 @@ onMounted(async () => {
                 </div>
                 <div class="computed-box">
                   <div class="computed-label">{{ isAr ? 'تكلفة الوحدة المحسوبة' : 'Computed per-unit cost' }}</div>
-                  <div class="dpc-num computed-value">{{ fmt(computedPerUnit) }} <span class="computed-unit">{{ isAr ? 'ج.م' : 'EGP' }}</span></div>
+                  <div class="dpc-num computed-value">{{ fmt(computedPerUnit) }} <span class="computed-unit">{{ currency }}</span></div>
                 </div>
               </div>
             </template>
@@ -379,7 +386,7 @@ onMounted(async () => {
                   <label class="field-label">{{ isAr ? 'تكلفة الوحدة' : 'Unit cost' }}</label>
                   <div class="input-with-suffix">
                     <input v-model.number="editForm.unit_cost" type="number" class="edit-input" />
-                    <span class="input-suffix">{{ isAr ? 'ج.م' : 'EGP' }}</span>
+                    <span class="input-suffix">{{ currency }}</span>
                   </div>
                 </div>
               </div>
@@ -524,7 +531,7 @@ onMounted(async () => {
                 <span class="pkg-eq-op">=</span>
                 <span class="pkg-eq-result">
                   {{ ((newItem.pack_cost || 0) / ((newItem.cases_per_pack || 1) * (newItem.units_per_case || 1))).toFixed(3) }}
-                  <small>{{ isAr ? 'ج.م / وحدة' : 'EGP / unit' }}</small>
+                  <small>{{ currency }} / unit</small>
                 </span>
               </div>
             </div>
