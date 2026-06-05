@@ -44,6 +44,7 @@ const equipmentDep = computed(() => stats.value.equipment_depreciation   || 0)
 const underpricedCount = computed(() => stats.value.underpriced_services || 0)
 
 // Contact info for trial banner
+const currency    = ref('EGP')
 const contactInfo = ref({})
 
 const contactEmail = computed(() => {
@@ -153,8 +154,9 @@ onMounted(async () => {
     pricingStore.loadDashboardStats().catch(() => {}),
     pricingStore.loadSetupStatus().catch(() => {}),
     pricingStore.loadServices().catch(() => {}),
-    pricingStore.loadPriceList().catch(() => {}), // Load priceList for health score
+    pricingStore.loadPriceList().catch(() => {}),
     axios.get('/api/contact-info').then(res => contactInfo.value = res.data).catch(() => {}),
+    axios.get('/api/settings/global', { withCredentials: true }).then(res => { currency.value = res.data.currency || 'EGP' }).catch(() => {}),
   ])
   loading.value = false
 
@@ -367,7 +369,7 @@ onMounted(async () => {
           <StatsCard
             :label="isAr ? 'تكلفة ساعة الكرسي' : 'Chair hourly rate'"
             :value="chairRate"
-            :unit="isAr ? 'ج.م/ساعة' : 'EGP/h'"
+            :unit="`${currency}/h`"
             icon="Clock"
             :loading="loading"
             @click="router.push('/results/chair-cost')"
@@ -383,7 +385,7 @@ onMounted(async () => {
             </div>
             <div class="kpi-bottom">
               <span class="dpc-num kpi-value">{{ fmt(fixedMonthly) }}</span>
-              <span class="kpi-unit">{{ isAr ? 'ج.م' : 'EGP' }}</span>
+              <span class="kpi-unit">{{ currency }}</span>
             </div>
             <div class="kpi-breakdown-list">
               <div class="breakdown-item">

@@ -266,7 +266,7 @@ onMounted(loadData)
           <div class="summary-bar animate-fade-in-down">
             <div class="summary-card">
               <div class="summary-label">{{ isAr ? 'إجمالي شهري' : 'Total / month' }}</div>
-              <div class="dpc-num summary-value">{{ fmt(totalMonthly) }} <span class="summary-unit">{{ isAr ? 'ج.م' : 'EGP' }}</span></div>
+              <div class="dpc-num summary-value">{{ fmt(totalMonthly) }} <span class="summary-unit">{{ genCurrency }}</span></div>
             </div>
             <div class="summary-card summary-card-teal">
               <div class="summary-label-teal">{{ isAr ? 'الساعات التشغيليه الفعليه' : 'Actual Operational Hours' }}</div>

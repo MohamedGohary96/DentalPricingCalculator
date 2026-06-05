@@ -19,11 +19,13 @@ import LangSwitch         from '@/components/LangSwitch.vue'
 import { usePricingStore } from '@/stores/pricing.js'
 import { useI18nStore }   from '@/stores/i18n.js'
 import { useCountUp }     from '@/composables/useCountUp.js'
+import axios from 'axios'
 
 const router       = useRouter()
 const pricingStore = usePricingStore()
 const i18n         = useI18nStore()
 const isAr         = computed(() => i18n.locale === 'ar')
+const currency     = ref('EGP')
 
 // ── Data ─────────────────────────────────────────────────────────
 const stats     = computed(() => pricingStore.dashboardStats || {})
@@ -125,7 +127,12 @@ async function runSequence() {
 }
 
 onMounted(async () => {
-  await pricingStore.loadDashboardStats()
+  await Promise.all([
+    pricingStore.loadDashboardStats(),
+    axios.get('/api/settings/global', { withCredentials: true })
+      .then(res => { currency.value = res.data.currency || 'EGP' })
+      .catch(() => {}),
+  ])
   await nextTick()
   runSequence()
 })
@@ -172,7 +179,7 @@ onMounted(async () => {
 
           <Transition name="fade-up">
             <div v-if="showSuffix" class="cc-suffix">
-              <span class="cc-currency">{{ isAr ? 'ج.م' : 'EGP' }}</span>
+              <span class="cc-currency">{{ currency }}</span>
               <span class="cc-per-hr">{{ isAr ? '/ساعة' : '/hr' }}</span>
             </div>
           </Transition>
@@ -185,7 +192,7 @@ onMounted(async () => {
               <div class="slice-label">{{ ts.label }}</div>
               <div class="dpc-num slice-val">
                 {{ fmt(cph * ts.factor) }}
-                <span class="slice-unit">{{ isAr ? 'ج.م' : 'EGP' }}</span>
+                <span class="slice-unit">{{ currency }}</span>
               </div>
             </div>
           </div>
@@ -206,7 +213,7 @@ onMounted(async () => {
           >
             <div class="bd-dot" :style="{ background: b.color }" />
             <div class="bd-label">{{ b.label }}</div>
-            <div class="bd-value dpc-num">{{ fmt(b.raw) }} <span class="bd-unit">{{ isAr ? 'ج.م' : 'EGP' }}</span></div>
+            <div class="bd-value dpc-num">{{ fmt(b.raw) }} <span class="bd-unit">{{ currency }}</span></div>
             <div class="bd-pct dpc-num">{{ totalCost > 0 ? pct(b.value / totalCost) : '—' }}</div>
           </div>
 
@@ -217,7 +224,7 @@ onMounted(async () => {
             <div class="bd-dot" style="background: #14b8a6;" />
             <div class="bd-label bd-total-label">{{ isAr ? 'الإجمالي / ساعة' : 'Total / hr' }}</div>
             <div class="bd-value bd-total-val dpc-num">
-              {{ fmt(cph) }} <span class="bd-unit">{{ isAr ? 'ج.م' : 'EGP' }}</span>
+              {{ fmt(cph) }} <span class="bd-unit">{{ currency }}</span>
             </div>
             <div class="bd-pct dpc-num" style="color: var(--teal-700)">100%</div>
           </div>

@@ -186,7 +186,7 @@ const pricingHealth = computed(() => {
   return Math.round((1 - low.length / set.length) * 100)
 })
 
-const currency = computed(() => 'EGP')
+const currency = ref('EGP')
 function fmtCurrency(n) {
   const abs = Math.abs(n)
   const sign = n >= 0 ? '+' : '-'
@@ -258,6 +258,7 @@ onMounted(async () => {
     simMargin.value   = data.default_profit_percent || 40
     globalVat.value   = data.vat_percent || 0
     globalRound.value = data.rounding_nearest || 5
+    currency.value    = data.currency || 'EGP'
   } catch {}
 })
 </script>
