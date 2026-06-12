@@ -1339,6 +1339,11 @@ def api_update_clinic_user(user_id):
 
 # ============== Vue SPA Catch-All Route ==============
 
+@app.route('/translations/<path:filename>')
+def translations(filename):
+    return send_from_directory(_os.path.join(app.root_path, 'static', 'translations'), filename)
+
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def spa(path):

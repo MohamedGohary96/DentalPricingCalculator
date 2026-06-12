@@ -21,6 +21,7 @@ export default defineConfig({
       '/logout':              'http://localhost:5002',
       '/register':            'http://localhost:5002',
       '/static/translations': 'http://localhost:5002',
+      '/translations':        'http://localhost:5002',
     },
   },
 })
