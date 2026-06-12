@@ -54,3 +54,13 @@ backups/*.json
 *.spec
 build/
 dist/
+
+# Local working files
+.claude/
+DBD_Onboarding_ClaudeCode_Prompt (1).md
+DBD_Pricer_Implementation_Plan_v2.md
+ONBOARDING_IMPROVEMENTS.md
+Restyle/
+frontend/.vite/
+server.log
+skills-lock.json
