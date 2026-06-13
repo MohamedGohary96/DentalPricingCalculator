@@ -18,7 +18,7 @@ const i18n        = useI18nStore()
 const currency    = ref('EGP')
 
 const isAr       = computed(() => i18n.locale === 'ar')
-const activeTab  = ref('consumables') // 'consumables' | 'materials'
+const activeTab  = ref('consumables') // 'consumables' | 'materials' | 'bundles'
 // Default the desktop layout to table view, phones to grid view since
 // the side-by-side table+edit-panel layout is unusable at phone widths.
 const isPhone = ref(false)
@@ -159,6 +159,123 @@ const computedPerUnit = computed(() => {
   return denom > 0 ? editForm.value.pack_cost / denom : 0
 })
 
+// ── Bundles ───────────────────────────────────────────────────
+// Bundles are clinic-scoped named groups of consumables. The list
+// view shows each bundle's item count + total per-case cost +
+// services-using count. Editing happens in a modal with name +
+// item-picker (consumable dropdown + qty per row).
+
+const bundles = ref([])
+const showBundleModal = ref(false)
+const editingBundleId = ref(null)            // null → create, number → edit
+const confirmDeleteBundle = ref(null)
+const bundleForm = ref({
+  name: '',
+  name_ar: '',
+  description: '',
+  items: [],                                  // [{ consumable_id, qty_per_case }]
+})
+
+async function loadBundles() {
+  try {
+    const res = await axios.get('/api/bundles', { withCredentials: true })
+    bundles.value = res.data || []
+  } catch (e) {
+    console.error('Failed to load bundles:', e)
+    bundles.value = []
+  }
+}
+
+function openCreateBundle() {
+  editingBundleId.value = null
+  bundleForm.value = { name: '', name_ar: '', description: '', items: [] }
+  showBundleModal.value = true
+}
+
+async function openEditBundle(bundle) {
+  try {
+    // Pull full bundle (including items) — list payload only includes counts.
+    const res = await axios.get(`/api/bundles/${bundle.id}`, { withCredentials: true })
+    const full = res.data
+    editingBundleId.value = bundle.id
+    bundleForm.value = {
+      name: full.name || '',
+      name_ar: full.name_ar || '',
+      description: full.description || '',
+      items: (full.items || []).map(i => ({
+        consumable_id: i.consumable_id,
+        qty_per_case: i.qty_per_case,
+      })),
+    }
+    showBundleModal.value = true
+  } catch (e) {
+    console.error('Failed to load bundle:', e)
+  }
+}
+
+function addBundleItem() {
+  bundleForm.value.items.push({ consumable_id: '', qty_per_case: 1 })
+}
+
+function removeBundleItem(idx) {
+  bundleForm.value.items.splice(idx, 1)
+}
+
+async function saveBundle() {
+  const payload = {
+    name: (bundleForm.value.name || '').trim(),
+    name_ar: bundleForm.value.name_ar || null,
+    description: bundleForm.value.description || null,
+    // Drop unselected rows; the server also validates ownership and qty.
+    items: (bundleForm.value.items || [])
+      .filter(i => i.consumable_id)
+      .map(i => ({
+        consumable_id: Number(i.consumable_id),
+        qty_per_case: Number(i.qty_per_case) || 1,
+      })),
+  }
+  if (!payload.name) return    // server also rejects, but skip the round-trip
+  try {
+    if (editingBundleId.value) {
+      await axios.put(`/api/bundles/${editingBundleId.value}`, payload, { withCredentials: true })
+    } else {
+      await axios.post('/api/bundles', payload, { withCredentials: true })
+    }
+    showBundleModal.value = false
+    await loadBundles()
+  } catch (e) {
+    console.error('Failed to save bundle:', e)
+  }
+}
+
+async function deleteBundle() {
+  if (!confirmDeleteBundle.value) return
+  try {
+    await axios.delete(`/api/bundles/${confirmDeleteBundle.value.id}`, { withCredentials: true })
+    confirmDeleteBundle.value = null
+    await loadBundles()
+  } catch (e) {
+    console.error('Failed to delete bundle:', e)
+  }
+}
+
+// Per-row cost preview inside the bundle modal.
+function consumableById(id) {
+  return consumables.value.find(c => c.id === Number(id))
+}
+function bundleItemPerUnit(item) {
+  const c = consumableById(item.consumable_id)
+  if (!c) return 0
+  const denom = (c.cases_per_pack || 1) * (c.units_per_case || 1)
+  return denom > 0 ? (c.pack_cost || 0) / denom : 0
+}
+function bundleItemRowCost(item) {
+  return bundleItemPerUnit(item) * (Number(item.qty_per_case) || 0)
+}
+const bundleFormTotal = computed(() =>
+  (bundleForm.value.items || []).reduce((s, it) => s + bundleItemRowCost(it), 0)
+)
+
 onMounted(async () => {
   syncViewportMode()
   window.addEventListener('resize', syncViewportMode)
@@ -167,6 +284,7 @@ onMounted(async () => {
     axios.get('/api/settings/global', { withCredentials: true })
       .then(res => { currency.value = res.data.currency || 'EGP' })
       .catch(() => {}),
+    loadBundles(),
   ])
 })
 
@@ -184,8 +302,8 @@ onBeforeUnmount(() => {
       icon="Package"
     >
       <template #actions>
-        <!-- View toggle -->
-        <div class="view-toggle">
+        <!-- View toggle (hidden on bundles tab — only card layout makes sense there) -->
+        <div v-if="activeTab !== 'bundles'" class="view-toggle">
           <button
             :class="['view-btn', viewMode === 'table' && 'view-btn-active']"
             @click="viewMode = 'table'"
@@ -201,8 +319,15 @@ onBeforeUnmount(() => {
             <DpcIcon name="LayoutGrid" :size="16" :stroke-width="1.8" />
           </button>
         </div>
-        <DpcBtn variant="teal" size="sm" icon="Plus" @click="openAdd">
-          {{ activeTab === 'consumables' ? (isAr ? 'مستهلك جديد' : 'New consumable') : (isAr ? 'خامة جديدة' : 'New material') }}
+        <DpcBtn
+          variant="teal"
+          size="sm"
+          icon="Plus"
+          @click="activeTab === 'bundles' ? openCreateBundle() : openAdd()"
+        >
+          <template v-if="activeTab === 'bundles'">{{ isAr ? 'حزمة جديدة' : 'New bundle' }}</template>
+          <template v-else-if="activeTab === 'consumables'">{{ isAr ? 'مستهلك جديد' : 'New consumable' }}</template>
+          <template v-else>{{ isAr ? 'خامة جديدة' : 'New material' }}</template>
         </DpcBtn>
         <LangSwitch />
       </template>
@@ -227,11 +352,20 @@ onBeforeUnmount(() => {
           {{ isAr ? 'خامات المعمل' : 'Lab materials' }}
           <span class="tab-count">{{ materials.length }}</span>
         </button>
+        <button
+          :class="['tab-btn', activeTab === 'bundles' && 'tab-btn-active']"
+          @click="activeTab = 'bundles'; selectedItem = null"
+        >
+          <DpcIcon name="Boxes" :size="14" :stroke-width="1.7" />
+          {{ isAr ? 'الحزم' : 'Bundles' }}
+          <span class="tab-count">{{ bundles.length }}</span>
+        </button>
       </div>
 
       <!-- View pane + edit panel — single content host so edit
            remains available regardless of view mode and viewport. -->
-      <div class="con-content" :class="{ 'con-content--has-edit': !!selectedItem }">
+      <!-- Consumables / Materials content (hidden on the Bundles tab) -->
+      <div v-if="activeTab !== 'bundles'" class="con-content" :class="{ 'con-content--has-edit': !!selectedItem }">
 
       <!-- Table view (desktop / tablet only) -->
       <div v-if="viewMode === 'table'" class="con-pane">
@@ -493,6 +627,64 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <!-- /con-content -->
+
+      <!-- Bundles tab content -->
+      <div v-if="activeTab === 'bundles'" class="bundles-content animate-fade-in-up" style="animation-delay: var(--stagger-2);">
+        <div v-if="!bundles.length" class="grid-empty">
+          <DpcIcon name="Boxes" :size="48" :stroke-width="1.4" class="empty-icon" />
+          <h3 class="empty-title">{{ isAr ? 'لا توجد حزم بعد' : 'No bundles yet' }}</h3>
+          <p class="empty-sub">
+            {{ isAr
+              ? 'الحزم تتيح لك تطبيق مجموعة من المستهلكات على الخدمة بضغطة واحدة.'
+              : 'Bundles let you apply a group of consumables to a service in one click.' }}
+          </p>
+          <DpcBtn variant="teal" size="sm" icon="Plus" @click="openCreateBundle">
+            {{ isAr ? 'أنشئ حزمة' : 'Create a bundle' }}
+          </DpcBtn>
+        </div>
+
+        <div v-else class="items-grid">
+          <div
+            v-for="(b, i) in bundles"
+            :key="b.id"
+            class="item-card bundle-card"
+            :style="{ animationDelay: `${Math.min(i * 50, 400)}ms` }"
+            @click="openEditBundle(b)"
+          >
+            <div class="item-card-header">
+              <div class="item-card-icon">
+                <DpcIcon name="Boxes" :size="20" :stroke-width="1.6" />
+              </div>
+              <button
+                class="item-card-delete"
+                @click.stop="confirmDeleteBundle = b"
+                :title="isAr ? 'حذف' : 'Delete'"
+              >
+                <DpcIcon name="Trash2" :size="14" :stroke-width="2" />
+              </button>
+            </div>
+
+            <div class="item-card-body">
+              <h4 class="item-card-title">{{ isAr ? (b.name_ar || b.name) : b.name }}</h4>
+              <p v-if="b.description" class="item-card-lab">{{ b.description }}</p>
+            </div>
+
+            <div class="item-card-footer">
+              <div class="item-card-stat">
+                <span class="stat-label">{{ isAr ? 'تكلفة الحزمة' : 'Bundle cost' }}</span>
+                <span class="stat-value dpc-num">{{ fmt(b.total_cost) }}</span>
+              </div>
+              <div class="item-card-meta">
+                <span>{{ b.item_count || 0 }} {{ isAr ? 'عنصر' : 'items' }}</span>
+                <span v-if="b.services_using > 0" class="bundle-uses">
+                  · {{ b.services_using }} {{ isAr ? 'خدمة تستخدمها' : (b.services_using === 1 ? 'service uses it' : 'services use it') }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
     <!-- /con-body -->
 
@@ -598,6 +790,125 @@ onBeforeUnmount(() => {
         <div class="modal-footer">
           <DpcBtn variant="ghost" @click="confirmDelete = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
           <DpcBtn variant="danger" @click="deleteItem">{{ isAr ? 'حذف' : 'Delete' }}</DpcBtn>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bundle add/edit modal -->
+    <div v-if="showBundleModal" class="modal-overlay" @click.self="showBundleModal = false">
+      <div class="modal-box bundle-modal">
+        <div class="modal-header">
+          <h2 class="dpc-h modal-title">
+            {{ editingBundleId
+              ? (isAr ? 'تعديل الحزمة' : 'Edit bundle')
+              : (isAr ? 'حزمة جديدة' : 'New bundle') }}
+          </h2>
+          <DpcBtn variant="ghost" size="xs" square icon="X" aria-label="Close" @click="showBundleModal = false" />
+        </div>
+
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="field-label">{{ isAr ? 'الاسم *' : 'Name *' }}</label>
+            <input
+              v-model="bundleForm.name"
+              class="edit-input"
+              :placeholder="isAr ? 'مثال: طقم حشو كومبوزيت' : 'e.g. Composite filling kit'"
+            />
+          </div>
+          <div class="form-group">
+            <label class="field-label">{{ isAr ? 'الاسم بالعربية' : 'Name (Arabic)' }}</label>
+            <input
+              v-model="bundleForm.name_ar"
+              class="edit-input"
+              dir="rtl"
+              :placeholder="isAr ? 'اسم الحزمة بالعربية' : 'Arabic name (optional)'"
+            />
+          </div>
+          <div class="form-group">
+            <label class="field-label">{{ isAr ? 'وصف (اختياري)' : 'Description (optional)' }}</label>
+            <input
+              v-model="bundleForm.description"
+              class="edit-input"
+              :placeholder="isAr ? 'متى تستخدم هذه الحزمة؟' : 'When do you use this bundle?'"
+            />
+          </div>
+
+          <div class="bundle-items">
+            <div class="bundle-items-header">
+              <span class="field-label" style="margin: 0;">{{ isAr ? 'المستهلكات في الحزمة' : 'Consumables in this bundle' }}</span>
+              <button type="button" class="coll-add-btn bundle-add-item" @click="addBundleItem">
+                <DpcIcon name="Plus" :size="12" :stroke-width="2.5" />
+                {{ isAr ? 'إضافة عنصر' : 'Add item' }}
+              </button>
+            </div>
+
+            <p v-if="!bundleForm.items.length" class="coll-empty">
+              {{ isAr ? 'لم تضف أي عنصر بعد.' : 'No items yet.' }}
+            </p>
+
+            <div v-else class="bundle-items-list">
+              <div class="bundle-items-row bundle-items-row--header">
+                <span>{{ isAr ? 'المستهلك' : 'Consumable' }}</span>
+                <span>{{ isAr ? 'كمية' : 'Qty' }}</span>
+                <span>{{ isAr ? 'تكلفة الوحدة' : 'Per unit' }}</span>
+                <span>{{ isAr ? 'تكلفة' : 'Cost' }}</span>
+                <span></span>
+              </div>
+              <div
+                v-for="(item, idx) in bundleForm.items"
+                :key="idx"
+                class="bundle-items-row"
+              >
+                <select v-model="item.consumable_id" class="item-input">
+                  <option value="">{{ isAr ? 'اختر مستهلكاً...' : 'Select consumable...' }}</option>
+                  <option v-for="c in consumables" :key="c.id" :value="c.id">
+                    {{ isAr ? (c.name_ar || c.item_name) : c.item_name }}
+                  </option>
+                </select>
+                <input
+                  v-model.number="item.qty_per_case"
+                  type="number"
+                  step="1"
+                  min="1"
+                  class="item-input"
+                  :placeholder="isAr ? 'كمية' : 'Qty'"
+                />
+                <span class="item-cost dpc-num">{{ fmt(bundleItemPerUnit(item)) }}</span>
+                <span class="item-cost dpc-num">{{ fmt(bundleItemRowCost(item)) }}</span>
+                <button type="button" class="item-del" @click="removeBundleItem(idx)">
+                  <DpcIcon name="X" :size="12" :stroke-width="2.5" />
+                </button>
+              </div>
+
+              <div class="bundle-total">
+                <span class="field-label" style="margin: 0;">{{ isAr ? 'إجمالي تكلفة الحزمة' : 'Total bundle cost' }}</span>
+                <span class="dpc-num bundle-total-value">{{ fmt(bundleFormTotal) }} {{ currency }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <DpcBtn variant="ghost" @click="showBundleModal = false">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
+          <DpcBtn variant="teal" :disabled="!bundleForm.name?.trim()" @click="saveBundle">
+            {{ editingBundleId ? (isAr ? 'حفظ' : 'Save') : (isAr ? 'إنشاء' : 'Create') }}
+          </DpcBtn>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bundle confirm delete -->
+    <div v-if="confirmDeleteBundle" class="modal-overlay" @click.self="confirmDeleteBundle = null">
+      <div class="modal-box confirm-box">
+        <div class="dpc-h modal-title" style="padding:20px 24px;">{{ isAr ? 'حذف الحزمة' : 'Delete bundle' }}</div>
+        <p class="confirm-text">
+          {{ isAr
+            ? `هل تريد حذف الحزمة «${confirmDeleteBundle.name_ar || confirmDeleteBundle.name}»؟ الخدمات التي طُبقت عليها هذه الحزمة من قبل لن تتأثر.`
+            : `Delete bundle "${confirmDeleteBundle.name}"? Services that already applied this bundle keep their consumables.` }}
+        </p>
+        <div class="modal-footer">
+          <DpcBtn variant="ghost" @click="confirmDeleteBundle = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
+          <DpcBtn variant="danger" @click="deleteBundle">{{ isAr ? 'حذف' : 'Delete' }}</DpcBtn>
         </div>
       </div>
     </div>
@@ -1184,6 +1495,100 @@ onBeforeUnmount(() => {
   font-family: var(--font-mono);
 }
 
+/* ── Bundles tab ─────────────────────────────────────────────── */
+.bundles-content { padding-top: 18px; }
+
+.bundle-card .item-card-icon {
+  background: var(--teal-50);
+  color: var(--teal-700);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+
+.bundle-uses {
+  color: var(--ink-500);
+}
+
+.empty-sub {
+  font-size: 13.5px;
+  color: var(--ink-500);
+  max-width: 380px;
+  text-align: center;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Bundle modal ────────────────────────────────────────────── */
+.bundle-modal { width: 720px; max-width: 92vw; }
+
+.bundle-items {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.bundle-items-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.bundle-add-item {
+  /* Reuse the .coll-add-btn rules but as an inline button */
+  min-height: 32px;
+  padding: 0 12px;
+  border-inline-start: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.bundle-add-item:hover {
+  background: var(--teal-50);
+  border-color: var(--teal-200);
+  color: var(--teal-700);
+}
+
+.bundle-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bundle-items-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px 90px 28px;
+  gap: 8px;
+  align-items: center;
+}
+
+.bundle-items-row--header {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 4px;
+}
+
+.bundle-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--teal-50);
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+
+.bundle-total-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--teal-800);
+}
+
 /* ──────────────────────────────────────────────────────────────
    RESPONSIVE — tighten outer padding so tabs and item cards keep
    breathing room on phones. Inner data tables that exceed the
@@ -1202,6 +1607,21 @@ onBeforeUnmount(() => {
   /* Hide the table-view toggle button on phones — the 5/6-column
      table is unreadable here and we force grid view in JS. */
   .view-toggle { display: none; }
+
+  /* Bundle modal becomes a bottom sheet (matches DpcModal mobile
+     behavior). Item rows stack: consumable + qty on one row, per-unit
+     + total + delete on the next. */
+  .bundle-modal { width: 100%; max-width: none; }
+  .bundle-items-row,
+  .bundle-items-row--header {
+    grid-template-columns: 1fr 80px 28px;
+  }
+  .bundle-items-row--header > :nth-child(3),
+  .bundle-items-row--header > :nth-child(4),
+  .bundle-items-row > :nth-child(3),
+  .bundle-items-row > :nth-child(4) {
+    display: none;
+  }
 
   /* Edit panel becomes a bottom sheet so editing remains accessible
      when the list is shown as cards. */
