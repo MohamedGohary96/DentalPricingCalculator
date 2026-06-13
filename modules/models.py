@@ -1039,12 +1039,10 @@ def calculate_service_price(service_id, clinic_id):
     # Total cost (initial calculation)
     total_cost = chair_time_cost + doctor_fee + equipment_cost + materials_cost
 
-    # Profit
+    # Profit margin (% of price before VAT, NOT markup on cost)
     profit_percent = service['custom_profit_percent'] if not service['use_default_profit'] else settings['default_profit_percent']
-
-    # For percentage-based doctor fee, calculate from ROUNDED final price
-    # rounded_price = (costs_without_doctor * (1 + profit%) * (1 + vat%)) / (1 - percentage%)
-    # Then round it, and doctor_fee = rounded_price * percentage%
+    # Guard: margin must be < 100; clamp defensively
+    margin_fraction = min(max(profit_percent or 0, 0), 99.99) / 100
 
     if doctor_fee_type == 'percentage':
         doctor_percentage = service.get('doctor_percentage', 0) / 100  # Convert to decimal
@@ -1053,42 +1051,37 @@ def calculate_service_price(service_id, clinic_id):
         clinic_costs = chair_time_cost + equipment_cost + consumables_cost  # Doctor's work
         lab_costs = lab_materials_cost  # External lab work - no doctor percentage
 
-        # Calculate base price without doctor fee
-        profit_multiplier = 1 + (profit_percent / 100)
         vat_multiplier = 1 + (settings['vat_percent'] / 100)
 
-        # Calculate clinic portion with doctor percentage gross-up
-        # This ensures doctor gets their % from clinic work after profit & VAT
-        clinic_price_before_rounding = (clinic_costs * profit_multiplier * vat_multiplier) / (1 - doctor_percentage)
+        # Margin divisor: price_before_vat = costs / (1 - margin)
+        # With doctor gross-up on clinic side: divide by (1 - doctor_pct) as well
+        margin_divisor = 1 - margin_fraction
+        clinic_price_before_rounding = (clinic_costs * vat_multiplier) / (margin_divisor * (1 - doctor_percentage)) if margin_divisor > 0 and doctor_percentage < 1 else 0
+        lab_price = (lab_costs * vat_multiplier) / margin_divisor if margin_divisor > 0 else 0
 
-        # Lab portion has no doctor percentage adjustment
-        lab_price = lab_costs * profit_multiplier * vat_multiplier
-
-        # Total price before rounding
         final_price_before_rounding = clinic_price_before_rounding + lab_price
 
-        # Round the total price
         rounding = settings['rounding_nearest']
         rounded_price = round(final_price_before_rounding / rounding) * rounding if rounding > 0 else final_price_before_rounding
 
-        # Calculate doctor fee from (rounded_price - lab_materials_cost)
-        # This gives doctor their percentage of the final price excluding lab costs
+        # Doctor takes their percentage of the final price (excluding lab work)
         doctor_fee = (rounded_price - lab_materials_cost) * doctor_percentage
 
-        # Back-calculate other components from rounded price
+        # Back-calculate breakdown from rounded price
         final_price = rounded_price
         price_before_vat = final_price / vat_multiplier
         vat_amount = final_price - price_before_vat
-        total_cost = price_before_vat / profit_multiplier
+        total_cost = price_before_vat * margin_divisor
         profit_amount = price_before_vat - total_cost
     else:
         # Standard calculation for hourly and fixed fee types
-        profit_amount = total_cost * (profit_percent / 100)
-        price_before_vat = total_cost + profit_amount
+        # Margin semantics: profit_percent is share of price-before-VAT, so price = cost / (1 - margin)
+        margin_divisor = 1 - margin_fraction
+        price_before_vat = total_cost / margin_divisor if margin_divisor > 0 else total_cost
+        profit_amount = price_before_vat - total_cost
         vat_amount = price_before_vat * (settings['vat_percent'] / 100)
         final_price = price_before_vat + vat_amount
 
-        # Rounded price
         rounding = settings['rounding_nearest']
         rounded_price = round(final_price / rounding) * rounding if rounding > 0 else final_price
 
@@ -1279,14 +1272,17 @@ def calculate_all_services(clinic_id):
         total_cost = chair_time_cost + doctor_fee + equipment_cost + materials_cost
         profit_percent = service['custom_profit_percent'] if not service['use_default_profit'] else settings['default_profit_percent']
 
+        # Margin semantics: profit_percent is share of price-before-VAT (not markup on cost)
+        margin_fraction = min(max(profit_percent or 0, 0), 99.99) / 100
+        margin_divisor = 1 - margin_fraction
+
         if doctor_fee_type == 'percentage':
             doctor_percentage = service.get('doctor_percentage', 0) / 100
             clinic_costs = chair_time_cost + equipment_cost + consumables_cost
             lab_costs = lab_materials_cost
-            profit_multiplier = 1 + (profit_percent / 100)
             vat_multiplier = 1 + (settings['vat_percent'] / 100)
-            clinic_price_before_rounding = (clinic_costs * profit_multiplier * vat_multiplier) / (1 - doctor_percentage) if doctor_percentage < 1 else 0
-            lab_price = lab_costs * profit_multiplier * vat_multiplier
+            clinic_price_before_rounding = (clinic_costs * vat_multiplier) / (margin_divisor * (1 - doctor_percentage)) if margin_divisor > 0 and doctor_percentage < 1 else 0
+            lab_price = (lab_costs * vat_multiplier) / margin_divisor if margin_divisor > 0 else 0
             final_price_before_rounding = clinic_price_before_rounding + lab_price
             rounding = settings['rounding_nearest']
             rounded_price = round(final_price_before_rounding / rounding) * rounding if rounding > 0 else final_price_before_rounding
@@ -1294,11 +1290,11 @@ def calculate_all_services(clinic_id):
             final_price = rounded_price
             price_before_vat = final_price / vat_multiplier
             vat_amount = final_price - price_before_vat
-            total_cost = price_before_vat / profit_multiplier
+            total_cost = price_before_vat * margin_divisor
             profit_amount = price_before_vat - total_cost
         else:
-            profit_amount = total_cost * (profit_percent / 100)
-            price_before_vat = total_cost + profit_amount
+            price_before_vat = total_cost / margin_divisor if margin_divisor > 0 else total_cost
+            profit_amount = price_before_vat - total_cost
             vat_amount = price_before_vat * (settings['vat_percent'] / 100)
             final_price = price_before_vat + vat_amount
             rounding = settings['rounding_nearest']
