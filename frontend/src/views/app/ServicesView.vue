@@ -18,6 +18,9 @@ import { useRestriction }  from '@/composables/useRestriction.js'
 import { useAchievements } from '@/composables/useAchievements.js'
 import { useRouter }       from 'vue-router'
 import axios from 'axios'
+import { useToast } from '@/composables/useToast'
+
+const { showToast } = useToast()
 
 const router       = useRouter()
 const pricingStore = usePricingStore()
@@ -329,6 +332,87 @@ function toggleConsumableMaster(row) {
   }
 }
 
+// ── Bundles (apply-bundle picker) ─────────────────────────────
+// Picking a bundle bulk-adds its consumables into the
+// serviceConsumables array. Duplicates merge their quantities so
+// applying the same (or overlapping) bundle twice doesn't create
+// double rows — quantities just sum.
+const bundles = ref([])
+const selectedBundleId = ref('')
+async function loadBundles() {
+  try {
+    const res = await axios.get('/api/bundles', { withCredentials: true })
+    bundles.value = res.data || []
+  } catch (e) {
+    console.error('Failed to load bundles:', e)
+    bundles.value = []
+  }
+}
+
+async function applySelectedBundle() {
+  const bid = Number(selectedBundleId.value)
+  if (!bid) return
+  try {
+    const res = await axios.get(`/api/bundles/${bid}`, { withCredentials: true })
+    const bundle = res.data
+    const items = bundle?.items || []
+    let added = 0
+    let merged = 0
+    for (const item of items) {
+      // Skip items pointing to a consumable that no longer exists in
+      // the clinic catalog — the bundle API drops them server-side too
+      // but we belt-and-suspenders here for older clients.
+      if (!item.consumable_id) continue
+      const existing = serviceConsumables.value.find(r => Number(r.consumable_id) === Number(item.consumable_id))
+      if (existing) {
+        // Merge — sum quantities, preserve the user's existing
+        // use_master / custom_unit_price choices.
+        existing.quantity = (Number(existing.quantity) || 0) + (Number(item.qty_per_case) || 0)
+        merged++
+      } else {
+        serviceConsumables.value.push({
+          consumable_id: item.consumable_id,
+          quantity: Number(item.qty_per_case) || 1,
+          use_master: true,            // default — matches manual-add UX
+          custom_unit_price: '',
+        })
+        added++
+      }
+    }
+    openConsumables.value = true        // expand the section so the user sees the result
+    selectedBundleId.value = ''         // reset picker so re-apply requires re-selecting
+
+    // Surface what just happened so the user knows the click landed.
+    const bundleName = isAr.value ? (bundle.name_ar || bundle.name) : bundle.name
+    if (added === 0 && merged === 0) {
+      showToast(
+        isAr.value ? `الحزمة «${bundleName}» فارغة.` : `Bundle "${bundleName}" is empty.`,
+        'warning',
+      )
+    } else if (merged === 0) {
+      showToast(
+        isAr.value
+          ? `أُضيفت ${added} عناصر من «${bundleName}».`
+          : `Added ${added} item${added === 1 ? '' : 's'} from "${bundleName}".`,
+        'success',
+      )
+    } else {
+      showToast(
+        isAr.value
+          ? `طُبقت «${bundleName}»: ${added} جديدة، ${merged} مدمجة.`
+          : `Applied "${bundleName}": ${added} added, ${merged} merged.`,
+        'success',
+      )
+    }
+  } catch (e) {
+    console.error('Failed to apply bundle:', e)
+    showToast(
+      isAr.value ? 'تعذّر تطبيق الحزمة.' : 'Failed to apply bundle.',
+      'error',
+    )
+  }
+}
+
 // ── Material management ───────────────────────────────────────
 function addMaterialRow() {
   serviceMaterials.value.push({ material_id: '', quantity: 1, use_master: true, custom_unit_price: '' })
@@ -551,6 +635,7 @@ onMounted(async () => {
     pricingStore.loadServices(),
     pricingStore.loadPriceList().catch(() => {}),
     clinicStore.loadAll().catch(() => {}),
+    loadBundles(),
   ])
   try {
     const { data } = await axios.get('/api/settings/global', { withCredentials: true })
@@ -807,6 +892,28 @@ onMounted(async () => {
               </button>
             </div>
             <div v-show="openConsumables" class="coll-body">
+              <!-- Bundle picker — appears whenever the clinic has at least
+                   one bundle defined. Applying merges quantities into the
+                   existing rows below; rows are then editable like any
+                   manually-added consumable. -->
+              <div v-if="bundles.length" class="bundle-picker">
+                <DpcIcon name="Boxes" :size="14" :stroke-width="1.7" class="bundle-picker-icon" />
+                <select v-model="selectedBundleId" class="item-input bundle-picker-select">
+                  <option value="">{{ isAr ? 'تطبيق حزمة...' : 'Apply a bundle...' }}</option>
+                  <option v-for="b in bundles" :key="b.id" :value="b.id">
+                    {{ isAr ? (b.name_ar || b.name) : b.name }}
+                    ({{ b.item_count }} {{ isAr ? 'عنصر' : 'items' }})
+                  </option>
+                </select>
+                <DpcBtn
+                  variant="teal"
+                  size="xs"
+                  :disabled="!selectedBundleId"
+                  @click="applySelectedBundle"
+                >
+                  {{ isAr ? 'تطبيق' : 'Apply' }}
+                </DpcBtn>
+              </div>
               <div v-if="serviceConsumables.length" class="items-hdr">
                 <span>{{ isAr ? 'المستهلك' : 'Consumable' }}</span>
                 <span>{{ isAr ? 'كمية' : 'Qty' }}</span>
@@ -821,7 +928,7 @@ onMounted(async () => {
                     {{ isAr ? (c.name_ar || c.item_name) : c.item_name }}
                   </option>
                 </select>
-                <input v-model.number="row.quantity" type="number" step="0.01" min="0.01" class="item-input" :placeholder="isAr ? 'كمية' : 'Qty'" />
+                <input v-model.number="row.quantity" type="number" step="1" min="1" class="item-input" :placeholder="isAr ? 'كمية' : 'Qty'" />
                 <div class="unit-price-cell">
                   <label class="master-toggle" :title="isAr ? 'استخدام السعر الافتراضي من المصدر' : 'Use default price from catalog'">
                     <input type="checkbox" v-model="row.use_master" @change="toggleConsumableMaster(row)" />
@@ -830,7 +937,7 @@ onMounted(async () => {
                   <span v-if="row.use_master" class="master-price-badge">
                     {{ fmtCost(consumableUnitCost(row.consumable_id)) }}
                   </span>
-                  <input v-else v-model="row.custom_unit_price" type="number" step="0.001" min="0" class="item-input price-override-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
+                  <input v-else v-model="row.custom_unit_price" type="number" step="0.01" min="0" class="item-input price-override-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
                 </div>
                 <span class="item-cost">{{ fmtCost(consumableRowCost(row)) }}</span>
                 <button type="button" class="item-del" @click="removeConsumableRow(idx)"><DpcIcon name="X" :size="12" :stroke-width="2.5" /></button>
@@ -871,7 +978,7 @@ onMounted(async () => {
                     {{ isAr ? (m.name_ar || m.material_name) : m.material_name }}
                   </option>
                 </select>
-                <input v-model.number="row.quantity" type="number" step="0.01" min="0.01" class="item-input" :placeholder="isAr ? 'كمية' : 'Qty'" />
+                <input v-model.number="row.quantity" type="number" step="1" min="1" class="item-input" :placeholder="isAr ? 'كمية' : 'Qty'" />
                 <div class="unit-price-cell">
                   <label class="master-toggle" :title="isAr ? 'استخدام السعر الافتراضي من المصدر' : 'Use default price from catalog'">
                     <input type="checkbox" v-model="row.use_master" @change="toggleMaterialMaster(row)" />
@@ -880,7 +987,7 @@ onMounted(async () => {
                   <span v-if="row.use_master" class="master-price-badge">
                     {{ fmtCost(allMaterials.find(x => x.id == row.material_id)?.unit_cost || 0) }}
                   </span>
-                  <input v-else v-model="row.custom_unit_price" type="number" step="0.001" min="0" class="item-input price-override-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
+                  <input v-else v-model="row.custom_unit_price" type="number" step="0.01" min="0" class="item-input price-override-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
                 </div>
                 <span class="item-cost">{{ fmtCost(materialRowCost(row)) }}</span>
                 <button type="button" class="item-del" @click="removeMaterialRow(idx)"><DpcIcon name="X" :size="12" :stroke-width="2.5" /></button>
@@ -917,7 +1024,7 @@ onMounted(async () => {
                   <option value="">{{ isAr ? 'اختر معدة...' : 'Select equipment...' }}</option>
                   <option v-for="e in perHourEquip" :key="e.id" :value="e.id">{{ e.asset_name }}</option>
                 </select>
-                <input v-model.number="row.hours_used" type="number" step="0.01" min="0.01" class="item-input" placeholder="0.25" />
+                <input v-model.number="row.hours_used" type="number" step="0.25" min="0.25" class="item-input" placeholder="0.25" />
                 <button type="button" class="item-del" @click="removeEquipmentRow(idx)"><DpcIcon name="X" :size="12" :stroke-width="2.5" /></button>
               </div>
               <p v-if="!serviceEquipment.length" class="coll-empty">{{ isAr ? 'اضغط «إضافة» لإضافة معدة.' : 'Click «Add» to add equipment.' }}</p>
@@ -1505,6 +1612,27 @@ onMounted(async () => {
 
 .coll-body  { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .coll-empty { font-size: 12.5px; color: var(--ink-400); text-align: center; padding: 12px; margin: 0; background: var(--paper-2); border-radius: 8px; border: 1px dashed var(--line); }
+
+/* Bundle picker — apply a clinic-defined consumable bundle in one
+   click. Sits at the top of the consumables collapsible body. */
+.bundle-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: var(--teal-50);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+.bundle-picker-icon {
+  color: var(--teal-700);
+  flex: none;
+}
+.bundle-picker-select {
+  flex: 1;
+  min-width: 0;
+}
 
 /* ── Item row grid (consumables & materials) ─────────────── */
 .items-hdr,

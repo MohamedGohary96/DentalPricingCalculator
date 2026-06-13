@@ -2092,3 +2092,210 @@ def get_contact_info():
     keys = ['contact_email', 'contact_phone', 'contact_whatsapp',
             'contact_email_ar', 'contact_phone_ar', 'contact_whatsapp_ar']
     return get_app_settings(keys)
+
+
+# ============== Consumable Bundles ==============
+#
+# Bundles are clinic-scoped, named groups of consumables with default
+# quantities. Picking a bundle in the service modal bulk-adds its
+# items as `service_consumables` rows; duplicates merge quantities.
+# After the apply the bundle is not referenced by the service —
+# rows behave identically to manually-added consumables.
+
+def get_all_bundles(clinic_id):
+    """List bundles for a clinic with item count + total per-case cost.
+
+    Total cost = SUM(consumables.pack_cost / (cases_per_pack * units_per_case)
+                     * bundle_items.qty_per_case). Computed in SQL so we
+    don't N+1 on the list view.
+
+    Note: a `services_using` count was considered but intentionally
+    omitted — snapshot apply semantics mean a service_consumables row
+    doesn't remember which bundle (if any) created it, so any count
+    would either over-count (overlap-based) or require a schema
+    change to track origin.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT
+            b.id, b.clinic_id, b.name, b.name_ar, b.description,
+            b.created_at, b.updated_at,
+            COUNT(bi.id) AS item_count,
+            COALESCE(SUM(
+                CASE
+                    WHEN (c.cases_per_pack * c.units_per_case) > 0
+                    THEN (c.pack_cost / (c.cases_per_pack * c.units_per_case)) * bi.qty_per_case
+                    ELSE 0
+                END
+            ), 0) AS total_cost
+        FROM bundles b
+        LEFT JOIN bundle_items bi ON bi.bundle_id = b.id
+        LEFT JOIN consumables c ON c.id = bi.consumable_id
+        WHERE b.clinic_id = %s
+        GROUP BY b.id
+        ORDER BY b.name
+    ''', (clinic_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict_from_row(r) for r in rows]
+
+
+def get_bundle_by_id(bundle_id, clinic_id):
+    """Get one bundle (with items) — returns None if not found or
+    belongs to a different clinic."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT * FROM bundles WHERE id = %s AND clinic_id = %s',
+        (bundle_id, clinic_id),
+    )
+    bundle = cursor.fetchone()
+    if not bundle:
+        conn.close()
+        return None
+
+    cursor.execute('''
+        SELECT
+            bi.id, bi.consumable_id, bi.qty_per_case,
+            c.item_name, c.name_ar AS consumable_name_ar,
+            c.pack_cost, c.cases_per_pack, c.units_per_case
+        FROM bundle_items bi
+        JOIN consumables c ON c.id = bi.consumable_id
+        WHERE bi.bundle_id = %s
+        ORDER BY c.item_name
+    ''', (bundle_id,))
+    items = cursor.fetchall()
+    conn.close()
+
+    bundle = dict_from_row(bundle)
+    bundle['items'] = [dict_from_row(i) for i in items]
+    return bundle
+
+
+def create_bundle(clinic_id, name, items, name_ar=None, description=None):
+    """Create a bundle with its items in one transaction.
+
+    `items` = list of {consumable_id, qty_per_case}. Items pointing
+    to consumables that don't belong to this clinic are rejected.
+    """
+    if not name or not name.strip():
+        raise ValueError('Bundle name is required')
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO bundles (clinic_id, name, name_ar, description) VALUES (%s, %s, %s, %s)',
+            (clinic_id, name.strip(), (name_ar or None), (description or None)),
+        )
+        bundle_id = cursor.lastrowid
+
+        _replace_bundle_items(cursor, bundle_id, clinic_id, items or [])
+        conn.commit()
+        return bundle_id
+    finally:
+        conn.close()
+
+
+def update_bundle(bundle_id, clinic_id, name=None, name_ar=None,
+                  description=None, items=None):
+    """Update bundle metadata and/or replace its items."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+
+        # Guard: bundle must belong to clinic.
+        cursor.execute(
+            'SELECT id FROM bundles WHERE id = %s AND clinic_id = %s',
+            (bundle_id, clinic_id),
+        )
+        if not cursor.fetchone():
+            return False
+
+        fields, values = [], []
+        if name is not None:
+            if not name.strip():
+                raise ValueError('Bundle name cannot be empty')
+            fields.append('name = %s')
+            values.append(name.strip())
+        if name_ar is not None:
+            fields.append('name_ar = %s')
+            values.append(name_ar or None)
+        if description is not None:
+            fields.append('description = %s')
+            values.append(description or None)
+
+        if fields:
+            values.extend([bundle_id, clinic_id])
+            cursor.execute(
+                f"UPDATE bundles SET {', '.join(fields)} WHERE id = %s AND clinic_id = %s",
+                values,
+            )
+
+        if items is not None:
+            _replace_bundle_items(cursor, bundle_id, clinic_id, items)
+
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def delete_bundle(bundle_id, clinic_id):
+    """Delete a bundle (items cascade). Services that previously
+    applied this bundle keep their snapshot rows in service_consumables
+    — deletion does not touch those."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'DELETE FROM bundles WHERE id = %s AND clinic_id = %s',
+            (bundle_id, clinic_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def _replace_bundle_items(cursor, bundle_id, clinic_id, items):
+    """Delete existing items and insert fresh ones. Validates that
+    every consumable belongs to the calling clinic — cross-clinic
+    references are silently dropped to prevent data leakage."""
+    cursor.execute('DELETE FROM bundle_items WHERE bundle_id = %s', (bundle_id,))
+
+    if not items:
+        return
+
+    # Validate consumable ownership in one query.
+    consumable_ids = [int(it['consumable_id']) for it in items if it.get('consumable_id')]
+    if not consumable_ids:
+        return
+
+    placeholders = ','.join(['%s'] * len(consumable_ids))
+    cursor.execute(
+        f'SELECT id FROM consumables WHERE clinic_id = %s AND id IN ({placeholders})',
+        [clinic_id, *consumable_ids],
+    )
+    valid_ids = {row['id'] for row in cursor.fetchall()}
+
+    # Dedupe by consumable_id (last write wins) so callers don't have
+    # to worry about accidental duplicates in the payload.
+    by_consumable = {}
+    for it in items:
+        cid = int(it['consumable_id']) if it.get('consumable_id') else None
+        if cid is None or cid not in valid_ids:
+            continue
+        qty = float(it.get('qty_per_case', 1) or 1)
+        if qty <= 0:
+            continue
+        by_consumable[cid] = qty
+
+    if not by_consumable:
+        return
+
+    cursor.executemany(
+        'INSERT INTO bundle_items (bundle_id, consumable_id, qty_per_case) VALUES (%s, %s, %s)',
+        [(bundle_id, cid, qty) for cid, qty in by_consumable.items()],
+    )

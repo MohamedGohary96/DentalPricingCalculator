@@ -32,6 +32,8 @@ from modules.models import (
     get_clinic_capacity, update_clinic_capacity,
     get_all_consumables, create_consumable, update_consumable, delete_consumable,
     get_all_materials, create_material, update_material, delete_material,
+    # Bundles
+    get_all_bundles, get_bundle_by_id, create_bundle, update_bundle, delete_bundle,
     # Categories
     get_all_categories, get_category_by_id, create_category, update_category, delete_category,
     # Services
@@ -555,6 +557,79 @@ def api_delete_material(material_id):
     """Delete lab material"""
     clinic_id = get_clinic_id()
     delete_material(material_id, clinic_id)
+    return jsonify({'success': True})
+
+
+# ============== Consumable Bundles ==============
+
+@app.route('/api/bundles')
+@login_required
+def api_get_bundles():
+    """List bundles for the current clinic."""
+    clinic_id = get_clinic_id()
+    return jsonify(get_all_bundles(clinic_id))
+
+
+@app.route('/api/bundles/<int:bundle_id>')
+@login_required
+def api_get_bundle(bundle_id):
+    """Get one bundle with its items."""
+    clinic_id = get_clinic_id()
+    bundle = get_bundle_by_id(bundle_id, clinic_id)
+    if not bundle:
+        return jsonify({'error': 'Bundle not found'}), 404
+    return jsonify(bundle)
+
+
+@app.route('/api/bundles', methods=['POST'])
+@login_required
+def api_create_bundle():
+    """Create a bundle. Body: {name, name_ar?, description?, items: [{consumable_id, qty_per_case}]}."""
+    clinic_id = get_clinic_id()
+    data = request.get_json() or {}
+    try:
+        bundle_id = create_bundle(
+            clinic_id,
+            name=data.get('name', ''),
+            name_ar=data.get('name_ar'),
+            description=data.get('description'),
+            items=data.get('items') or [],
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'success': True, 'id': bundle_id})
+
+
+@app.route('/api/bundles/<int:bundle_id>', methods=['PUT'])
+@login_required
+def api_update_bundle(bundle_id):
+    """Update bundle metadata and/or replace its items."""
+    clinic_id = get_clinic_id()
+    data = request.get_json() or {}
+    try:
+        ok = update_bundle(
+            bundle_id,
+            clinic_id,
+            name=data.get('name'),
+            name_ar=data.get('name_ar'),
+            description=data.get('description'),
+            items=data.get('items'),
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    if not ok:
+        return jsonify({'error': 'Bundle not found'}), 404
+    return jsonify({'success': True})
+
+
+@app.route('/api/bundles/<int:bundle_id>', methods=['DELETE'])
+@login_required
+def api_delete_bundle(bundle_id):
+    """Delete bundle. Already-applied items on services keep their
+    rows in service_consumables (snapshot semantics)."""
+    clinic_id = get_clinic_id()
+    if not delete_bundle(bundle_id, clinic_id):
+        return jsonify({'error': 'Bundle not found'}), 404
     return jsonify({'success': True})
 
 
