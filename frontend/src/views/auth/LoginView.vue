@@ -426,4 +426,75 @@ async function submit() {
   gap: 10px;
   flex-wrap: wrap;
 }
+
+/* ──────────────────────────────────────────────────────────────
+   RESPONSIVE — collapse two-pane layout to a single column below
+   the lg breakpoint. The navy hero becomes a compact banner and
+   the form fills the rest. Backdrop-filter on the floating card
+   stays on tablet portrait but is dropped on phones for perf.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .auth-screen {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100svh;
+    overflow: visible;
+  }
+
+  .hero {
+    flex: none;
+    padding: 28px var(--gutter, 24px);
+    gap: 16px;
+  }
+  .hero-body { max-width: 540px; }
+  .hero-title { font-size: 30px; margin-bottom: 12px; }
+  .hero-body-text { margin-bottom: 18px; }
+
+  /* Decorative glows can sit outside the smaller container without
+     producing horizontal scroll — global overflow-x guard catches it. */
+
+  .form-panel {
+    width: 100%;
+    padding: 24px var(--gutter, 24px) 32px;
+    overflow-y: visible;
+  }
+  .form-topbar {
+    position: static;
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+  }
+}
+
+@media (max-width: 767px) {
+  .hero {
+    padding: 20px var(--gutter, 16px);
+    gap: 12px;
+  }
+  /* Compress hero to a tight banner: keep logo, eyebrow, headline.
+     Hide the marketing bullets, body copy, and trust footer — the
+     form is what users came here for. */
+  .hero-body-text,
+  .bullets,
+  .hero-footer,
+  .auth-hero-card { display: none; }
+
+  .hero-title {
+    font-size: 24px;
+    line-height: 1.2;
+    margin-bottom: 0;
+  }
+  .eyebrow-pill { margin-bottom: 12px; }
+
+  .glow-teal,
+  .glow-navy { display: none; }
+
+  .form-title { font-size: 26px; }
+  .form-sub   { margin-bottom: 20px; }
+  .fields     { gap: 14px; }
+
+  .quick-benefits { gap: 12px; padding: 10px; }
+  .benefit-item   { font-size: 11.5px; }
+}
 </style>

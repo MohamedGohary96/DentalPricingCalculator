@@ -648,7 +648,7 @@ onMounted(async () => {
             :key="row.id"
             @click="openDetail(row)"
           >
-            <DpcTableCell type="text">
+            <DpcTableCell type="text" class="svc-cell-name">
               <div class="svc-cell">
                 <div class="svc-icon"><DpcIcon name="Stethoscope" :size="14" :stroke-width="1.7" /></div>
                 <div>
@@ -657,21 +657,21 @@ onMounted(async () => {
                 </div>
               </div>
             </DpcTableCell>
-            <DpcTableCell type="number" align="center">
+            <DpcTableCell type="number" align="center" :label="isAr ? 'وقت الكرسي' : 'Chair time'">
               {{ row.chair_time_hours }}<span class="t-unit">{{ isAr ? 'سا' : 'hr' }}</span>
             </DpcTableCell>
-            <DpcTableCell type="text">
+            <DpcTableCell type="text" :label="isAr ? 'أتعاب الطبيب' : 'Doctor fee'">
               <span class="t-sm">{{ doctorFeeDisplay(row) }}</span>
             </DpcTableCell>
-            <DpcTableCell type="text">
+            <DpcTableCell type="text" :label="isAr ? 'المعدة' : 'Equipment'">
               <span class="t-sm text-faint">{{ row.equipment_name || '—' }}</span>
             </DpcTableCell>
-            <DpcTableCell type="status" align="center">
+            <DpcTableCell type="status" align="center" :label="isAr ? 'حالة التسعير' : 'Status'">
               <span v-if="pricingStatus(row) === 'good'" class="status-chip chip-good">✓ {{ isAr ? 'جيد' : 'Good' }}</span>
               <span v-else-if="pricingStatus(row) === 'low'" class="status-chip chip-low">⚠ {{ isAr ? 'منخفض' : 'Low' }}</span>
               <span v-else class="status-chip chip-unset">{{ isAr ? 'غير محدد' : 'Unset' }}</span>
             </DpcTableCell>
-            <DpcTableCell type="action">
+            <DpcTableCell type="action" class="svc-cell-actions">
               <div class="actions-cell">
                 <DpcBtn variant="ghost" size="xs" square icon="Eye" :aria-label="isAr ? 'تفاصيل السعر' : 'Price details'" @click.stop="openDetail(row)" />
                 <DpcBtn variant="ghost" size="xs" square icon="Pencil" :aria-label="isAr ? 'تعديل' : 'Edit'" @click.stop="openEdit(row)" />
@@ -1816,5 +1816,154 @@ onMounted(async () => {
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   RESPONSIVE — tighten outer padding, stack 2-col modal grids.
+   Internal data tables retain their grid-template-columns and use
+   horizontal scroll on phones (per Phase 3 fallback pattern).
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .svc-body { padding: 16px var(--gutter, 16px) 24px; }
+}
+
+@media (max-width: 767px) {
+  .svc-body { padding: 12px var(--gutter, 16px) 32px; }
+
+  /* ───── Services table card-mode (same pattern as PriceList) ─────
+     The 6-column grid is unreadable at phone widths and the global
+     overflow-x: clip on body hides any spillover, so cells get
+     clipped. Flatten each row into a vertical card with stacked
+     label/value pairs surfaced from data-label. */
+  .services-table-grid { display: block; grid-template-columns: none; }
+
+  /* Hide the desktop header row — labels move inline. */
+  .services-table-grid :deep(.dpc-table-head) { display: none; }
+
+  /* Each row becomes a stacked card. */
+  .services-table-grid :deep(.dpc-table-row.row-default) {
+    display: block;
+    grid-template-columns: none;
+    padding: 14px var(--gutter, 16px);
+    border-bottom: 1px solid var(--line);
+    min-height: 0;
+  }
+  .services-table-grid :deep(.dpc-table-row.row-default:hover) {
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Service-name cell is the card title — full row, no inline label. */
+  .services-table-grid :deep(.svc-cell-name) {
+    padding: 0 0 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px dashed var(--line-soft);
+    align-items: flex-start;
+  }
+
+  /* Action buttons row sits at the bottom — no label. */
+  .services-table-grid :deep(.svc-cell-actions) {
+    padding: 10px 0 0;
+    margin-top: 6px;
+    border-top: 1px dashed var(--line-soft);
+  }
+  .services-table-grid :deep(.svc-cell-actions .actions-cell) {
+    justify-content: flex-end;
+  }
+
+  /* All other cells stack label above value. */
+  .services-table-grid :deep(.dpc-table-cell:not(.svc-cell-name):not(.svc-cell-actions)) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 6px 0;
+    text-align: start;
+    min-height: 0;
+  }
+  .services-table-grid :deep(.dpc-table-cell[data-label]:not(.svc-cell-name):not(.svc-cell-actions))::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink-500);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-bottom: 4px;
+    text-align: start;
+  }
+  /* Numeric/centered cells reset to start-aligned in card mode so
+     values sit directly under their labels. */
+  .services-table-grid :deep(.dpc-table-cell.align-end:not(.svc-cell-name):not(.svc-cell-actions)),
+  .services-table-grid :deep(.dpc-table-cell.align-center:not(.svc-cell-name):not(.svc-cell-actions)) {
+    align-items: stretch;
+    text-align: start;
+  }
+  .services-table-grid :deep(.dpc-table-cell.align-end > *),
+  .services-table-grid :deep(.dpc-table-cell.align-center > *) {
+    text-align: start;
+    justify-content: flex-start;
+  }
+
+  /* Service add/edit modal — switch 2-col fields to single column. */
+  .modal-form .grid-2,
+  .modal-body .grid-2 { grid-template-columns: 1fr; }
+  .form-row { grid-template-columns: 1fr !important; }
+
+  /* The custom ServicesView modal becomes a true bottom sheet on
+     phones. Backdrop is grid place-items: center on desktop — switch
+     to bottom-aligned, full-width container with rounded top corners. */
+  .modal-overlay { align-items: end; }
+
+  .modal-box {
+    width: 100%;
+    max-width: none;
+    max-height: 92vh;
+    max-height: 92svh;
+    border-radius: var(--radius-xl, 24px) var(--radius-xl, 24px) 0 0;
+    animation: services-sheet-slide-up 0.3s var(--ease-out-expo);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Override the original scale-up entry — slide from below instead. */
+  @keyframes services-sheet-slide-up {
+    from { opacity: 0; transform: translateY(100%); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Inner padding for sheet form. */
+  .modal-header,
+  .modal-footer { padding-inline: 18px; }
+  .modal-body   { padding-inline: 18px; }
+  .confirm-text { padding-inline: 18px; }
+
+  /* Confirm modal and price-detail variants should also fill width. */
+  .confirm-box,
+  .price-detail-box { width: 100%; }
+  .confirm-box {
+    border-radius: var(--radius-xl, 24px) var(--radius-xl, 24px) 0 0;
+  }
+
+  /* Internal preview-breakdown 2-col → 1-col on phones. */
+  .preview-breakdown { grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* Internal item-row grids inside the modal body (consumables,
+     materials, equipment) have fixed column widths that overflow on
+     phones — let them scroll within the sheet's body. */
+  .items-hdr,
+  .cons-row,
+  .equip-hdr,
+  .equip-row { min-width: 360px; }
+  .coll-body { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+/* RTL polish on the services list row hover — flip the inset accent
+   bar to the start edge and the slide-into-focus direction. */
+html[dir="rtl"] .services-table-grid :deep(.dpc-table-row:not(.dpc-table-row--header):hover) {
+  transform: translateX(-2px);
+  box-shadow: 3px 0 0 0 var(--teal-600) inset;
+}
+html[dir="rtl"] .services-table-grid :deep(.dpc-table-row:not(.dpc-table-row--header):active) {
+  transform: translateX(0);
 }
 </style>

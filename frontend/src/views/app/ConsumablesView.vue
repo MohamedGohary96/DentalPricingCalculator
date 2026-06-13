@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import AppShell from '@/components/AppShell.vue'
 import DpcBtn from '@/components/DpcBtn.vue'
 import DpcIcon from '@/components/DpcIcon.vue'
@@ -19,7 +19,15 @@ const currency    = ref('EGP')
 
 const isAr       = computed(() => i18n.locale === 'ar')
 const activeTab  = ref('consumables') // 'consumables' | 'materials'
-const viewMode   = ref('table') // 'table' | 'grid'
+// Default the desktop layout to table view, phones to grid view since
+// the side-by-side table+edit-panel layout is unusable at phone widths.
+const isPhone = ref(false)
+const viewMode = ref('table')
+function syncViewportMode() {
+  if (typeof window === 'undefined') return
+  isPhone.value = window.matchMedia('(max-width: 767px)').matches
+  if (isPhone.value && viewMode.value === 'table') viewMode.value = 'grid'
+}
 const selectedItem  = ref(null)
 const showAddModal  = ref(false)
 const confirmDelete = ref(null)
@@ -152,12 +160,18 @@ const computedPerUnit = computed(() => {
 })
 
 onMounted(async () => {
+  syncViewportMode()
+  window.addEventListener('resize', syncViewportMode)
   await Promise.all([
     clinicStore.loadAll().catch(() => {}),
     axios.get('/api/settings/global', { withCredentials: true })
       .then(res => { currency.value = res.data.currency || 'EGP' })
       .catch(() => {}),
   ])
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncViewportMode)
 })
 </script>
 
@@ -215,8 +229,12 @@ onMounted(async () => {
         </button>
       </div>
 
-      <!-- Table view with edit panel -->
-      <div v-if="viewMode === 'table'" class="grid-layout">
+      <!-- View pane + edit panel — single content host so edit
+           remains available regardless of view mode and viewport. -->
+      <div class="con-content" :class="{ 'con-content--has-edit': !!selectedItem }">
+
+      <!-- Table view (desktop / tablet only) -->
+      <div v-if="viewMode === 'table'" class="con-pane">
         <DpcTable
           :empty="displayItems.length === 0"
           :empty-icon="activeTab === 'consumables' ? 'Package' : 'FlaskConical'"
@@ -308,102 +326,14 @@ onMounted(async () => {
             </DpcTableRow>
           </div>
         </DpcTable>
-
-        <!-- Edit panel -->
-        <div class="dpc-panel edit-panel">
-          <div class="edit-header">
-            <div class="mini-eyebrow">{{ isAr ? 'تعديل' : 'Edit' }}</div>
-            <DpcBtn v-if="selectedItem" variant="ghost" size="xs" square icon="X" :aria-label="isAr ? 'إغلاق' : 'Close'" @click="selectedItem = null" />
-          </div>
-
-          <div v-if="!selectedItem" class="edit-empty">
-            <DpcIcon name="Package" :size="32" :stroke-width="1.4" class="empty-icon-sm" />
-            <p>{{ isAr ? 'اختر عنصراً للتعديل' : 'Select an item to edit' }}</p>
-          </div>
-
-          <template v-else>
-            <div class="selected-chip">
-              <div class="selected-icon">
-                <DpcIcon :name="selectedItem._type === 'consumable' ? 'Package' : 'FlaskConical'" :size="18" :stroke-width="1.7" />
-              </div>
-              <div>
-                <div class="selected-name">{{ itemName(selectedItem) }}</div>
-                <div class="selected-sku">{{ selectedItem._type === 'consumable' ? (selectedItem.sku || `CON-${selectedItem.id}`) : `MAT-${selectedItem.id}` }}</div>
-              </div>
-            </div>
-
-            <!-- Consumable fields -->
-            <template v-if="selectedItem._type === 'consumable'">
-              <div class="edit-fields">
-                <div>
-                  <label class="field-label">{{ isAr ? 'الاسم (EN)' : 'Name (EN)' }}</label>
-                  <input v-model="editForm.item_name" class="edit-input" />
-                </div>
-                <div>
-                  <label class="field-label">{{ isAr ? 'الاسم (AR)' : 'Name (AR)' }}</label>
-                  <input v-model="editForm.name_ar" class="edit-input" dir="rtl" />
-                </div>
-                <div>
-                  <label class="field-label">{{ isAr ? 'سعر الباكيت' : 'Pack cost' }}</label>
-                  <div class="input-with-suffix">
-                    <input v-model.number="editForm.pack_cost" type="number" class="edit-input" />
-                    <span class="input-suffix">{{ currency }}</span>
-                  </div>
-                </div>
-                <div class="two-col">
-                  <div>
-                    <label class="field-label">{{ isAr ? 'علب / باكيت' : 'Cases / pack' }}</label>
-                    <input v-model.number="editForm.cases_per_pack" type="number" class="edit-input" />
-                  </div>
-                  <div>
-                    <label class="field-label">{{ isAr ? 'وحدات / علبة' : 'Units / case' }}</label>
-                    <input v-model.number="editForm.units_per_case" type="number" class="edit-input" />
-                  </div>
-                </div>
-                <div class="computed-box">
-                  <div class="computed-label">{{ isAr ? 'تكلفة الوحدة المحسوبة' : 'Computed per-unit cost' }}</div>
-                  <div class="dpc-num computed-value">{{ fmt(computedPerUnit) }} <span class="computed-unit">{{ currency }}</span></div>
-                </div>
-              </div>
-            </template>
-
-            <!-- Material fields -->
-            <template v-else>
-              <div class="edit-fields">
-                <div>
-                  <label class="field-label">{{ isAr ? 'اسم الخامة (EN)' : 'Material name (EN)' }}</label>
-                  <input v-model="editForm.material_name" class="edit-input" />
-                </div>
-                <div>
-                  <label class="field-label">{{ isAr ? 'الاسم (AR)' : 'Name (AR)' }}</label>
-                  <input v-model="editForm.name_ar" class="edit-input" dir="rtl" />
-                </div>
-                <div>
-                  <label class="field-label">{{ isAr ? 'اسم المعمل' : 'Lab name' }}</label>
-                  <input v-model="editForm.lab_name" class="edit-input" :placeholder="isAr ? 'اختياري' : 'Optional'" />
-                </div>
-                <div>
-                  <label class="field-label">{{ isAr ? 'تكلفة الوحدة' : 'Unit cost' }}</label>
-                  <div class="input-with-suffix">
-                    <input v-model.number="editForm.unit_cost" type="number" class="edit-input" />
-                    <span class="input-suffix">{{ currency }}</span>
-                  </div>
-                </div>
-              </div>
-            </template>
-
-            <div class="edit-actions">
-              <DpcBtn variant="ghost" @click="selectedItem = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
-              <DpcBtn variant="teal" @click="saveEdit">{{ isAr ? 'حفظ' : 'Save' }}</DpcBtn>
-            </div>
-          </template>
-        </div>
       </div>
+      <!-- /con-pane (table view) — grid view follows; edit panel is a
+           sibling of both view modes, rendered after them. -->
 
       <!-- Premium Grid view -->
       <div
         v-else
-        class="items-grid-view animate-fade-in-up"
+        class="con-pane items-grid-view animate-fade-in-up"
         style="animation-delay: var(--stagger-2);"
       >
         <!-- Empty state -->
@@ -467,7 +397,104 @@ onMounted(async () => {
           </div>
         </div>
       </div>
+      <!-- /con-pane (grid view) -->
+
+      <!-- Backdrop for mobile bottom-sheet edit panel. Click closes. -->
+      <div
+        v-if="selectedItem && isPhone"
+        class="edit-backdrop"
+        @click="selectedItem = null"
+        aria-hidden="true"
+      />
+
+      <!-- Edit panel — visible whenever an item is selected,
+           regardless of view mode. On desktop sits beside the pane
+           (sticky); on phones takes over as a bottom sheet. -->
+      <div v-if="selectedItem" class="dpc-panel edit-panel">
+        <div class="edit-header">
+          <div class="mini-eyebrow">{{ isAr ? 'تعديل' : 'Edit' }}</div>
+          <DpcBtn variant="ghost" size="xs" square icon="X" :aria-label="isAr ? 'إغلاق' : 'Close'" @click="selectedItem = null" />
+        </div>
+
+        <div class="selected-chip">
+          <div class="selected-icon">
+            <DpcIcon :name="selectedItem._type === 'consumable' ? 'Package' : 'FlaskConical'" :size="18" :stroke-width="1.7" />
+          </div>
+          <div>
+            <div class="selected-name">{{ itemName(selectedItem) }}</div>
+            <div class="selected-sku">{{ selectedItem._type === 'consumable' ? (selectedItem.sku || `CON-${selectedItem.id}`) : `MAT-${selectedItem.id}` }}</div>
+          </div>
+        </div>
+
+        <!-- Consumable fields -->
+        <template v-if="selectedItem._type === 'consumable'">
+          <div class="edit-fields">
+            <div>
+              <label class="field-label">{{ isAr ? 'الاسم (EN)' : 'Name (EN)' }}</label>
+              <input v-model="editForm.item_name" class="edit-input" />
+            </div>
+            <div>
+              <label class="field-label">{{ isAr ? 'الاسم (AR)' : 'Name (AR)' }}</label>
+              <input v-model="editForm.name_ar" class="edit-input" dir="rtl" />
+            </div>
+            <div>
+              <label class="field-label">{{ isAr ? 'سعر الباكيت' : 'Pack cost' }}</label>
+              <div class="input-with-suffix">
+                <input v-model.number="editForm.pack_cost" type="number" inputmode="decimal" class="edit-input" />
+                <span class="input-suffix">{{ currency }}</span>
+              </div>
+            </div>
+            <div class="two-col">
+              <div>
+                <label class="field-label">{{ isAr ? 'علب / باكيت' : 'Cases / pack' }}</label>
+                <input v-model.number="editForm.cases_per_pack" type="number" inputmode="numeric" class="edit-input" />
+              </div>
+              <div>
+                <label class="field-label">{{ isAr ? 'وحدات / علبة' : 'Units / case' }}</label>
+                <input v-model.number="editForm.units_per_case" type="number" inputmode="numeric" class="edit-input" />
+              </div>
+            </div>
+            <div class="computed-box">
+              <div class="computed-label">{{ isAr ? 'تكلفة الوحدة المحسوبة' : 'Computed per-unit cost' }}</div>
+              <div class="dpc-num computed-value">{{ fmt(computedPerUnit) }} <span class="computed-unit">{{ currency }}</span></div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Material fields -->
+        <template v-else>
+          <div class="edit-fields">
+            <div>
+              <label class="field-label">{{ isAr ? 'اسم الخامة (EN)' : 'Material name (EN)' }}</label>
+              <input v-model="editForm.material_name" class="edit-input" />
+            </div>
+            <div>
+              <label class="field-label">{{ isAr ? 'الاسم (AR)' : 'Name (AR)' }}</label>
+              <input v-model="editForm.name_ar" class="edit-input" dir="rtl" />
+            </div>
+            <div>
+              <label class="field-label">{{ isAr ? 'اسم المعمل' : 'Lab name' }}</label>
+              <input v-model="editForm.lab_name" class="edit-input" :placeholder="isAr ? 'اختياري' : 'Optional'" />
+            </div>
+            <div>
+              <label class="field-label">{{ isAr ? 'تكلفة الوحدة' : 'Unit cost' }}</label>
+              <div class="input-with-suffix">
+                <input v-model.number="editForm.unit_cost" type="number" inputmode="decimal" class="edit-input" />
+                <span class="input-suffix">{{ currency }}</span>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <div class="edit-actions">
+          <DpcBtn variant="ghost" @click="selectedItem = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
+          <DpcBtn variant="teal" @click="saveEdit">{{ isAr ? 'حفظ' : 'Save' }}</DpcBtn>
+        </div>
+      </div>
     </div>
+    <!-- /con-content -->
+    </div>
+    <!-- /con-body -->
 
     <!-- Add modal -->
     <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
@@ -660,6 +687,21 @@ onMounted(async () => {
 .grid-layout {
   display: grid; grid-template-columns: 1fr 360px; gap: 18px; align-items: start;
   padding-top: 18px;
+}
+
+/* New layout host: holds both view modes + the edit panel as a third
+   column when an item is selected and there's room. On phones the
+   edit panel becomes a bottom sheet instead. */
+.con-content {
+  display: grid;
+  gap: 18px;
+  padding-top: 18px;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .con-content.con-content--has-edit { grid-template-columns: 1fr 360px; }
 }
 
 /* Table grids */
@@ -1140,5 +1182,68 @@ onMounted(async () => {
   font-size: 12px;
   color: var(--ink-500);
   font-family: var(--font-mono);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   RESPONSIVE — tighten outer padding so tabs and item cards keep
+   breathing room on phones. Inner data tables that exceed the
+   viewport get horizontal scroll via DpcTable's scroll container.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .tab-bar { padding: 14px var(--gutter, 16px) 0; flex-wrap: wrap; }
+  .con-body { padding: 0 var(--gutter, 16px) 24px; }
+}
+
+@media (max-width: 767px) {
+  .tab-bar { padding: 12px var(--gutter, 16px) 0; gap: 2px; }
+  .tab-btn { padding: 7px 12px; font-size: 12.5px; }
+  .con-body { padding: 0 var(--gutter, 16px) 32px; }
+
+  /* Hide the table-view toggle button on phones — the 5/6-column
+     table is unreadable here and we force grid view in JS. */
+  .view-toggle { display: none; }
+
+  /* Edit panel becomes a bottom sheet so editing remains accessible
+     when the list is shown as cards. */
+  .edit-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 20, 36, 0.55);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: var(--z-overlay);
+    animation: edit-backdrop-fade 220ms ease;
+  }
+  @keyframes edit-backdrop-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .con-content .edit-panel {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    top: auto;
+    margin: 0;
+    width: 100%;
+    border-radius: var(--radius-xl, 24px) var(--radius-xl, 24px) 0 0;
+    z-index: var(--z-modal);
+    max-height: 88vh;
+    max-height: 88svh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 16px var(--gutter, 16px);
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 32px rgba(15, 37, 69, 0.22);
+    animation: edit-sheet-slide-up 280ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  }
+  @keyframes edit-sheet-slide-up {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+
+  /* Tighter form fields on the sheet — sheet padding handles the
+     outer gutter, so two-col can flex normally. */
+  .con-content .edit-panel .two-col { gap: 10px; }
 }
 </style>

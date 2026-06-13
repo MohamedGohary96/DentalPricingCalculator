@@ -213,7 +213,8 @@ onMounted(() => {
 .topbar-end   { position: absolute; top: 28px; inset-inline-end: 28px; }
 
 .card {
-  width: 480px;
+  width: 100%;
+  max-width: 480px;
   padding: 40px;
   background: var(--surface);
   box-shadow: var(--shadow-lg), inset 0 0 0 1px var(--line);
@@ -340,4 +341,13 @@ onMounted(() => {
   transition: background .12s;
 }
 .modal-btn-skip:hover { background: var(--danger-50); color: var(--danger-600); box-shadow: inset 0 0 0 1px var(--danger-200); }
+
+@media (max-width: 767px) {
+  .verify-screen { padding: 16px; }
+  .card { padding: 28px var(--gutter, 20px); }
+  .topbar-start,
+  .topbar-end { top: 16px; }
+  .topbar-start { inset-inline-start: 16px; }
+  .topbar-end   { inset-inline-end: 16px; }
+}
 </style>

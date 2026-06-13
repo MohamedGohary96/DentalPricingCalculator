@@ -209,4 +209,28 @@ function cardBody(c) {
   color: var(--ink-500);
   line-height: 1.5;
 }
+
+/* ──────────────────────────────────────────────────────────────
+   RESPONSIVE — stack columns + shrink hero typography below lg.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .intro-topbar { height: 56px; padding: 0 var(--gutter, 16px); }
+  .intro-body {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 24px var(--gutter, 16px) 32px;
+    gap: 28px;
+  }
+  .intro-left { padding-inline-end: 0; max-width: none; }
+  .intro-cards { max-width: none; }
+  .intro-title { font-size: 32px; }
+}
+
+@media (max-width: 767px) {
+  .intro-title { font-size: 26px; line-height: 1.15; }
+  .intro-sub   { font-size: 15px; margin-bottom: 22px; }
+  .intro-cta   { height: 48px; padding: 0 18px; font-size: 14px; width: 100%; justify-content: center; }
+  .intro-cta-row { width: 100%; }
+  .intro-card  { padding: 18px; }
+}
 </style>

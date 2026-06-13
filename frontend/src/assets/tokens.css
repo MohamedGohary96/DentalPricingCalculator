@@ -119,6 +119,9 @@
 
   /* ────────────────────────────────────────────────────────────
      TYPOGRAPHY · Size scale  (rem, base 16px)
+     Body sizes are fixed for legibility. Display sizes (xl→4xl)
+     flex with viewport via clamp(); ceilings match desktop values
+     exactly so layouts at ≥1280px render unchanged.
      ──────────────────────────────────────────────────────────── */
 
   --text-xs:   0.75rem;   /* 12px  — labels, captions, eyebrow  */
@@ -126,10 +129,14 @@
   --text-base: 0.9063rem; /* 14.5px — primary body copy         */
   --text-md:   1rem;      /* 16px  — slightly larger body       */
   --text-lg:   1.125rem;  /* 18px  — lead paragraph, card title */
-  --text-xl:   1.25rem;   /* 20px  — section heading            */
-  --text-2xl:  1.5rem;    /* 24px  — page heading               */
-  --text-3xl:  1.875rem;  /* 30px  — hero heading               */
-  --text-4xl:  2.25rem;   /* 36px  — display / splash           */
+  /* Ceiling crossover ≈ 1000px viewport, so any view ≥1024px
+     (tablet landscape / laptop / desktop) renders at the full ceiling
+     value — identical to the previous fixed scale. Flex only engages
+     below the lg breakpoint. */
+  --text-xl:   clamp(1.125rem, 2vw,   1.25rem);   /* 18→20px  — section heading */
+  --text-2xl:  clamp(1.25rem,  2.4vw, 1.5rem);    /* 20→24px  — page heading    */
+  --text-3xl:  clamp(1.5rem,   3vw,   1.875rem);  /* 24→30px  — hero heading    */
+  --text-4xl:  clamp(1.8rem,   3.6vw, 2.25rem);   /* 29→36px  — display/splash  */
 
   /* ────────────────────────────────────────────────────────────
      TYPOGRAPHY · Weight scale
@@ -139,6 +146,35 @@
   --font-medium:   500;
   --font-semibold: 600;
   --font-bold:     700;
+
+  /* ────────────────────────────────────────────────────────────
+     RESPONSIVE · Breakpoint tokens
+     Five device classes. Use `@media (min-width: var(--bp-*))`
+     for layout-level adaptation. Scoped components prefer
+     `@container` queries against these same widths.
+     ──────────────────────────────────────────────────────────── */
+
+  --bp-sm: 481px;   /* large mobile / phablet                 */
+  --bp-md: 768px;   /* tablet portrait                        */
+  --bp-lg: 1024px;  /* tablet landscape / small laptop        */
+  --bp-xl: 1280px;  /* desktop                                */
+
+  /* ────────────────────────────────────────────────────────────
+     RESPONSIVE · Layout gutters
+     Flex with viewport so page padding tightens on phones and
+     opens up on desktop without per-component media queries.
+     ──────────────────────────────────────────────────────────── */
+
+  --gutter:       clamp(16px, 3vw, 32px);   /* page / panel padding   */
+  --gutter-lg:    clamp(20px, 4vw, 56px);   /* hero / wizard padding  */
+  --section-gap:  clamp(24px, 4vw, 48px);   /* gap between major blocks */
+
+  /* ────────────────────────────────────────────────────────────
+     TOUCH TARGETS
+     ──────────────────────────────────────────────────────────── */
+
+  --touch-target: 44px;   /* WCAG 2.1 minimum         */
+  --touch-comfy:  48px;   /* preferred for primary CTAs */
 
   /* ────────────────────────────────────────────────────────────
      SPACING  (4px base grid)

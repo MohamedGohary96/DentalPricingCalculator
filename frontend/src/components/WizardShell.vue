@@ -19,6 +19,21 @@ const router = useRouter()
 const transitionName = computed(() =>
   props.transitionDir === 'back' ? 'wiz-step-back' : 'wiz-step'
 )
+
+// Mobile stepper labels — mirror DpcWizardRail's source of truth
+const STEP_LABEL_KEYS = ['onboarding.step2label', 'onboarding.step3label', 'onboarding.step4label']
+const STEP_FALLBACKS  = ['Location', 'Costs & Capacity', 'Settings']
+
+const currentStepLabel = computed(() => {
+  const idx = Math.min(Math.max(props.activeStep - 1, 0), STEP_LABEL_KEYS.length - 1)
+  const k = i18n.t(STEP_LABEL_KEYS[idx])
+  return k === STEP_LABEL_KEYS[idx] ? STEP_FALLBACKS[idx] : k
+})
+
+const stepOfLabel = computed(() => {
+  if (i18n.locale === 'ar') return `الخطوة ${props.activeStep} من 3`
+  return `Step ${props.activeStep} of 3`
+})
 </script>
 
 <template>
@@ -35,6 +50,22 @@ const transitionName = computed(() =>
         <LangSwitch />
       </div>
     </header>
+
+    <!-- Mobile stepper — visible only below the lg breakpoint -->
+    <div v-if="showRail" class="wiz-mobile-stepper" aria-hidden="false">
+      <div class="wiz-mobile-stepper__meta">
+        <span class="wiz-mobile-stepper__of">{{ stepOfLabel }}</span>
+        <span class="wiz-mobile-stepper__sep">·</span>
+        <span class="wiz-mobile-stepper__label">{{ currentStepLabel }}</span>
+      </div>
+      <div class="wiz-mobile-stepper__bar" :aria-label="stepOfLabel">
+        <span
+          v-for="n in 3"
+          :key="n"
+          :class="['wiz-seg', n < activeStep && 'is-done', n === activeStep && 'is-active']"
+        />
+      </div>
+    </div>
 
     <!-- Body -->
     <div class="wiz-body">
@@ -75,7 +106,9 @@ const transitionName = computed(() =>
 .wiz-shell {
   display: flex;
   flex-direction: column;
+  /* Dynamic viewport — see AppShell for rationale. */
   height: 100vh;
+  height: 100svh;
   width: 100%;
   overflow: hidden;
   background: var(--paper);
@@ -187,21 +220,26 @@ const transitionName = computed(() =>
   margin: 0 auto;
 }
 
+/* Step transitions — direction reverses in RTL so forward motion
+   always feels like "next" no matter the reading direction. */
+.wiz-shell { --wiz-tx: 32px; }
+html[dir="rtl"] .wiz-shell { --wiz-tx: -32px; }
+
 /* Forward step transition */
 .wiz-step-enter-active,
 .wiz-step-leave-active {
   transition: opacity 0.22s ease, transform 0.22s ease;
 }
-.wiz-step-enter-from { opacity: 0; transform: translateX(32px); }
-.wiz-step-leave-to   { opacity: 0; transform: translateX(-32px); }
+.wiz-step-enter-from { opacity: 0; transform: translateX(var(--wiz-tx)); }
+.wiz-step-leave-to   { opacity: 0; transform: translateX(calc(var(--wiz-tx) * -1)); }
 
 /* Back step transition */
 .wiz-step-back-enter-active,
 .wiz-step-back-leave-active {
   transition: opacity 0.22s ease, transform 0.22s ease;
 }
-.wiz-step-back-enter-from { opacity: 0; transform: translateX(-32px); }
-.wiz-step-back-leave-to   { opacity: 0; transform: translateX(32px); }
+.wiz-step-back-enter-from { opacity: 0; transform: translateX(calc(var(--wiz-tx) * -1)); }
+.wiz-step-back-leave-to   { opacity: 0; transform: translateX(var(--wiz-tx)); }
 
 .wiz-footer {
   flex: none;
@@ -212,5 +250,90 @@ const transitionName = computed(() =>
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   MOBILE STEPPER — hidden on desktop. Below lg it replaces the
+   vertical rail with a compact horizontal segment bar + label.
+   ────────────────────────────────────────────────────────────── */
+.wiz-mobile-stepper { display: none; }
+
+.wiz-mobile-stepper__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink-500);
+  margin-bottom: 8px;
+}
+.wiz-mobile-stepper__label { color: var(--ink-900); font-weight: 600; }
+.wiz-mobile-stepper__sep   { color: var(--ink-300); }
+
+.wiz-mobile-stepper__bar {
+  display: flex;
+  gap: 6px;
+}
+.wiz-seg {
+  flex: 1 1 0;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 200ms ease;
+}
+.wiz-seg.is-done   { background: var(--teal-500); }
+.wiz-seg.is-active { background: var(--teal-600); }
+
+/* ──────────────────────────────────────────────────────────────
+   LG BAND (1024–1279px) — tighten rail and content padding
+   ────────────────────────────────────────────────────────────── */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .wiz-rail { width: 220px; padding: 28px 20px; }
+  .wiz-content { padding: 32px 32px; }
+  .wiz-footer { padding-inline-start: 252px; padding-inline-end: 32px; }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   BELOW LG — rail hidden, mobile stepper visible, footer becomes
+   a sticky action bar with safe-area padding. Content uses fluid
+   gutters set in tokens.css.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .wiz-shell { height: 100vh; height: 100svh; }
+
+  .wiz-topbar { height: 56px; padding: 0 var(--gutter, 16px); }
+  .wiz-setup-label { display: none; }
+  .wiz-divider     { display: none; }
+  .wiz-save-btn    { height: 36px; padding: 0 10px; font-size: 12.5px; }
+
+  .wiz-mobile-stepper {
+    display: block;
+    padding: 12px var(--gutter, 16px) 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .wiz-rail { display: none; }
+
+  .wiz-content { padding: 24px var(--gutter, 16px) 32px; }
+  .wiz-content-inner { max-width: none; }
+
+  .wiz-footer {
+    height: auto;
+    min-height: 64px;
+    padding: 12px var(--gutter, 16px);
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    gap: 8px;
+    /* Allow tertiary actions (e.g. "Skip with defaults") to wrap to
+       a new row on narrow viewports rather than crushing the primary
+       Back/Next pair. */
+    flex-wrap: wrap;
+    box-shadow: 0 -2px 12px rgba(15, 37, 69, 0.06);
+  }
+}
+
+@media (max-width: 480px) {
+  .wiz-topbar { height: 52px; }
+  .wiz-content { padding: 20px var(--gutter, 16px) 24px; }
+  .wiz-mobile-stepper__meta { font-size: 12px; }
 }
 </style>

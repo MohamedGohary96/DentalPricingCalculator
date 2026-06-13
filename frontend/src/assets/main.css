@@ -8,6 +8,11 @@
 html, body, #app {
   height: 100%;
   width: 100%;
+  /* Guard against any descendant accidentally producing horizontal scroll.
+     `overflow-x: clip` preserves position: sticky inside descendants
+     (unlike `hidden`); browsers without clip support fall back to hidden. */
+  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -35,6 +40,12 @@ a { color: inherit; text-decoration: none; }
 button { font: inherit; cursor: pointer; border: 0; background: transparent; color: inherit; }
 
 input, textarea, select { font: inherit; color: inherit; }
+
+/* Range sliders don't auto-mirror in WebKit/Blink under RTL — the
+   thumb still moves left-to-right with increasing value. Force the
+   element's own direction to match the document so the thumb tracks
+   the reading order. */
+html[dir="rtl"] input[type="range"] { direction: rtl; }
 
 /* Numbers — IBM Plex Mono, tabular, LTR even in RTL context */
 .dpc-num {

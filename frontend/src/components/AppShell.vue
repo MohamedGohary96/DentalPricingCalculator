@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useRouter }      from 'vue-router'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import DpcIcon            from './DpcIcon.vue'
 import DpcLogo            from './DpcLogo.vue'
 import DpcHealthScore     from './DpcHealthScore.vue'
@@ -10,15 +10,25 @@ import { useI18nStore }   from '@/stores/i18n.js'
 import { usePricingStore } from '@/stores/pricing.js'
 import { useRestriction } from '@/composables/useRestriction.js'
 
-defineProps({
+const props = defineProps({
   activeKey: { type: String, default: 'dashboard' },
 })
 
 const router       = useRouter()
+const route        = useRoute()
 const auth         = useAuthStore()
 const i18n         = useI18nStore()
 const pricingStore = usePricingStore()
 const { isTrial, isLockout } = useRestriction()
+
+// ── Mobile drawer state ─────────────────────────────────────────
+const drawerOpen = ref(false)
+function toggleDrawer() { drawerOpen.value = !drawerOpen.value }
+function closeDrawer()  { drawerOpen.value = false }
+function handleKey(e)   { if (e.key === 'Escape' && drawerOpen.value) closeDrawer() }
+
+// Close on route change so navigating from the drawer dismisses it.
+watch(() => route.fullPath, closeDrawer)
 
 onMounted(() => {
   pricingStore.loadDashboardStats().catch(() => {})
@@ -28,6 +38,13 @@ onMounted(() => {
       console.warn('[AppShell] Failed to load price list:', err)
     })
   }
+  document.body.classList.add('has-app-shell')
+  document.addEventListener('keydown', handleKey)
+})
+
+onBeforeUnmount(() => {
+  document.body.classList.remove('has-app-shell')
+  document.removeEventListener('keydown', handleKey)
 })
 
 // Health score: 1 - (low / set), null while loading, 0 if no priced services
@@ -56,6 +73,16 @@ const navItems = computed(() => {
   return items
 })
 
+// ── Bottom tab bar (phones only) ───────────────────────────────
+// Four highest-traffic destinations + a "More" slot that opens the
+// drawer for the long-tail nav (Settings, Subscription, SuperAdmin,
+// Consumables). RTL order is handled in CSS via flex-direction.
+const bottomTabKeys = ['dashboard', 'pricing', 'cases', 'services']
+const bottomNavItems = computed(() =>
+  bottomTabKeys.map(k => navItems.value.find(i => i.key === k)).filter(Boolean)
+)
+const moreActive = computed(() => !bottomTabKeys.includes(props.activeKey))
+
 function navLabel(item) {
   const k = i18n.t(item.labelKey)
   return k === item.labelKey ? item.key.charAt(0).toUpperCase() + item.key.slice(1) : k
@@ -79,9 +106,32 @@ async function logout() {
 </script>
 
 <template>
-  <div class="shell">
-    <!-- Sidebar -->
-    <aside class="sidebar">
+  <div class="shell" :class="{ 'shell--drawer-open': drawerOpen }">
+    <!-- Mobile topbar — only visible below the lg breakpoint -->
+    <header class="topbar">
+      <button
+        class="topbar-burger"
+        type="button"
+        :aria-label="i18n.locale === 'ar' ? (drawerOpen ? 'إغلاق القائمة' : 'فتح القائمة') : (drawerOpen ? 'Close menu' : 'Open menu')"
+        :aria-expanded="drawerOpen"
+        @click="toggleDrawer"
+      >
+        <DpcIcon :name="drawerOpen ? 'X' : 'Menu'" :size="22" :stroke-width="1.8" />
+      </button>
+      <div class="topbar-brand"><DpcLogo /></div>
+      <div class="topbar-end" />
+    </header>
+
+    <!-- Drawer backdrop -->
+    <div
+      class="drawer-backdrop"
+      :class="{ 'drawer-backdrop--shown': drawerOpen }"
+      @click="closeDrawer"
+      aria-hidden="true"
+    />
+
+    <!-- Sidebar — flex child on desktop, off-canvas drawer below lg -->
+    <aside class="sidebar" :class="{ 'sidebar--open': drawerOpen }">
       <div class="sidebar-brand">
         <DpcLogo />
       </div>
@@ -131,13 +181,40 @@ async function logout() {
     <main class="main-area">
       <slot />
     </main>
+
+    <!-- Bottom tab bar — phones only -->
+    <nav class="bottom-nav" :aria-label="i18n.locale === 'ar' ? 'التنقل السفلي' : 'Bottom navigation'">
+      <button
+        v-for="item in bottomNavItems"
+        :key="item.key"
+        type="button"
+        :class="['bottom-tab', item.key === activeKey && 'is-active']"
+        @click="router.push(item.route)"
+      >
+        <DpcIcon :name="item.icon" :size="20" :stroke-width="1.7" />
+        <span class="bottom-tab-label">{{ navLabel(item) }}</span>
+      </button>
+      <button
+        type="button"
+        :class="['bottom-tab', moreActive && 'is-active']"
+        :aria-label="i18n.locale === 'ar' ? 'المزيد' : 'More'"
+        @click="toggleDrawer"
+      >
+        <DpcIcon name="Menu" :size="20" :stroke-width="1.7" />
+        <span class="bottom-tab-label">{{ i18n.locale === 'ar' ? 'المزيد' : 'More' }}</span>
+      </button>
+    </nav>
   </div>
 </template>
 
 <style scoped>
 .shell {
   display: flex;
+  /* Use the dynamic viewport unit so iOS Safari's collapsing
+     bottom toolbar doesn't crop the AppShell. Older browsers
+     fall back to 100vh from the first declaration. */
   height: 100vh;
+  height: 100svh;
   width: 100%;
   overflow: hidden;
   background: var(--canvas);
@@ -314,5 +391,167 @@ async function logout() {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   MOBILE TOPBAR + DRAWER BACKDROP + BOTTOM NAV
+   Hidden on desktop. The sidebar's responsive shift to off-canvas
+   lives further down in the lg media block.
+   ────────────────────────────────────────────────────────────── */
+
+.topbar,
+.drawer-backdrop,
+.bottom-nav {
+  display: none;
+}
+
+.topbar {
+  height: 56px;
+  padding: 0 12px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line);
+  z-index: var(--z-sticky);
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-burger {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--ink-700);
+  border: 0;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  flex: none;
+}
+.topbar-burger:hover  { background: var(--surface-2); color: var(--ink-900); }
+.topbar-burger:active { background: var(--surface-2); }
+
+.topbar-brand { flex: 1; display: flex; align-items: center; }
+.topbar-end   { flex: none; min-width: 44px; }
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 20, 36, 0.5);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-base);
+  z-index: calc(var(--z-modal) - 1);
+}
+.drawer-backdrop--shown {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bottom-nav {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  background: var(--surface-1);
+  border-top: 1px solid var(--line);
+  z-index: var(--z-sticky);
+  align-items: stretch;
+  justify-content: stretch;
+  padding-bottom: env(safe-area-inset-bottom);
+  height: calc(64px + env(safe-area-inset-bottom));
+}
+html[dir="rtl"] .bottom-nav { flex-direction: row-reverse; }
+
+.bottom-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px;
+  background: transparent;
+  color: var(--ink-500);
+  border: 0;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  min-height: 44px;
+}
+.bottom-tab:hover { color: var(--ink-800); }
+.bottom-tab.is-active { color: var(--accent-dark); }
+.bottom-tab-label {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   BREAKPOINT lg — tablet landscape / small laptop
+   Sidebar tightens to 200px so 1024–1279px gets more content width.
+   ────────────────────────────────────────────────────────────── */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .sidebar {
+    width: 200px;
+    padding: 20px 12px;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   BELOW lg — sidebar becomes off-canvas drawer + topbar appears
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .shell {
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    grid-template-columns: 1fr;
+    height: 100vh;
+    height: 100svh;
+  }
+
+  .topbar { display: flex; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    inset-inline-start: 0;
+    width: min(300px, 85vw);
+    z-index: var(--z-modal);
+    transform: translateX(-100%);
+    transition: transform 280ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+    box-shadow: var(--shadow-lg);
+    border-inline-end: 1px solid var(--line);
+  }
+  html[dir="rtl"] .sidebar { transform: translateX(100%); }
+
+  .sidebar--open,
+  html[dir="rtl"] .sidebar--open { transform: translateX(0); }
+
+  .drawer-backdrop { display: block; }
+
+  .main-area {
+    grid-row: 2;
+    grid-column: 1;
+    width: 100%;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   BELOW sm (≤767px) — bottom tab bar appears, main-area gets
+   matching bottom padding so content isn't hidden under it.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .bottom-nav { display: flex; }
+
+  .main-area {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
 }
 </style>

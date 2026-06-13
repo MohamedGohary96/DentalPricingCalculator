@@ -54,6 +54,18 @@ defineProps({
 .dpc-table-scroll {
   overflow-x: auto;
   overflow-y: visible;
+  /* Momentum scrolling on iOS + clamp overscroll so the page
+     doesn't pan when a user swipes the table sideways. */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* When the consuming view switches to card-mode at small viewports
+   it sets its own .dpc-table-row layout — the inline min-width must
+   not force a horizontal scroll bar. The consumer is responsible
+   for layout below this breakpoint. */
+@media (max-width: 767px) {
+  .dpc-table-scroll { min-width: 0 !important; overflow-x: visible; }
 }
 
 /* Custom scrollbar styling */

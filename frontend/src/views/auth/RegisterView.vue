@@ -618,4 +618,47 @@ const ar = (en, arText) => i18n.locale === 'ar' ? arText : en
 .step-n     { font-family: var(--font-mono); font-size: 11px; color: rgba(255,255,255,.5); letter-spacing: .08em; }
 .step-label { font-size: 14.5px; color: #fff; font-weight: 600; }
 .step-desc  { font-size: 12px; color: rgba(255,255,255,.65); font-weight: 400; }
+
+/* ──────────────────────────────────────────────────────────────
+   RESPONSIVE — stack form above hero below lg, drop hero on
+   phones. Local .form-input is bumped to 16px to dodge the iOS
+   focus-zoom trap, matching DpcField's mobile rule.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .reg-screen {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100svh;
+    overflow: visible;
+  }
+
+  .form-panel {
+    width: 100%;
+    padding: 24px var(--gutter, 24px) 32px;
+    overflow-y: visible;
+  }
+
+  .hero {
+    flex: none;
+    padding: 24px var(--gutter, 24px);
+    align-items: flex-start;
+  }
+  .hero-inner { padding: 0; }
+  .hero-title { font-size: 26px; margin: 10px 0 20px; }
+
+  .reg-title { font-size: 26px; }
+  .grid-2    { grid-template-columns: 1fr; gap: 0; }
+  .form-input { font-size: 16px; }
+}
+
+@media (max-width: 767px) {
+  .hero { display: none; }
+
+  .form-panel { padding: 16px var(--gutter, 16px) 24px; }
+  .form-header { margin-bottom: 16px; }
+  .reg-title { font-size: 22px; }
+  .reg-sub { margin-bottom: 18px; }
+  .section-eyebrow { margin: 18px 0 12px; }
+}
 </style>

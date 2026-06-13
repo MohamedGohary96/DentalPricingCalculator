@@ -37,7 +37,11 @@ const simMargin    = ref(40)
 const globalVat    = ref(0)
 const globalRound  = ref(5)
 const applying     = ref(false)
-const simExpanded  = ref(true)
+// Simulator collapsed by default on phones so the table is visible
+// above the fold; expanded by default on tablet+ where there's room.
+const simExpanded = ref(
+  typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches
+)
 
 const priceList = computed(() => pricingStore.priceList || [])
 
@@ -448,7 +452,7 @@ onMounted(async () => {
               ]"
             >
               <!-- Service name -->
-              <DpcTableCell type="text">
+              <DpcTableCell type="text" class="pl-cell-name">
                 <div class="svc-cell">
                   <div class="svc-icon"><DpcIcon name="Stethoscope" :size="13" :stroke-width="1.7" /></div>
                   <div>
@@ -459,19 +463,19 @@ onMounted(async () => {
               </DpcTableCell>
 
               <!-- Base cost -->
-              <DpcTableCell type="number" align="end">
+              <DpcTableCell type="number" align="end" :label="isAr ? 'التكلفة الأساسية' : 'Base cost'">
                 <span :class="isTrial && 'trial-blur'">{{ fmt(item.base_cost || 0) }}</span>
               </DpcTableCell>
 
               <!-- Doctor fee -->
-              <DpcTableCell type="number" align="end">
+              <DpcTableCell type="number" align="end" :label="isAr ? 'أتعاب الطبيب' : 'Doctor fee'">
                 <span :class="isTrial && 'trial-blur'">
                   {{ item.doctor_fee > 0 ? fmt(item.doctor_fee) : '—' }}
                 </span>
               </DpcTableCell>
 
               <!-- Doctor fee type badge -->
-              <DpcTableCell type="status" align="center">
+              <DpcTableCell type="status" align="center" :label="isAr ? 'نوع الأتعاب' : 'Fee type'">
                 <span
                   class="fee-badge"
                   :class="{
@@ -487,14 +491,14 @@ onMounted(async () => {
               </DpcTableCell>
 
               <!-- Lab materials -->
-              <DpcTableCell type="number" align="end">
+              <DpcTableCell type="number" align="end" :label="isAr ? 'خامات المعمل' : 'Lab materials'">
                 <span :class="isTrial && 'trial-blur'">
                   {{ item.lab_materials_cost > 0 ? fmt(item.lab_materials_cost) : '—' }}
                 </span>
               </DpcTableCell>
 
               <!-- Profit % control -->
-              <DpcTableCell type="action" align="center">
+              <DpcTableCell type="action" align="center" :label="isAr ? 'هامش الربح %' : 'Profit %'">
                 <div class="margin-ctrl" :class="isTrial && 'trial-blur'">
                   <button class="mq-btn" @click="adjustMargin(item.id, -5)">-5</button>
                   <input
@@ -503,6 +507,7 @@ onMounted(async () => {
                     class="mq-input"
                     min="0"
                     max="99"
+                    inputmode="numeric"
                     @change="setLocalMargin(item.id, $event.target.value)"
                   />
                   <span class="mq-pct">%</span>
@@ -518,14 +523,14 @@ onMounted(async () => {
               </DpcTableCell>
 
               <!-- Calculated price -->
-              <DpcTableCell type="number" align="end">
+              <DpcTableCell type="number" align="end" :label="isAr ? 'السعر المحسوب' : 'Suggested'">
                 <strong class="price-val" :class="[isTrial && 'trial-blur', localMargins[item.id] != null && 'price-changed']">
                   {{ fmt(effectivePrice(item)) }}
                 </strong>
               </DpcTableCell>
 
               <!-- Current price (inline editable) -->
-              <DpcTableCell type="action" align="end">
+              <DpcTableCell type="action" align="end" :label="isAr ? 'سعرك الحالي' : 'Current price'">
                 <div class="current-price-ctrl" :class="[isTrial && 'trial-blur', localCurrentPrices[item.id] != null && 'price-changed']">
                   <input
                     type="number"
@@ -533,13 +538,14 @@ onMounted(async () => {
                     class="cp-input"
                     :placeholder="isAr ? 'أدخل' : 'Enter'"
                     min="0"
+                    inputmode="numeric"
                     @change="setLocalCurrentPrice(item.id, $event.target.value)"
                   />
                 </div>
               </DpcTableCell>
 
               <!-- Current price margin badge -->
-              <DpcTableCell type="status" align="center">
+              <DpcTableCell type="status" align="center" :label="isAr ? 'هامش السعر الحالي' : 'Current margin'">
                 <span :class="['margin-badge', isTrial && 'trial-blur', marginBadgeCls(marginDelta(item))]">
                   <template v-if="currentPriceMargin(item) !== null">
                     <span class="margin-main">{{ currentPriceMargin(item) }}%</span>
@@ -556,7 +562,7 @@ onMounted(async () => {
               </DpcTableCell>
 
               <!-- Variance -->
-              <DpcTableCell type="status" align="center">
+              <DpcTableCell type="status" align="center" class="pl-cell-variance" :label="isAr ? 'الفرق' : 'Variance'">
                 <span
                   v-bind:class="['var-chip', isTrial && 'trial-blur', varianceDisplay(item).cls]"
                   :title="varianceDisplay(item).status"
@@ -568,7 +574,7 @@ onMounted(async () => {
               </DpcTableCell>
 
               <!-- Save row button -->
-              <DpcTableCell type="action" align="center">
+              <DpcTableCell type="action" align="center" class="pl-cell-save">
                 <button
                   v-if="localMargins[item.id] != null || localCurrentPrices[item.id] != null"
                   class="save-row-btn"
@@ -737,7 +743,7 @@ onMounted(async () => {
   color: var(--ink-400);
 }
 
-.sim-global-row { display: flex; align-items: center; gap: 12px; }
+.sim-global-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .sim-global-label { font-size: 13px; color: var(--ink-700); white-space: nowrap; flex: none; }
 /* Markup-equivalent hint — minimal supplementary text, no chrome. */
 .markup-hint {
@@ -793,6 +799,13 @@ onMounted(async () => {
   background: var(--paper-2);
   transform: translateX(2px);
   box-shadow: -3px 0 0 0 var(--teal-600) inset;
+}
+
+/* RTL: flip the inset accent bar to the start edge and reverse the
+   slide-into-focus direction. */
+html[dir="rtl"] .price-list-grid :deep(.dpc-table-row:not(.dpc-table-row--header):not(.dpc-table-group):hover) {
+  transform: translateX(-2px);
+  box-shadow: 3px 0 0 0 var(--teal-600) inset;
 }
 
 /* Group header row styling */
@@ -1153,5 +1166,145 @@ onMounted(async () => {
   max-width: 360px;
   margin: 0;
   line-height: 1.6;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   RESPONSIVE — tighten page padding, stack profit-simulator
+   metrics, wrap the global margin row.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .pl-body { padding: 16px var(--gutter, 16px) 32px; }
+  .sim-metrics { grid-template-columns: 1fr 1fr; }
+  .sim-metric-card-health { grid-column: span 2; }
+}
+
+@media (max-width: 767px) {
+  .pl-body { padding: 12px var(--gutter, 16px) 32px; }
+  .sim-metrics { grid-template-columns: 1fr; }
+  .sim-metric-card-health { grid-column: auto; }
+  .sim-global-row { gap: 8px; }
+  .sim-slider { width: 100%; flex-basis: 100%; }
+  .sim-preview-btn { flex: 1; }
+  .sim-actions { flex-direction: column; }
+  .sim-reset-btn,
+  .sim-save-btn { width: 100%; justify-content: center; }
+
+  /* ───── PriceList card-mode ───────────────────────────────────
+     Below sm the 11-column subgrid table is unreadable and the
+     horizontal-scroll fallback is poor UX. We flatten each row
+     into a vertical card with label/value pairs surfaced from
+     each cell's `data-label`. The desktop subgrid layout is
+     untouched at md+. */
+
+  /* The grid wrapper becomes a stack of cards; subgrid columns
+     no longer apply at this breakpoint. */
+  .price-list-grid {
+    display: block;
+    grid-template-columns: none;
+  }
+
+  /* Hide the two desktop header rows — labels move into each
+     cell as inline ::before content (set on data-label). */
+  .price-list-grid :deep(.dpc-table-head) { display: none; }
+  .price-list-grid :deep(.col-g-service),
+  .price-list-grid :deep(.col-g-cost),
+  .price-list-grid :deep(.col-g-profit),
+  .price-list-grid :deep(.col-g-price),
+  .price-list-grid :deep(.col-g-var) { display: none; }
+
+  /* Each data row becomes a stacked card. We override the grid
+     subgrid layout that DpcTableRow declares so cells flow as
+     block children with their own padding. */
+  .price-list-grid :deep(.dpc-table-row.row-default) {
+    display: block;
+    grid-template-columns: none;
+    padding: 14px var(--gutter, 16px) 16px;
+    border-bottom: 1px solid var(--line);
+    min-height: 0;
+  }
+  .price-list-grid :deep(.dpc-table-row.row-default:hover) {
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Service-name cell sits at the top as the card title with no
+     leading label. */
+  .price-list-grid :deep(.pl-cell-name) {
+    padding: 0 0 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px dashed var(--line-soft);
+    align-items: flex-start;
+  }
+
+  /* All other cells become stacked label/value blocks. We use a
+     stacked layout (label above value) rather than space-between
+     because long Arabic column names (e.g. "هامش السعر الحالي")
+     can push the value off-screen in a flex row. Stacking works
+     equally well in LTR and RTL with no per-language tuning. */
+  .price-list-grid :deep(.dpc-table-cell:not(.pl-cell-name):not(.pl-cell-save)) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 6px 0;
+    text-align: start;
+    min-height: 0;
+  }
+
+  /* Render the column label from data-label as a top-row block. */
+  .price-list-grid :deep(.dpc-table-cell[data-label]:not(.pl-cell-name):not(.pl-cell-save))::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink-500);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-bottom: 4px;
+    /* Force start-aligned regardless of cell's original align prop. */
+    text-align: start;
+  }
+
+  /* Numeric cells default to text-align: end on desktop (right-aligned
+     numbers). In card mode we want them start-aligned so values sit
+     directly under their labels. */
+  .price-list-grid :deep(.dpc-table-cell.align-end:not(.pl-cell-name):not(.pl-cell-save)),
+  .price-list-grid :deep(.dpc-table-cell.align-center:not(.pl-cell-name):not(.pl-cell-save)) {
+    align-items: stretch;
+    text-align: start;
+  }
+  .price-list-grid :deep(.dpc-table-cell.align-end > *),
+  .price-list-grid :deep(.dpc-table-cell.align-center > *) {
+    text-align: start;
+    justify-content: flex-start;
+  }
+
+  /* Save button gets its own row at the bottom of the card. */
+  .price-list-grid :deep(.pl-cell-save) {
+    padding: 12px 0 0;
+    justify-content: flex-end;
+  }
+
+  /* Variance and current-margin chips look better right-aligned. */
+  .price-list-grid :deep(.var-chip),
+  .price-list-grid :deep(.margin-badge),
+  .price-list-grid :deep(.fee-badge) {
+    flex: none;
+  }
+
+  /* The inline number controls (profit %, current price) need
+     room — let them take the right-hand share of the row. */
+  .price-list-grid :deep(.margin-ctrl),
+  .price-list-grid :deep(.current-price-ctrl) {
+    flex: none;
+  }
+
+  /* The variance row gets a bit of emphasis since it's the headline
+     decision metric on a phone-sized card. */
+  .price-list-grid :deep(.pl-cell-variance) {
+    padding-top: 8px;
+    margin-top: 4px;
+    border-top: 1px dashed var(--line-soft);
+  }
 }
 </style>

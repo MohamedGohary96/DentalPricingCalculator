@@ -160,6 +160,9 @@ const confirmBtnVariant = {
             aria-modal="true"
             :aria-labelledby="title ? 'modal-title' : undefined"
           >
+            <!-- Drag handle — only visible in mobile bottom-sheet mode -->
+            <div class="modal__handle" aria-hidden="true" />
+
             <!-- Header -->
             <div class="modal__header">
               <h2 id="modal-title" class="modal__title">{{ title }}</h2>
@@ -217,6 +220,9 @@ const confirmBtnVariant = {
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
 }
+
+/* Drag handle — hidden by default; shown in bottom-sheet mode below */
+.modal__handle { display: none; }
 
 /* ── Dialog ─────────────────────────────────────────────────────── */
 .modal {
@@ -306,4 +312,59 @@ const confirmBtnVariant = {
 /* ── Transition classes (consumed from animations.css globals) ──── */
 /* .fade-enter-active / .scale-pop-enter-active etc come from
    animations.css which is imported globally in main.js            */
+
+/* ──────────────────────────────────────────────────────────────────
+   BOTTOM-SHEET VARIANT (phones)
+   Below 768px the dialog snaps to the bottom edge, fills the width,
+   grows a drag handle, and uses a slide-up entry instead of scale-pop.
+   The overscroll-behavior guard prevents the parent page from
+   scrolling when the sheet body reaches its top/bottom.
+   ────────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal {
+    width: 100%;
+    max-width: none;
+    border-radius: var(--radius-xl, 24px) var(--radius-xl, 24px) 0 0;
+    /* Allow the sheet to grow up to the safe viewport, with the body
+       handling the scroll. */
+    max-height: 90vh;
+    max-height: 90svh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .modal__handle {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 8px auto 4px;
+    border-radius: 999px;
+    background: var(--ink-200, #dde2e9);
+    flex: none;
+  }
+
+  .modal__header { padding: 8px 22px 0; }
+
+  .modal__body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal__footer { flex: none; }
+
+  /* The variant accent strip already targets ::before; round its
+     top corners to match the sheet radius. */
+  .modal--danger::before,
+  .modal--confirm::before {
+    border-radius: var(--radius-xl, 24px) var(--radius-xl, 24px) 0 0;
+  }
+}
 </style>

@@ -719,10 +719,11 @@ onMounted(async () => {
 }
 
 /* Responsive */
-@media (max-width: 968px) {
+@media (max-width: 1023px) {
   .ct-layout {
     grid-template-columns: 1fr;
     gap: 20px;
+    padding: 16px var(--gutter, 16px) 32px;
   }
 
   .lockout-features {
@@ -732,5 +733,9 @@ onMounted(async () => {
   .metrics-grid {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 767px) {
+  .ct-layout { padding: 12px var(--gutter, 16px) 32px; gap: 16px; }
 }
 </style>

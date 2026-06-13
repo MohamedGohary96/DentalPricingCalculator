@@ -180,6 +180,18 @@ const iconName = computed(() => ICON_MAP[props.type] ?? 'Info')
 .toast--warning { background: #1f1806; }
 .toast--info    { background: #0a1327; }
 
+/* On phones the toast lives at the bottom of the viewport, so it
+   enters from below instead of sliding in from the side (which also
+   sidesteps the RTL mirror problem with translateX). */
+@media (max-width: 767px) {
+  .toast {
+    min-width: 0;
+    max-width: none;
+    transform: translateY(120%);
+  }
+  .toast--shown { transform: translateY(0); }
+}
+
 /* ── Icon ───────────────────────────────────────────────────────── */
 .toast__icon {
   flex-shrink: 0;

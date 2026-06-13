@@ -335,6 +335,21 @@ html[dir="rtl"] .dpc-btn__icon--trailing {
 }
 
 /* ──────────────────────────────────────────────────────────────
+   TOUCH-TARGET FLOOR (WCAG 2.5.5)
+   On phones and tablet portrait, every full-tap variant must reach
+   44px regardless of declared size. xs/sm icon-only buttons sitting
+   inside text rows are exempt — they have surrounding hit area.
+   ────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1023px) {
+  .dpc-btn--md,
+  .dpc-btn--lg,
+  .dpc-btn--full {
+    min-height: 44px;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
    REDUCED MOTION
    ────────────────────────────────────────────────────────────── */
 
