@@ -329,6 +329,55 @@ function toggleConsumableMaster(row) {
   }
 }
 
+// ── Bundles (apply-bundle picker) ─────────────────────────────
+// Picking a bundle bulk-adds its consumables into the
+// serviceConsumables array. Duplicates merge their quantities so
+// applying the same (or overlapping) bundle twice doesn't create
+// double rows — quantities just sum.
+const bundles = ref([])
+const selectedBundleId = ref('')
+async function loadBundles() {
+  try {
+    const res = await axios.get('/api/bundles', { withCredentials: true })
+    bundles.value = res.data || []
+  } catch (e) {
+    console.error('Failed to load bundles:', e)
+    bundles.value = []
+  }
+}
+
+async function applySelectedBundle() {
+  const bid = Number(selectedBundleId.value)
+  if (!bid) return
+  try {
+    const res = await axios.get(`/api/bundles/${bid}`, { withCredentials: true })
+    const items = res.data?.items || []
+    for (const item of items) {
+      // Skip items pointing to a consumable that no longer exists in
+      // the clinic catalog — the bundle API drops them server-side too
+      // but we belt-and-suspenders here for older clients.
+      if (!item.consumable_id) continue
+      const existing = serviceConsumables.value.find(r => Number(r.consumable_id) === Number(item.consumable_id))
+      if (existing) {
+        // Merge — sum quantities, preserve the user's existing
+        // use_master / custom_unit_price choices.
+        existing.quantity = (Number(existing.quantity) || 0) + (Number(item.qty_per_case) || 0)
+      } else {
+        serviceConsumables.value.push({
+          consumable_id: item.consumable_id,
+          quantity: Number(item.qty_per_case) || 1,
+          use_master: true,            // default — matches manual-add UX
+          custom_unit_price: '',
+        })
+      }
+    }
+    openConsumables.value = true        // expand the section so the user sees the result
+    selectedBundleId.value = ''         // reset picker so re-apply requires re-selecting
+  } catch (e) {
+    console.error('Failed to apply bundle:', e)
+  }
+}
+
 // ── Material management ───────────────────────────────────────
 function addMaterialRow() {
   serviceMaterials.value.push({ material_id: '', quantity: 1, use_master: true, custom_unit_price: '' })
@@ -551,6 +600,7 @@ onMounted(async () => {
     pricingStore.loadServices(),
     pricingStore.loadPriceList().catch(() => {}),
     clinicStore.loadAll().catch(() => {}),
+    loadBundles(),
   ])
   try {
     const { data } = await axios.get('/api/settings/global', { withCredentials: true })
@@ -807,6 +857,28 @@ onMounted(async () => {
               </button>
             </div>
             <div v-show="openConsumables" class="coll-body">
+              <!-- Bundle picker — appears whenever the clinic has at least
+                   one bundle defined. Applying merges quantities into the
+                   existing rows below; rows are then editable like any
+                   manually-added consumable. -->
+              <div v-if="bundles.length" class="bundle-picker">
+                <DpcIcon name="Boxes" :size="14" :stroke-width="1.7" class="bundle-picker-icon" />
+                <select v-model="selectedBundleId" class="item-input bundle-picker-select">
+                  <option value="">{{ isAr ? 'تطبيق حزمة...' : 'Apply a bundle...' }}</option>
+                  <option v-for="b in bundles" :key="b.id" :value="b.id">
+                    {{ isAr ? (b.name_ar || b.name) : b.name }}
+                    ({{ b.item_count }} {{ isAr ? 'عنصر' : 'items' }})
+                  </option>
+                </select>
+                <DpcBtn
+                  variant="teal"
+                  size="xs"
+                  :disabled="!selectedBundleId"
+                  @click="applySelectedBundle"
+                >
+                  {{ isAr ? 'تطبيق' : 'Apply' }}
+                </DpcBtn>
+              </div>
               <div v-if="serviceConsumables.length" class="items-hdr">
                 <span>{{ isAr ? 'المستهلك' : 'Consumable' }}</span>
                 <span>{{ isAr ? 'كمية' : 'Qty' }}</span>
@@ -1505,6 +1577,27 @@ onMounted(async () => {
 
 .coll-body  { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .coll-empty { font-size: 12.5px; color: var(--ink-400); text-align: center; padding: 12px; margin: 0; background: var(--paper-2); border-radius: 8px; border: 1px dashed var(--line); }
+
+/* Bundle picker — apply a clinic-defined consumable bundle in one
+   click. Sits at the top of the consumables collapsible body. */
+.bundle-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: var(--teal-50);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--teal-100);
+}
+.bundle-picker-icon {
+  color: var(--teal-700);
+  flex: none;
+}
+.bundle-picker-select {
+  flex: 1;
+  min-width: 0;
+}
 
 /* ── Item row grid (consumables & materials) ─────────────── */
 .items-hdr,
