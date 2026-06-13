@@ -9,6 +9,13 @@ import {
   ChevronLeft, X, Trash2, Save, RefreshCw, LogOut, Shield,
   Users, FileText, Zap, CheckCircle2, XCircle, AlertCircle,
   Phone, PhoneCall, MessageCircle, Headphones, CreditCard, PauseCircle,
+  // Additions: previously fell back to HelpCircle ("?"). Several were
+  // pre-existing gaps (Loader, Menu, Search, PenLine, RotateCcw,
+  // PieChart, TrendingDown, MapPin, History, Gift, PartyPopper,
+  // AtSign, CheckCircle, FlaskConical); Boxes is for consumable bundles.
+  AtSign, Boxes, CheckCircle, FlaskConical, Gift, History, Loader,
+  MapPin, Menu, PartyPopper, PenLine, PieChart, RotateCcw, Search,
+  TrendingDown,
 } from 'lucide-vue-next'
 
 const iconMap = {
@@ -20,6 +27,9 @@ const iconMap = {
   ChevronLeft, X, Trash2, Save, RefreshCw, LogOut, Shield,
   Users, FileText, Zap, CheckCircle2, XCircle, AlertCircle,
   Phone, PhoneCall, MessageCircle, Headphones, CreditCard, PauseCircle,
+  AtSign, Boxes, CheckCircle, FlaskConical, Gift, History, Loader,
+  MapPin, Menu, PartyPopper, PenLine, PieChart, RotateCcw, Search,
+  TrendingDown,
 }
 
 const props = defineProps({

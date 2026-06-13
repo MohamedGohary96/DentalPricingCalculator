@@ -2108,6 +2108,12 @@ def get_all_bundles(clinic_id):
     Total cost = SUM(consumables.pack_cost / (cases_per_pack * units_per_case)
                      * bundle_items.qty_per_case). Computed in SQL so we
     don't N+1 on the list view.
+
+    Note: a `services_using` count was considered but intentionally
+    omitted — snapshot apply semantics mean a service_consumables row
+    doesn't remember which bundle (if any) created it, so any count
+    would either over-count (overlap-based) or require a schema
+    change to track origin.
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -2122,11 +2128,7 @@ def get_all_bundles(clinic_id):
                     THEN (c.pack_cost / (c.cases_per_pack * c.units_per_case)) * bi.qty_per_case
                     ELSE 0
                 END
-            ), 0) AS total_cost,
-            (SELECT COUNT(DISTINCT sc.service_id)
-               FROM service_consumables sc
-               JOIN bundle_items bi2 ON bi2.consumable_id = sc.consumable_id
-              WHERE bi2.bundle_id = b.id) AS services_using
+            ), 0) AS total_cost
         FROM bundles b
         LEFT JOIN bundle_items bi ON bi.bundle_id = b.id
         LEFT JOIN consumables c ON c.id = bi.consumable_id

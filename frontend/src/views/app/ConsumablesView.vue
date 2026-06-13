@@ -676,9 +676,6 @@ onBeforeUnmount(() => {
               </div>
               <div class="item-card-meta">
                 <span>{{ b.item_count || 0 }} {{ isAr ? 'عنصر' : 'items' }}</span>
-                <span v-if="b.services_using > 0" class="bundle-uses">
-                  · {{ b.services_using }} {{ isAr ? 'خدمة تستخدمها' : (b.services_using === 1 ? 'service uses it' : 'services use it') }}
-                </span>
               </div>
             </div>
           </div>
@@ -905,14 +902,6 @@ onBeforeUnmount(() => {
           {{ isAr
             ? `هل تريد حذف الحزمة «${confirmDeleteBundle.name_ar || confirmDeleteBundle.name}»؟ الخدمات التي طُبقت عليها هذه الحزمة من قبل لن تتأثر.`
             : `Delete bundle "${confirmDeleteBundle.name}"? Services that already applied this bundle keep their consumables.` }}
-        </p>
-        <p v-if="confirmDeleteBundle.services_using > 0" class="confirm-text confirm-warning">
-          <DpcIcon name="AlertTriangle" :size="14" :stroke-width="1.8" />
-          <span>
-            {{ isAr
-              ? `هذه الحزمة مستخدمة في ${confirmDeleteBundle.services_using} خدمة. لن تختفي العناصر — لكن لن تستطيع تطبيق الحزمة مجدداً.`
-              : `This bundle is currently usable in ${confirmDeleteBundle.services_using} service${confirmDeleteBundle.services_using === 1 ? '' : 's'}. Their consumables won't disappear — but you won't be able to re-apply the bundle.` }}
-          </span>
         </p>
         <div class="modal-footer">
           <DpcBtn variant="ghost" @click="confirmDeleteBundle = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
