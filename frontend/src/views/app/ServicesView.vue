@@ -18,6 +18,9 @@ import { useRestriction }  from '@/composables/useRestriction.js'
 import { useAchievements } from '@/composables/useAchievements.js'
 import { useRouter }       from 'vue-router'
 import axios from 'axios'
+import { useToast } from '@/composables/useToast'
+
+const { showToast } = useToast()
 
 const router       = useRouter()
 const pricingStore = usePricingStore()
@@ -351,7 +354,10 @@ async function applySelectedBundle() {
   if (!bid) return
   try {
     const res = await axios.get(`/api/bundles/${bid}`, { withCredentials: true })
-    const items = res.data?.items || []
+    const bundle = res.data
+    const items = bundle?.items || []
+    let added = 0
+    let merged = 0
     for (const item of items) {
       // Skip items pointing to a consumable that no longer exists in
       // the clinic catalog — the bundle API drops them server-side too
@@ -362,6 +368,7 @@ async function applySelectedBundle() {
         // Merge — sum quantities, preserve the user's existing
         // use_master / custom_unit_price choices.
         existing.quantity = (Number(existing.quantity) || 0) + (Number(item.qty_per_case) || 0)
+        merged++
       } else {
         serviceConsumables.value.push({
           consumable_id: item.consumable_id,
@@ -369,12 +376,40 @@ async function applySelectedBundle() {
           use_master: true,            // default — matches manual-add UX
           custom_unit_price: '',
         })
+        added++
       }
     }
     openConsumables.value = true        // expand the section so the user sees the result
     selectedBundleId.value = ''         // reset picker so re-apply requires re-selecting
+
+    // Surface what just happened so the user knows the click landed.
+    const bundleName = isAr.value ? (bundle.name_ar || bundle.name) : bundle.name
+    if (added === 0 && merged === 0) {
+      showToast(
+        isAr.value ? `الحزمة «${bundleName}» فارغة.` : `Bundle "${bundleName}" is empty.`,
+        'warning',
+      )
+    } else if (merged === 0) {
+      showToast(
+        isAr.value
+          ? `أُضيفت ${added} عناصر من «${bundleName}».`
+          : `Added ${added} item${added === 1 ? '' : 's'} from "${bundleName}".`,
+        'success',
+      )
+    } else {
+      showToast(
+        isAr.value
+          ? `طُبقت «${bundleName}»: ${added} جديدة، ${merged} مدمجة.`
+          : `Applied "${bundleName}": ${added} added, ${merged} merged.`,
+        'success',
+      )
+    }
   } catch (e) {
     console.error('Failed to apply bundle:', e)
+    showToast(
+      isAr.value ? 'تعذّر تطبيق الحزمة.' : 'Failed to apply bundle.',
+      'error',
+    )
   }
 }
 

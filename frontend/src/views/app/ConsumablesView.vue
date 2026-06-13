@@ -906,6 +906,14 @@ onBeforeUnmount(() => {
             ? `هل تريد حذف الحزمة «${confirmDeleteBundle.name_ar || confirmDeleteBundle.name}»؟ الخدمات التي طُبقت عليها هذه الحزمة من قبل لن تتأثر.`
             : `Delete bundle "${confirmDeleteBundle.name}"? Services that already applied this bundle keep their consumables.` }}
         </p>
+        <p v-if="confirmDeleteBundle.services_using > 0" class="confirm-text confirm-warning">
+          <DpcIcon name="AlertTriangle" :size="14" :stroke-width="1.8" />
+          <span>
+            {{ isAr
+              ? `هذه الحزمة مستخدمة في ${confirmDeleteBundle.services_using} خدمة. لن تختفي العناصر — لكن لن تستطيع تطبيق الحزمة مجدداً.`
+              : `This bundle is currently usable in ${confirmDeleteBundle.services_using} service${confirmDeleteBundle.services_using === 1 ? '' : 's'}. Their consumables won't disappear — but you won't be able to re-apply the bundle.` }}
+          </span>
+        </p>
         <div class="modal-footer">
           <DpcBtn variant="ghost" @click="confirmDeleteBundle = null">{{ isAr ? 'إلغاء' : 'Cancel' }}</DpcBtn>
           <DpcBtn variant="danger" @click="deleteBundle">{{ isAr ? 'حذف' : 'Delete' }}</DpcBtn>
@@ -1588,6 +1596,20 @@ onBeforeUnmount(() => {
   font-weight: 700;
   color: var(--teal-800);
 }
+
+.confirm-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--warning-50);
+  color: var(--warning-700);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.confirm-warning :deep(svg) { flex: none; margin-top: 1px; }
 
 /* ──────────────────────────────────────────────────────────────
    RESPONSIVE — tighten outer padding so tabs and item cards keep
