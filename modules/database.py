@@ -509,6 +509,42 @@ def init_database():
     if 'custom_unit_price' not in sm_columns:
         cursor.execute('ALTER TABLE service_materials ADD COLUMN custom_unit_price DOUBLE')
 
+    # ── Consumable Bundles (per clinic) ─────────────────────────────
+    # A bundle is a named, reusable group of consumables with
+    # per-case quantities. Picking a bundle in a service modal
+    # bulk-adds its items as service_consumables rows (snapshot,
+    # not a live link — see RESPONSIVENESS_PLAN bundles section).
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS bundles (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            clinic_id INT NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            name_ar VARCHAR(255),
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE,
+            UNIQUE KEY uq_clinic_name (clinic_id, name),
+            INDEX idx_clinic (clinic_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
+    # ── Bundle items ────────────────────────────────────────────────
+    # One row per consumable in a bundle, with the qty applied when
+    # the bundle is picked. UNIQUE(bundle_id, consumable_id) keeps
+    # each consumable from appearing twice in the same bundle.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS bundle_items (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            bundle_id INT NOT NULL,
+            consumable_id INT NOT NULL,
+            qty_per_case DOUBLE NOT NULL DEFAULT 1,
+            FOREIGN KEY (bundle_id) REFERENCES bundles(id) ON DELETE CASCADE,
+            FOREIGN KEY (consumable_id) REFERENCES consumables(id) ON DELETE CASCADE,
+            UNIQUE KEY uq_bundle_consumable (bundle_id, consumable_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
     conn.commit()
     conn.close()
 
