@@ -192,20 +192,26 @@ const livePrice = computed(() => {
   const vat     = gs.vat_percent || 0
   const round   = gs.rounding_nearest || 5
 
+  // Margin semantics: profitMargin is % of price-before-VAT (not markup on cost)
+  const marginFraction = Math.min(Math.max(profitMargin, 0), 99.99) / 100
+  const marginDivisor  = 1 - marginFraction
+
   let calculatedPrice
   if (feeType === 'percentage') {
     const clinicCosts = overheadCost + consumablesCost + equipmentCost
     const labCosts    = materialsCost
-    const pm = 1 + profitMargin / 100
     const vm = 1 + vat / 100
     const dp = pctFee / 100
-    const clinicPrice = (clinicCosts * pm * vm) / (1 - dp)
-    const labPrice    = labCosts * pm * vm
+    const clinicPrice = marginDivisor > 0 && dp < 1
+      ? (clinicCosts * vm) / (marginDivisor * (1 - dp))
+      : 0
+    const labPrice    = marginDivisor > 0 ? (labCosts * vm) / marginDivisor : 0
     calculatedPrice   = Math.round((clinicPrice + labPrice) / round) * round
     const doctorFromPct = (calculatedPrice - labCosts) * dp
     totalCost = doctorFromPct + overheadCost + consumablesCost + materialsCost + equipmentCost
   } else {
-    const raw = totalCost * (1 + profitMargin / 100) * (1 + vat / 100)
+    const priceBeforeVat = marginDivisor > 0 ? totalCost / marginDivisor : totalCost
+    const raw = priceBeforeVat * (1 + vat / 100)
     calculatedPrice = Math.round(raw / round) * round
   }
 
@@ -939,7 +945,7 @@ onMounted(async () => {
               <div v-if="!useDefaultProfit" class="form-group" style="margin-top:10px">
                 <label class="field-label">{{ isAr ? 'هامش الربح المخصص' : 'Custom profit margin' }}</label>
                 <div class="input-row">
-                  <input v-model="customProfitPct" type="number" step="1" min="0" class="modal-input" style="flex:1;min-width:0" placeholder="e.g., 50" />
+                  <input v-model="customProfitPct" type="number" step="1" min="0" max="99" class="modal-input" style="flex:1;min-width:0" placeholder="e.g., 50" />
                   <span class="unit-lbl">%</span>
                 </div>
                 <p class="field-hint">{{ isAr ? 'يُطبَّق على هذه الخدمة فقط بدلاً من الهامش العام.' : 'Applied to this service only, overriding the global margin.' }}</p>

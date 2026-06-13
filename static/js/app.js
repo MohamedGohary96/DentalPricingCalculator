@@ -142,8 +142,11 @@ const ProfitSimulator = {
         const vatPercent = APP.settings?.vat_percent || 0;
         const rounding = APP.settings?.rounding_nearest || 5;
 
-        const profitAmount = totalCost * (newProfitPercent / 100);
-        const priceBeforeVat = totalCost + profitAmount;
+        // Margin semantics: newProfitPercent is share of price before VAT
+        const marginFraction = Math.min(Math.max(newProfitPercent || 0, 0), 99.99) / 100;
+        const marginDivisor = 1 - marginFraction;
+        const priceBeforeVat = marginDivisor > 0 ? totalCost / marginDivisor : totalCost;
+        const profitAmount = priceBeforeVat - totalCost;
         const vatAmount = priceBeforeVat * (vatPercent / 100);
         const finalPrice = priceBeforeVat + vatAmount;
         const roundedPrice = Math.round(finalPrice / rounding) * rounding;
@@ -2498,7 +2501,7 @@ const Pages = {
                         </div>
                         <div class="form-group">
                             <label class="form-label">${t('settings.defaultProfit')}</label>
-                            <input type="number" class="form-input" name="default_profit_percent" value="${settings.default_profit_percent}" step="1" placeholder="e.g., 40">
+                            <input type="number" class="form-input" name="default_profit_percent" value="${settings.default_profit_percent}" step="1" min="0" max="99" placeholder="e.g., 40">
                             <small style="color:var(--gray-600);">${t('settings.defaultProfitHelp')}</small>
                         </div>
                         <div class="form-group">
@@ -3889,7 +3892,7 @@ const Pages = {
                         <div class="form-group" id="customProfitGroup" style="display:${hasCustomProfit ? 'block' : 'none'}">
                             <label class="form-label">${t('services.customProfitMarginLabel')}</label>
                             <div class="input-with-unit">
-                                <input type="number" class="form-input" name="custom_profit_percent" value="${service?.custom_profit_percent||''}" step="1" placeholder="e.g., 50">
+                                <input type="number" class="form-input" name="custom_profit_percent" value="${service?.custom_profit_percent||''}" step="1" min="0" max="99" placeholder="e.g., 50">
                                 <span class="input-unit">%</span>
                             </div>
                             <small style="color:var(--gray-500);font-size:0.8125rem;">${t('services.customProfitHelp')}</small>
@@ -4004,47 +4007,36 @@ const Pages = {
             let totalCost = doctorCost + overheadCost + consumablesCost + materialsCost + equipmentCost;
 
             // Calculate price with profit margin
-            const profitMargin = useDefaultProfit ? (APP.settings?.default_profit_margin || 30) : customProfit;
+            const profitMargin = useDefaultProfit ? (APP.settings?.default_profit_percent || 40) : customProfit;
             const vatPercent = APP.settings?.vat_percent || 0;
             const rounding = APP.settings?.rounding_nearest || 5;
 
             let calculatedPrice = 0;
             let finalPrice = 0;
 
-            // If doctor fee is percentage, solve for price differently
-            // Doctor gets percentage of (final price - lab materials cost)
-            if (doctorFeeType === 'percentage') {
-                // Separate clinic costs (doctor earns %) from lab costs (no doctor %)
-                const clinicCosts = overheadCost + consumablesCost + equipmentCost;  // Doctor's work
-                const labCosts = materialsCost;  // External lab - no doctor percentage
+            // Margin semantics: profitMargin is share of price before VAT
+            const marginFraction = Math.min(Math.max(profitMargin || 0, 0), 99.99) / 100;
+            const marginDivisor = 1 - marginFraction;
 
-                const profitMultiplier = 1 + (profitMargin / 100);
+            if (doctorFeeType === 'percentage') {
+                const clinicCosts = overheadCost + consumablesCost + equipmentCost;
+                const labCosts = materialsCost;
                 const vatMultiplier = 1 + (vatPercent / 100);
                 const doctorPct = doctorPercentage / 100;
 
-                // Clinic portion with doctor percentage gross-up
-                const clinicPriceBeforeRounding = (clinicCosts * profitMultiplier * vatMultiplier) / (1 - doctorPct);
-
-                // Lab portion has no doctor percentage adjustment
-                const labPrice = labCosts * profitMultiplier * vatMultiplier;
-
-                // Total price before rounding
+                const clinicPriceBeforeRounding = (marginDivisor > 0 && doctorPct < 1)
+                    ? (clinicCosts * vatMultiplier) / (marginDivisor * (1 - doctorPct))
+                    : 0;
+                const labPrice = marginDivisor > 0 ? (labCosts * vatMultiplier) / marginDivisor : 0;
                 finalPrice = clinicPriceBeforeRounding + labPrice;
-
-                // Apply rounding
                 calculatedPrice = Math.round(finalPrice / rounding) * rounding;
 
-                // Calculate doctor fee from (rounded_price - lab_materials_cost)
                 const doctorCostFromPercentage = (calculatedPrice - labCosts) * doctorPct;
                 totalCost = doctorCostFromPercentage + overheadCost + consumablesCost + materialsCost + equipmentCost;
             } else {
-                // Standard calculation: Cost + Profit + VAT
-                const profitAmount = totalCost * (profitMargin / 100);
-                const priceBeforeVat = totalCost + profitAmount;
+                const priceBeforeVat = marginDivisor > 0 ? totalCost / marginDivisor : totalCost;
                 const vatAmount = priceBeforeVat * (vatPercent / 100);
                 finalPrice = priceBeforeVat + vatAmount;
-
-                // Apply rounding
                 calculatedPrice = Math.round(finalPrice / rounding) * rounding;
             }
 

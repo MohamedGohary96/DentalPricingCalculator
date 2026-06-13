@@ -102,12 +102,12 @@ async function complete() {
             <span class="tip-icon">?</span>
             <span class="tip-box" :class="i18n.locale === 'ar' ? 'tip-box-ltr' : ''">
               {{ i18n.locale === 'ar'
-                ? 'النسبة المضافة فوق التكلفة الإجمالية لتحقيق الربح. مثال: عند ٤٠٪، خدمة تكلفتها ١٠٠ جنيه تُسعَّر بـ١٤٠ جنيه قبل الضريبة. ٤٠٪ نسبة مناسبة لعيادة صغيرة.'
-                : 'Added on top of the total cost to generate profit. E.g. at 40%, a service costing 100 EGP is priced at 140 EGP before VAT. 40% is typical for a small clinic.' }}
+                ? 'النسبة التي يمثلها الربح من السعر النهائي قبل الضريبة. مثال: عند ٤٠٪، خدمة تكلفتها ٦٠٠ جنيه تُسعَّر بـ١٠٠٠ جنيه قبل الضريبة (الربح ٤٠٠ = ٤٠٪ من ١٠٠٠). ٤٠٪ نسبة مناسبة لعيادة صغيرة.'
+                : 'The share of the final price (before VAT) that is profit. E.g. at 40%, a service costing 600 is priced at 1,000 before VAT (400 profit = 40% of 1,000). 40% is typical for a small clinic.' }}
             </span>
           </span>
         </label>
-        <input v-model.number="profit" type="number" min="0" max="500" step="1" class="dpc-field-input" />
+        <input v-model.number="profit" type="number" min="0" max="99" step="1" class="dpc-field-input" />
       </div>
 
       <!-- Rounding -->

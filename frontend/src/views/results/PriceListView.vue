@@ -79,24 +79,27 @@ function effectiveMargin(row) {
 
 function effectivePrice(row) {
   if (localMargins.value[row.id] == null) return row.rounded_price || 0
-  const margin    = localMargins.value[row.id]
+  const margin    = Math.min(Math.max(localMargins.value[row.id], 0), 99.99)
   const totalCost = row.total_cost || 0
   const round     = globalRound.value || 5
-  const raw       = totalCost * (1 + margin / 100) * (1 + globalVat.value / 100)
+  const marginDivisor = 1 - margin / 100
+  const priceBeforeVat = marginDivisor > 0 ? totalCost / marginDivisor : totalCost
+  const raw       = priceBeforeVat * (1 + globalVat.value / 100)
   return Math.ceil(raw / round) * round
 }
 
-function currentPriceMarkup(row) {
+// % of current price that is profit (margin semantics): (price - cost) / price * 100
+function currentPriceMargin(row) {
   const current = effectiveCurrentPrice(row)
   const cost    = row.total_cost || 0
   if (!current || !cost) return null
-  return Math.round((current / cost - 1) * 100)
+  return Math.round((current - cost) / current * 100)
 }
 
-function markupDelta(row) {
-  const markup = currentPriceMarkup(row)
-  if (markup === null) return null
-  return markup - effectiveMargin(row)
+function marginDelta(row) {
+  const margin = currentPriceMargin(row)
+  if (margin === null) return null
+  return margin - effectiveMargin(row)
 }
 
 function marginBadgeCls(delta) {
@@ -109,22 +112,49 @@ function marginBadgeCls(delta) {
 
 function varianceDisplay(row) {
   const current = effectiveCurrentPrice(row)
-  if (!current) return { label: isAr.value ? 'غير محدد' : 'Not set', cls: 'var-unset' }
-  const v   = effectivePrice(row) - current
-  const pct = Math.round((v / current) * 100)
-  if (Math.abs(pct) <= 5) return { label: `✓ ${pct >= 0 ? '+' : ''}${pct}%`, cls: 'var-ok' }
-  if (v > 0)              return { label: `↑ +${fmt(v)}`, cls: 'var-under' }
-  return { label: `+${fmt(Math.abs(v))} buffer`, cls: 'var-over' }
+  const ar = isAr.value
+  const unset = { kind: 'unset', cls: 'var-unset', icon: 'Minus',
+                  status: ar ? 'غير محدد' : 'Not set',
+                  label: ar ? '— غير محدد' : '— Not set' }
+  if (!current) return unset
+  const calc = effectivePrice(row)
+  if (!calc) return unset
+
+  const diff = current - calc
+  const pct  = Math.round((diff / calc) * 100)
+  // Signed currency amount — proper Unicode minus, locale-aware digits
+  const sign   = diff > 0 ? '+' : diff < 0 ? '−' : ''
+  const amount = Math.round(Math.abs(diff)).toLocaleString('en-US')
+  const signed = `${sign}${currency.value} ${amount}`
+
+  if (Math.abs(pct) <= 5) {
+    return { kind: 'ok', cls: 'var-ok', icon: 'Check', signed, diff, pct,
+             status: ar ? 'مطابق' : 'On target',
+             label: ar ? `${signed} مطابق` : `${signed} on target` }
+  }
+  if (diff < 0) {
+    return { kind: 'low', cls: 'var-under', icon: 'TrendingDown', signed, diff, pct,
+             status: ar ? 'منخفض' : 'Underpriced',
+             label: ar ? `${signed} منخفض` : `${signed} underpriced` }
+  }
+  return { kind: 'buffer', cls: 'var-over', icon: 'TrendingUp', signed, diff, pct,
+           status: ar ? 'فائض' : 'Buffer',
+           label: ar ? `${signed} فائض` : `${signed} buffer` }
+}
+
+function marginToMarkup(m) {
+  const x = Math.min(Math.max(m || 0, 0), 99.99)
+  return Math.round(x / (1 - x / 100))
 }
 
 function adjustMargin(id, delta) {
   const current = localMargins.value[id] ?? (priceList.value.find(r => r.id === id)?.profit_percent || 0)
-  localMargins.value[id] = Math.max(-100, Math.min(500, Math.round(current + delta)))
+  localMargins.value[id] = Math.max(0, Math.min(99, Math.round(current + delta)))
 }
 
 function setLocalMargin(id, val) {
   const n = parseInt(val)
-  if (!isNaN(n)) localMargins.value[id] = Math.max(-100, Math.min(500, n))
+  if (!isNaN(n)) localMargins.value[id] = Math.max(0, Math.min(99, n))
 }
 
 function effectiveCurrentPrice(row) {
@@ -334,8 +364,15 @@ onMounted(async () => {
             <span class="sim-global-label">
               {{ isAr ? 'هامش عام:' : 'Global margin:' }}
               <strong class="dpc-num" style="color:var(--teal-700);margin-inline-start:4px;">{{ simMargin }}%</strong>
+              <span
+                v-if="simMargin > 0"
+                class="markup-hint"
+                :title="isAr ? 'نفس القيمة كنسبة فوق التكلفة' : 'Same value, as % added on top of cost'"
+              >
+                = {{ marginToMarkup(simMargin) }}% {{ isAr ? 'فوق التكلفة' : 'markup' }}
+              </span>
             </span>
-            <input type="range" min="0" max="200" step="1" v-model.number="simMargin" class="sim-slider" @input="recalcSim" />
+            <input type="range" min="0" max="99" step="1" v-model.number="simMargin" class="sim-slider" @input="recalcSim" />
             <button class="dpc-btn dpc-btn-outline sim-preview-btn" @click="recalcSim">
               {{ isAr ? 'معاينة' : 'Preview' }}
             </button>
@@ -464,11 +501,20 @@ onMounted(async () => {
                     type="number"
                     :value="effectiveMargin(item)"
                     class="mq-input"
+                    min="0"
+                    max="99"
                     @change="setLocalMargin(item.id, $event.target.value)"
                   />
                   <span class="mq-pct">%</span>
                   <button class="mq-btn" @click="adjustMargin(item.id, +5)">+5</button>
                 </div>
+                <span
+                  v-if="effectiveMargin(item) > 0"
+                  class="markup-hint markup-hint-row"
+                  :title="isAr ? 'نفس القيمة كنسبة فوق التكلفة' : 'Same value, as % added on top of cost'"
+                >
+                  = {{ marginToMarkup(effectiveMargin(item)) }}% {{ isAr ? 'فوق' : 'markup' }}
+                </span>
               </DpcTableCell>
 
               <!-- Calculated price -->
@@ -494,18 +540,30 @@ onMounted(async () => {
 
               <!-- Current price margin badge -->
               <DpcTableCell type="status" align="center">
-                <span :class="['margin-badge', isTrial && 'trial-blur', marginBadgeCls(markupDelta(item))]">
-                  <template v-if="currentPriceMarkup(item) !== null">
-                    <span class="margin-main">{{ currentPriceMarkup(item) }}%</span>
+                <span :class="['margin-badge', isTrial && 'trial-blur', marginBadgeCls(marginDelta(item))]">
+                  <template v-if="currentPriceMargin(item) !== null">
+                    <span class="margin-main">{{ currentPriceMargin(item) }}%</span>
                   </template>
                   <template v-else>—</template>
+                </span>
+                <span
+                  v-if="currentPriceMargin(item) !== null && currentPriceMargin(item) > 0"
+                  class="markup-hint markup-hint-row"
+                  :title="isAr ? 'نفس القيمة كنسبة فوق التكلفة' : 'Same value, as % added on top of cost'"
+                >
+                  = {{ marginToMarkup(currentPriceMargin(item)) }}% {{ isAr ? 'فوق' : 'markup' }}
                 </span>
               </DpcTableCell>
 
               <!-- Variance -->
               <DpcTableCell type="status" align="center">
-                <span class="var-chip" :class="[isTrial && 'trial-blur', varianceDisplay(item).cls]">
-                  {{ varianceDisplay(item).label }}
+                <span
+                  v-bind:class="['var-chip', isTrial && 'trial-blur', varianceDisplay(item).cls]"
+                  :title="varianceDisplay(item).status"
+                >
+                  <DpcIcon :name="varianceDisplay(item).icon" :size="12" :stroke-width="2" class="var-icon" />
+                  <span v-if="varianceDisplay(item).signed" class="var-num">{{ varianceDisplay(item).signed }}</span>
+                  <span class="var-status">{{ varianceDisplay(item).status }}</span>
                 </span>
               </DpcTableCell>
 
@@ -529,16 +587,25 @@ onMounted(async () => {
       <!-- Premium variance legend -->
       <div class="variance-legend animate-fade-in-up" style="animation-delay: var(--stagger-3);">
         <div class="legend-item" style="animation-delay: var(--stagger-1);">
-          <span class="var-chip var-under">↑ {{ isAr ? 'أقل من المطلوب' : 'Underpriced' }}</span>
-          <p>{{ isAr ? 'سعرك الحالي أقل من التكلفة المحسوبة — ارفع السعر.' : 'Your current price is below the calculated price — consider raising it.' }}</p>
+          <span class="var-chip var-under">
+            <DpcIcon name="TrendingDown" :size="12" :stroke-width="2" class="var-icon" />
+            <span class="var-status">{{ isAr ? 'منخفض' : 'Underpriced' }}</span>
+          </span>
+          <p>{{ isAr ? 'سعرك الحالي أقل من السعر المحسوب بأكثر من ٥٪ — يُفضَّل رفع السعر.' : 'Your current price is more than 5% below the calculated price — consider raising it.' }}</p>
         </div>
         <div class="legend-item" style="animation-delay: var(--stagger-2);">
-          <span class="var-chip var-ok">✓ {{ isAr ? 'مثالي' : 'Optimal' }}</span>
-          <p>{{ isAr ? 'سعرك ضمن 5% من السعر المحسوب.' : 'Your price is within 5% of the calculated price.' }}</p>
+          <span class="var-chip var-ok">
+            <DpcIcon name="Check" :size="12" :stroke-width="2" class="var-icon" />
+            <span class="var-status">{{ isAr ? 'مطابق' : 'On target' }}</span>
+          </span>
+          <p>{{ isAr ? 'سعرك ضمن ٥٪ من السعر المحسوب.' : 'Your price is within 5% of the calculated price.' }}</p>
         </div>
         <div class="legend-item" style="animation-delay: var(--stagger-3);">
-          <span class="var-chip var-over">{{ isAr ? 'فائض' : 'Buffer' }}</span>
-          <p>{{ isAr ? 'سعرك أعلى من المحسوب — لديك هامش إضافي.' : 'Your price exceeds the calculated price — you have extra buffer.' }}</p>
+          <span class="var-chip var-over">
+            <DpcIcon name="TrendingUp" :size="12" :stroke-width="2" class="var-icon" />
+            <span class="var-status">{{ isAr ? 'فائض' : 'Buffer' }}</span>
+          </span>
+          <p>{{ isAr ? 'سعرك أعلى من السعر المحسوب بأكثر من ٥٪ — لديك هامش إضافي.' : 'Your price is more than 5% above the calculated price — you have extra buffer.' }}</p>
         </div>
       </div>
     </div>
@@ -672,6 +739,21 @@ onMounted(async () => {
 
 .sim-global-row { display: flex; align-items: center; gap: 12px; }
 .sim-global-label { font-size: 13px; color: var(--ink-700); white-space: nowrap; flex: none; }
+/* Markup-equivalent hint — minimal supplementary text, no chrome. */
+.markup-hint {
+  color: var(--ink-500);
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: help;
+  margin-inline-start: 6px;
+}
+.markup-hint-row {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 10.5px;
+  text-align: center;
+}
 .sim-slider { flex: 1; accent-color: var(--teal-600); cursor: pointer; }
 .sim-preview-btn { height: 34px; font-size: 12.5px; padding: 0 14px; }
 
@@ -864,12 +946,27 @@ onMounted(async () => {
 .margin-low   { background: var(--warning-50);             color: var(--warning-700); }
 .margin-neg   { background: var(--danger-50, #fff1f2);     color: var(--danger-600, #dc2626); }
 
-/* Variance chip */
-.var-chip { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
-.var-unset { background: var(--paper-2);     color: var(--ink-400); }
-.var-ok    { background: var(--teal-50);     color: var(--teal-700); }
-.var-under { background: var(--warning-50);  color: var(--warning-700); }
-.var-over  { background: rgba(59,130,246,.08); color: #1d4ed8; }
+/* Variance chip — icon + signed % + small status word, color-coded by kind */
+.var-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1;
+  border: 1px solid transparent;
+}
+.var-chip .var-icon { flex: none; }
+.var-chip .var-num { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.var-chip .var-status { font-size: 10px; font-weight: 500; opacity: 0.9; letter-spacing: 0.1px; }
+
+.var-unset { background: var(--ink-50);     color: var(--ink-500);     border-color: var(--ink-100); }
+.var-ok    { background: var(--teal-50);    color: var(--teal-700);    border-color: var(--teal-100); }
+.var-under { background: var(--warning-50); color: var(--warning-700); border-color: var(--warning-100); }
+.var-over  { background: var(--info-50);    color: var(--info-700);    border-color: var(--info-100); }
 
 /* ── Premium variance legend ──────────────────────────────── */
 .variance-legend {

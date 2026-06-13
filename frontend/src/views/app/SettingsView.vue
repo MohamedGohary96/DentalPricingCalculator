@@ -480,8 +480,23 @@ onMounted(loadData)
                 <input v-model.number="genVat" type="number" min="0" max="100" step="0.5" class="gen-input" />
               </div>
               <div class="gen-row">
-                <label class="gen-label">{{ isAr ? 'هامش الربح الافتراضي %' : 'Default profit %' }}</label>
-                <input v-model.number="genProfit" type="number" min="0" max="500" class="gen-input" />
+                <label class="gen-label">
+                  {{ isAr ? 'هامش الربح الافتراضي %' : 'Default profit margin %' }}
+                  <span class="tip-wrap">
+                    <span class="tip-icon">?</span>
+                    <span class="tip-box" :class="isAr ? 'tip-box-ltr' : ''">
+                      {{ isAr
+                        ? 'النسبة التي يمثلها الربح من السعر النهائي قبل الضريبة. مثال: عند ٤٠٪، خدمة تكلفتها ٦٠٠ج.م يكون سعرها ١٠٠٠ج.م قبل الضريبة (الربح ٤٠٠ج.م = ٤٠٪ من ١٠٠٠).'
+                        : 'The share of the final price (before VAT) that is profit. Example: at 40%, a service costing 600 is priced at 1,000 before VAT (400 profit = 40% of 1,000).' }}
+                    </span>
+                  </span>
+                </label>
+                <input v-model.number="genProfit" type="number" min="0" max="99" class="gen-input" />
+                <small v-if="genProfit > 0 && genProfit < 100" class="margin-hint">
+                  {{ isAr
+                    ? `≈ ${Math.round(genProfit / (1 - genProfit/100))}٪ هامش فوق التكلفة`
+                    : `≈ ${Math.round(genProfit / (1 - genProfit/100))}% markup on cost` }}
+                </small>
               </div>
               <div class="gen-row">
                 <label class="gen-label">
