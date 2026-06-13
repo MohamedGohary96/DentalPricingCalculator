@@ -60,10 +60,12 @@ const { toasts } = useToast()
   transition: transform var(--transition-base, 200ms ease);
 }
 
-/* Mobile — full width at bottom */
-@media (max-width: 480px) {
+/* Mobile + large phone — full-width, bottom-centered, above safe area.
+   Anchored from the bottom so a future bottom tab bar can offset via
+   --bottom-nav-h (set by AppShell when the bar is present). */
+@media (max-width: 767px) {
   .toast-container {
-    bottom: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom) + var(--bottom-nav-h, 0px));
     inset-inline-start: 16px;
     inset-inline-end: 16px;
     align-items: stretch;

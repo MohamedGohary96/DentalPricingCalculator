@@ -102,13 +102,23 @@ async function submit() {
 .topbar-end   { position: absolute; top: 28px; inset-inline-end: 28px; }
 
 .card {
-  width: 460px;
+  width: 100%;
+  max-width: 460px;
   padding: 40px;
   background: var(--surface);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg), inset 0 0 0 1px var(--line);
   position: relative;
   z-index: 1;
+}
+
+@media (max-width: 767px) {
+  .screen { padding: 16px; }
+  .card { padding: 28px var(--gutter, 20px); }
+  .topbar-start,
+  .topbar-end { top: 16px; }
+  .topbar-start { inset-inline-start: 16px; }
+  .topbar-end   { inset-inline-end: 16px; }
 }
 .icon-tile {
   width: 56px; height: 56px;

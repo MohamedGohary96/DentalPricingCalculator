@@ -1155,4 +1155,27 @@ onMounted(async () => {
     height: 44px;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   DASHBOARD RESPONSIVE — KPI grid + nav cards + outer padding.
+   The 4-col KPI grid steps down 4 → 2 → 1 across breakpoints.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .dash-body { padding: 24px var(--gutter, 16px); }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px; }
+  .quick-start-hero { padding: 24px; }
+}
+
+@media (max-width: 767px) {
+  .dash-body { padding: 16px var(--gutter, 16px) 32px; }
+  .dash-topbar { padding: 20px var(--gutter, 16px) 16px; }
+  .trial-banner-row { padding: 10px var(--gutter, 16px); }
+
+  .kpi-grid { grid-template-columns: 1fr; gap: 10px; margin-bottom: 20px; }
+  .kpi-value { font-size: 26px; }
+
+  .quick-start-hero { padding: 18px; gap: 16px; margin-bottom: 20px; }
+  .nav-cards { grid-template-columns: 1fr; }
+  .ach-section { margin-bottom: 20px; }
+}
 </style>

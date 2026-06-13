@@ -857,4 +857,46 @@ onMounted(loadData)
   padding: 10px 0 4px; border-top: 1px solid var(--line);
 }
 .gen-summary strong { color: var(--teal-700); margin-inline-start: 4px; }
+
+/* ──────────────────────────────────────────────────────────────
+   RESPONSIVE — collapse side nav above content below lg. Internal
+   data rows already use grid templates that overflow on phones;
+   we wrap them in horizontal scroll on small screens rather than
+   restructuring each one in this pass.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .settings-body { padding: 16px var(--gutter, 16px) 32px; }
+  .settings-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .settings-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--line);
+    padding-inline-end: 0;
+    padding-bottom: 12px;
+    position: static;
+  }
+  .nav-item-active::before { display: none; }
+  .settings-content { padding-inline-start: 0; }
+  .summary-bar { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+}
+
+@media (max-width: 767px) {
+  .settings-body { padding: 12px var(--gutter, 16px) 32px; }
+  .summary-bar {
+    grid-template-columns: 1fr;
+    position: static;
+    margin-bottom: 16px;
+  }
+  .summary-card { padding: 12px 14px; }
+  .tab-title { font-size: 20px; }
+
+  /* Data tables with multi-column grids — let them scroll
+     horizontally on phones rather than crush the columns. */
+  .cost-row-costs,
+  .equip-row { min-width: 560px; }
+}
 </style>

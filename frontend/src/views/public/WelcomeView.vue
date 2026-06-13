@@ -1331,4 +1331,44 @@ function fmt(n) {
 .footer-links a:hover { color: var(--teal-700); }
 
 .footer-copy { color: var(--ink-400); }
+
+/* ──────────────────────────────────────────────────────────────
+   RESPONSIVE — marketing landing collapses to single column at md,
+   tightens hero typography on phones, stacks 4-up stats and
+   feature grids. Section paddings shrink to keep vertical density.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .hero-section { padding: 40px var(--gutter, 20px) 56px; }
+  .hero-inner { grid-template-columns: 1fr; gap: 32px; }
+  .hero-h1 { font-size: 44px; }
+
+  .hiw-section,
+  .trust-section,
+  .faq-section,
+  .cta-section { padding: 48px var(--gutter, 20px); }
+
+  .hiw-grid { grid-template-columns: repeat(2, 1fr); }
+  .trust-stats { grid-template-columns: repeat(2, 1fr); gap: 22px; }
+
+  .site-footer { padding: 24px var(--gutter, 20px); flex-direction: column; gap: 10px; text-align: center; }
+}
+
+@media (max-width: 767px) {
+  .hero-section { padding: 32px var(--gutter, 16px) 40px; }
+  .hero-h1 { font-size: 34px; line-height: 1.1; }
+
+  .hiw-section,
+  .trust-section,
+  .faq-section,
+  .cta-section { padding: 36px var(--gutter, 16px); }
+
+  .hiw-grid { grid-template-columns: 1fr; gap: 12px; }
+  .trust-stats { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .trust-stat-val { font-size: 32px; }
+
+  .section-h2 { font-size: 26px; }
+  .section-header { margin-bottom: 28px; }
+
+  .calc-time-grid { grid-template-columns: 1fr 1fr; }
+}
 </style>

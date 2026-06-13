@@ -98,8 +98,44 @@ function fmtDate(iso) {
   gap: 10px;
 }
 
-@media (max-width: 768px) {
+/* Tablet portrait gets 2-up so badges aren't crammed. */
+@media (max-width: 1023px) and (min-width: 481px) {
   .ach-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Below sm the badge strip becomes a horizontal snap-scroll. This
+   preserves vertical density on phones while keeping each badge
+   fully tappable and skimmable. Tooltips lose their hover state
+   on touch — they remain for desktop. */
+@media (max-width: 480px) {
+  .ach-root { padding: 16px var(--gutter, 16px); }
+
+  .ach-grid {
+    display: flex;
+    grid-template-columns: none;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--gutter, 16px);
+    /* Bleed the strip to the card edges so the first/last badge
+       reach the visual edge of the parent card without padding. */
+    margin-inline: calc(var(--gutter, 16px) * -1);
+    padding-inline: var(--gutter, 16px);
+  }
+
+  .ach-badge {
+    flex: 0 0 auto;
+    min-width: 140px;
+    scroll-snap-align: start;
+  }
+
+  /* Tooltip on touch devices is hidden — relies on hover. The
+     badge name + locked/unlocked state already communicates the
+     core info. */
+  .badge-tooltip { display: none; }
 }
 
 /* ── Badge card ───────────────────────────────────────────────── */
