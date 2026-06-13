@@ -821,7 +821,7 @@ onMounted(async () => {
                     {{ isAr ? (c.name_ar || c.item_name) : c.item_name }}
                   </option>
                 </select>
-                <input v-model.number="row.quantity" type="number" step="0.01" min="0.01" class="item-input" :placeholder="isAr ? 'كمية' : 'Qty'" />
+                <input v-model.number="row.quantity" type="number" step="1" min="1" class="item-input" :placeholder="isAr ? 'كمية' : 'Qty'" />
                 <div class="unit-price-cell">
                   <label class="master-toggle" :title="isAr ? 'استخدام السعر الافتراضي من المصدر' : 'Use default price from catalog'">
                     <input type="checkbox" v-model="row.use_master" @change="toggleConsumableMaster(row)" />
@@ -830,7 +830,7 @@ onMounted(async () => {
                   <span v-if="row.use_master" class="master-price-badge">
                     {{ fmtCost(consumableUnitCost(row.consumable_id)) }}
                   </span>
-                  <input v-else v-model="row.custom_unit_price" type="number" step="0.001" min="0" class="item-input price-override-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
+                  <input v-else v-model="row.custom_unit_price" type="number" step="0.01" min="0" class="item-input price-override-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
                 </div>
                 <span class="item-cost">{{ fmtCost(consumableRowCost(row)) }}</span>
                 <button type="button" class="item-del" @click="removeConsumableRow(idx)"><DpcIcon name="X" :size="12" :stroke-width="2.5" /></button>
@@ -871,7 +871,7 @@ onMounted(async () => {
                     {{ isAr ? (m.name_ar || m.material_name) : m.material_name }}
                   </option>
                 </select>
-                <input v-model.number="row.quantity" type="number" step="0.01" min="0.01" class="item-input" :placeholder="isAr ? 'كمية' : 'Qty'" />
+                <input v-model.number="row.quantity" type="number" step="1" min="1" class="item-input" :placeholder="isAr ? 'كمية' : 'Qty'" />
                 <div class="unit-price-cell">
                   <label class="master-toggle" :title="isAr ? 'استخدام السعر الافتراضي من المصدر' : 'Use default price from catalog'">
                     <input type="checkbox" v-model="row.use_master" @change="toggleMaterialMaster(row)" />
@@ -880,7 +880,7 @@ onMounted(async () => {
                   <span v-if="row.use_master" class="master-price-badge">
                     {{ fmtCost(allMaterials.find(x => x.id == row.material_id)?.unit_cost || 0) }}
                   </span>
-                  <input v-else v-model="row.custom_unit_price" type="number" step="0.001" min="0" class="item-input price-override-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
+                  <input v-else v-model="row.custom_unit_price" type="number" step="0.01" min="0" class="item-input price-override-input" :placeholder="isAr ? 'سعر/وحدة' : 'Unit price'" />
                 </div>
                 <span class="item-cost">{{ fmtCost(materialRowCost(row)) }}</span>
                 <button type="button" class="item-del" @click="removeMaterialRow(idx)"><DpcIcon name="X" :size="12" :stroke-width="2.5" /></button>
@@ -917,7 +917,7 @@ onMounted(async () => {
                   <option value="">{{ isAr ? 'اختر معدة...' : 'Select equipment...' }}</option>
                   <option v-for="e in perHourEquip" :key="e.id" :value="e.id">{{ e.asset_name }}</option>
                 </select>
-                <input v-model.number="row.hours_used" type="number" step="0.01" min="0.01" class="item-input" placeholder="0.25" />
+                <input v-model.number="row.hours_used" type="number" step="0.25" min="0.25" class="item-input" placeholder="0.25" />
                 <button type="button" class="item-del" @click="removeEquipmentRow(idx)"><DpcIcon name="X" :size="12" :stroke-width="2.5" /></button>
               </div>
               <p v-if="!serviceEquipment.length" class="coll-empty">{{ isAr ? 'اضغط «إضافة» لإضافة معدة.' : 'Click «Add» to add equipment.' }}</p>
